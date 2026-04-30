@@ -89,7 +89,7 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
 
   if (allowed === null) {
     return (
-      <main className="admin-stage">
+      <main className="admin-stage admin-access-stage">
         <div className="admin-loading">Checking admin access...</div>
       </main>
     );
@@ -97,7 +97,7 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
 
   if (!allowed) {
     return (
-      <main className="admin-stage">
+      <main className="admin-stage admin-access-stage">
         <section className="admin-denied">
           <Shield size={22} />
           <h1>Admin access required</h1>

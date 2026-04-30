@@ -3,9 +3,9 @@ import { NewPlayerScreen } from "../../tennis-app";
 export default async function NewPlayerPage({
   searchParams
 }: {
-  searchParams: Promise<{ claim?: string }>;
+  searchParams: Promise<{ claim?: string; next?: string }>;
 }) {
-  const { claim } = await searchParams;
+  const { claim, next } = await searchParams;
 
-  return <NewPlayerScreen claimPlayerId={claim} />;
+  return <NewPlayerScreen claimPlayerId={claim} nextPath={next} />;
 }

@@ -86,8 +86,8 @@ export async function POST(request: NextRequest) {
     mode: "payment",
     payment_method_types: ["card"],
     customer_email: userData.user.email || undefined,
-    success_url: `${origin}/tournaments?payment=success`,
-    cancel_url: `${origin}/tournaments?payment=retry`,
+    success_url: `${origin}/tournaments?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${origin}/tournaments?payment=retry&session_id={CHECKOUT_SESSION_ID}`,
     line_items: [
       {
         price_data: {
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
   });
 
-  await admin.from("payment_ledger").insert({
+  await admin.from("payment_ledger").upsert({
     player_id: player.id,
     tournament_id: tournament.id,
     entry_type: "charge",
@@ -115,8 +115,11 @@ export async function POST(request: NextRequest) {
     currency: tournament.currency || "USD",
     reference: session.id,
     stripe_checkout_session_id: session.id,
+    stripe_payment_intent_id: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id,
+    stripe_failure_code: null,
+    stripe_failure_message: null,
     notes: `${tournament.name} registration checkout.`
-  });
+  }, { onConflict: "stripe_checkout_session_id" });
 
   return NextResponse.json({ url: session.url });
 }

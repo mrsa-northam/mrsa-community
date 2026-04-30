@@ -1,6 +1,7 @@
 "use client";
 
 import { Home, LogOut, Trophy, UsersRound } from "lucide-react";
+import NextImage from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useState } from "react";
@@ -25,6 +26,12 @@ type ProfileData = {
 
 type TopPlayer = { rank: string; name: string; rating: string; form: string };
 type ProfileBadge = { name: string; initials: string; photoUrl?: string };
+type AvatarProps = {
+  className: string;
+  name: string;
+  photoUrl?: string;
+  ariaLabel?: string;
+};
 type ReturningPlayer = { id: string; name: string; city: string; rating: string; tier: string; claimStatus: string };
 type Tournament = {
   id: string;
@@ -42,6 +49,17 @@ type Tournament = {
 };
 type RegisteredPlayer = { id: string; name: string; city: string; rating: string };
 type PaymentState = "idle" | "pending" | "failed" | "paid";
+type PaymentHistoryItem = {
+  id: string;
+  entryType: string;
+  status: PaymentState | "refunded" | "waived";
+  amountCents: number;
+  currency: string;
+  occurredAt: string;
+  notes: string;
+  tournamentName: string;
+  failureMessage: string;
+};
 type PastTournamentSummary = {
   seasonYear: number;
   matches: number;
@@ -58,6 +76,7 @@ const skillLevels = [
 const videoDescription = "Capture a video of yourself playing tennis covering all the different shots (serve, forehand, backhand, volleys) and upload it on your Google Drive and share the link here. Even if you participated last year, we'd like to see how much you've improved. If you don't have the video while signing up, you can come back and upload it here, however, it is a mandatory requirement to be eligible for the draft.";
 type DbProfileRow = {
   id?: string;
+  auth_user_id?: string | null;
   full_name?: string | null;
   phone?: string | null;
   profile_photo_url?: string | null;
@@ -70,6 +89,8 @@ type DbProfileRow = {
   tournaments_played?: number | string | null;
   matches_played?: number | string | null;
   tennis_video_url?: string | null;
+  claim_status?: string | null;
+  claim_requested_by?: string | null;
 };
 type DbTournamentRow = {
   id: string;
@@ -99,6 +120,184 @@ const initialProfile: ProfileData = {
   jerseySize: "M",
   tennisVideo: "Google Drive Link"
 };
+
+let authUserCache: { userId: string | null; checkedAt: number } | null = null;
+let profileCompletionCache: { userId: string; redirectPath: string | null; checkedAt: number } | null = null;
+const authCacheMs = 60_000;
+const profileCompletionCacheMs = 30_000;
+
+function LoadingScreen({ label = "Loading..." }: { label?: string }) {
+  return (
+    <AppFrame withNav={false}>
+      <div className="screen auth-screen onboarding-screen">
+        <section className="content-panel auth-panel onboarding-panel">
+          <div className="empty-card">{label}</div>
+        </section>
+      </div>
+    </AppFrame>
+  );
+}
+
+function Avatar({ className, name, photoUrl, ariaLabel }: AvatarProps) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const showPhoto = Boolean(photoUrl && !imageFailed);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [photoUrl]);
+
+  return (
+    <span className={`${className} avatar-fallback`} aria-label={ariaLabel}>
+      {showPhoto ? <NextImage src={photoUrl || ""} alt="" fill sizes="56px" onError={() => setImageFailed(true)} /> : getInitials(name)}
+    </span>
+  );
+}
+
+function normalizeNextPath(nextPath?: string | null) {
+  if (!nextPath) return "/dashboard";
+  if (nextPath.startsWith("/tournaments")) return "/tournaments";
+  if (nextPath.startsWith("/dashboard")) return "/dashboard";
+  return "/dashboard";
+}
+
+function buildProfileCompletionPath(playerId: string | undefined, nextPath?: string | null) {
+  const params = new URLSearchParams({ next: normalizeNextPath(nextPath) });
+  if (playerId) params.set("claim", playerId);
+  return `/profile/new?${params.toString()}`;
+}
+
+function hasRequiredProfileFields(profile?: DbProfileRow | null) {
+  return Boolean(
+    profile?.full_name?.trim() &&
+    profile.phone?.trim() &&
+    profile.jamaat_city?.trim() &&
+    profile.self_assessment?.trim() &&
+    profile.jersey_size?.trim()
+  );
+}
+
+async function getIncompleteProfileRedirect(
+  supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
+  userId: string,
+  nextPath: string
+) {
+  const now = Date.now();
+  if (
+    profileCompletionCache?.userId === userId &&
+    now - profileCompletionCache.checkedAt < profileCompletionCacheMs
+  ) {
+    return profileCompletionCache.redirectPath
+      ? profileCompletionCache.redirectPath.replace(/next=[^&]*/, `next=${encodeURIComponent(normalizeNextPath(nextPath))}`)
+      : null;
+  }
+
+  const { data } = await supabase
+    .from("players")
+    .select("id, full_name, phone, jamaat_city, self_assessment, jersey_size, claim_status, claim_requested_by, auth_user_id")
+    .or(`auth_user_id.eq.${userId},claim_requested_by.eq.${userId}`)
+    .limit(1)
+    .maybeSingle();
+
+  if (data && !hasRequiredProfileFields(data)) {
+    const redirectPath = buildProfileCompletionPath(data.id, nextPath);
+    profileCompletionCache = { userId, redirectPath, checkedAt: now };
+    return redirectPath;
+  }
+
+  profileCompletionCache = { userId, redirectPath: null, checkedAt: now };
+  return null;
+}
+
+async function getCachedAuthUserId(supabase: NonNullable<ReturnType<typeof getSupabaseClient>>) {
+  const now = Date.now();
+  if (authUserCache && now - authUserCache.checkedAt < authCacheMs) {
+    return authUserCache.userId;
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const userId = session?.user?.id || null;
+  authUserCache = { userId, checkedAt: now };
+  return userId;
+}
+
+function markProfileComplete(userId: string) {
+  profileCompletionCache = { userId, redirectPath: null, checkedAt: Date.now() };
+}
+
+function useProtectedRoute(nextPath = "/dashboard", requireCompleteProfile = false) {
+  const router = useRouter();
+  const [checking, setChecking] = useState(() => {
+    if (!authUserCache) return true;
+    if (Date.now() - authUserCache.checkedAt >= authCacheMs) return true;
+    return !authUserCache.userId;
+  });
+
+  useEffect(() => {
+    let active = true;
+
+    const checkAuth = async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        if (active) setChecking(false);
+        return;
+      }
+
+      const userId = await getCachedAuthUserId(supabase);
+      if (!active) return;
+
+      if (!userId) {
+        router.replace("/");
+        return;
+      }
+
+      if (requireCompleteProfile) {
+        const profileRedirect = await getIncompleteProfileRedirect(supabase, userId, nextPath);
+        if (!active) return;
+        if (profileRedirect) {
+          router.replace(profileRedirect);
+          return;
+        }
+      }
+
+      setChecking(false);
+    };
+
+    checkAuth();
+
+    return () => {
+      active = false;
+    };
+  }, [nextPath, requireCompleteProfile, router]);
+
+  return checking;
+}
+
+function useProfileCompletionRedirect(nextPath: string) {
+  const router = useRouter();
+
+  useEffect(() => {
+    let active = true;
+
+    const checkProfile = async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+
+      const userId = await getCachedAuthUserId(supabase);
+      if (!active || !userId) return;
+
+      const profileRedirect = await getIncompleteProfileRedirect(supabase, userId, nextPath);
+      if (active && profileRedirect) {
+        router.replace(profileRedirect);
+      }
+    };
+
+    checkProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [nextPath, router]);
+}
 
 export function AppFrame({
   active,
@@ -208,6 +407,7 @@ export function OtpScreen({ email = "player@mrsa.com" }: { email?: string }) {
       router.push("/player-check");
       return;
     }
+    authUserCache = { userId, checkedAt: Date.now() };
 
     const { data: linkedPlayer } = await supabase
       .from("players")
@@ -248,6 +448,7 @@ export function OtpScreen({ email = "player@mrsa.com" }: { email?: string }) {
 
 export function PlayerCheckScreen() {
   const router = useRouter();
+  const checkingAuth = useProtectedRoute("/dashboard");
   const [query, setQuery] = useState("");
   const [players, setPlayers] = useState<ReturningPlayer[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<ReturningPlayer | null>(null);
@@ -298,26 +499,54 @@ export function PlayerCheckScreen() {
       router.push("/");
       return;
     }
+    authUserCache = { userId: user.id, checkedAt: Date.now() };
 
-    const { error: playerError } = await supabase
+    const { data: reservedPlayer, error: playerError } = await supabase
       .from("players")
       .update({
         claim_status: "pending",
-        claim_requested_by: user.id
+        claim_requested_by: user.id,
+        auth_user_id: user.id
       })
       .eq("id", playerId)
-      .eq("claim_status", "unclaimed");
+      .eq("claim_status", "unclaimed")
+      .select("id")
+      .maybeSingle();
 
     if (playerError) {
-      setMessage(playerError.message);
+      setMessage(getFriendlyError(playerError));
       return;
     }
 
-    const { error } = await supabase.from("player_claims").insert({
-      player_id: playerId,
-      requested_by: user.id,
-      requester_note: "Player requested this profile from onboarding."
-    });
+    if (!reservedPlayer) {
+      const { data: existingPlayer } = await supabase
+        .from("players")
+        .select("id, auth_user_id, claim_requested_by")
+        .eq("id", playerId)
+        .maybeSingle();
+
+      const belongsToUser = existingPlayer?.auth_user_id === user.id || existingPlayer?.claim_requested_by === user.id;
+      if (!belongsToUser) {
+        setMessage("That profile is no longer available to claim.");
+        return;
+      }
+    }
+
+    const { data: existingClaim } = await supabase
+      .from("player_claims")
+      .select("id")
+      .eq("player_id", playerId)
+      .eq("requested_by", user.id)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    const { error } = existingClaim
+      ? { error: null }
+      : await supabase.from("player_claims").insert({
+          player_id: playerId,
+          requested_by: user.id,
+          requester_note: "Player requested this profile from onboarding."
+        });
 
     if (error) {
       setMessage(getFriendlyError(error));
@@ -325,8 +554,10 @@ export function PlayerCheckScreen() {
     }
 
     setMessage("Profile reserved. Complete your details before continuing.");
-    router.push(`/profile/new?claim=${playerId}`);
+    router.push(buildProfileCompletionPath(playerId, "/dashboard"));
   };
+
+  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
 
   return (
     <AppFrame withNav={false}>
@@ -359,26 +590,27 @@ export function PlayerCheckScreen() {
 
           <div className="returning-list">
             {filteredPlayers.map((player) => (
-              <button className={selectedPlayer?.id === player.id ? "returning-card selected tap-card" : "returning-card tap-card"} type="button" onClick={() => setSelectedPlayer(player)} key={player.id}>
-                <span>{player.name}</span>
-                <strong>{selectedPlayer?.id === player.id ? "Selected Profile" : `Rating ${player.rating}`}</strong>
-                <em>{player.city} · Tier {player.tier} · Select to claim</em>
-              </button>
+              <div className="returning-result" key={player.id}>
+                <button className={selectedPlayer?.id === player.id ? "returning-card selected tap-card" : "returning-card tap-card"} type="button" onClick={() => setSelectedPlayer(player)}>
+                  <span>{player.name}</span>
+                  <strong>{selectedPlayer?.id === player.id ? "Selected Profile" : `Rating ${player.rating}`}</strong>
+                  <em>{player.city} · Tier {player.tier} · Select to claim</em>
+                </button>
+                {selectedPlayer?.id === player.id && (
+                  <div className="claim-confirm-card">
+                    <span>Confirm claim</span>
+                    <strong>Are you claiming {player.name} profile?</strong>
+                    <em>Please only continue if this is you.</em>
+                    <div>
+                      <button className="primary-action tap-card" type="button" onClick={() => claimProfile(player.id)}>Yes, this is me</button>
+                      <button className="secondary-action tap-card" type="button" onClick={() => setSelectedPlayer(null)}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             ))}
             {query.trim() && !filteredPlayers.length && <div className="empty-card">No unclaimed player profiles found.</div>}
           </div>
-
-          {selectedPlayer && (
-            <div className="claim-confirm-card">
-              <span>Confirm claim</span>
-              <strong>Are you claiming {selectedPlayer.name} profile?</strong>
-              <em>Please only continue if this is you.</em>
-              <div>
-                <button className="primary-action tap-card" type="button" onClick={() => claimProfile(selectedPlayer.id)}>Yes, this is me</button>
-                <button className="secondary-action tap-card" type="button" onClick={() => setSelectedPlayer(null)}>Cancel</button>
-              </div>
-            </div>
-          )}
 
           <div className="new-player-actions">
             <p className="form-status">New or first time players, click First Time Player.</p>
@@ -391,26 +623,42 @@ export function PlayerCheckScreen() {
   );
 }
 
-export function NewPlayerScreen({ claimPlayerId }: { claimPlayerId?: string }) {
+export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: string; nextPath?: string }) {
   const router = useRouter();
+  const checkingAuth = useProtectedRoute(normalizeNextPath(nextPath), false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [claimedProfile, setClaimedProfile] = useState<DbProfileRow | null>(null);
   const [shirtSize, setShirtSize] = useState("M");
   const [selfAssessment, setSelfAssessment] = useState(skillLevels[2].value);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
+  const destinationPath = normalizeNextPath(nextPath);
 
   useEffect(() => {
     const loadClaimedProfile = async () => {
-      if (!claimPlayerId) return;
       const supabase = getSupabaseClient();
       if (!supabase) return;
+      if (!claimPlayerId) return;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/");
+        return;
+      }
+      authUserCache = { userId: user.id, checkedAt: Date.now() };
+
       const { data } = await supabase
         .from("players")
-        .select("id, full_name, phone, profile_photo_url, jamaat_city, self_assessment, jersey_size, tennis_video_url")
+        .select("id, auth_user_id, full_name, phone, profile_photo_url, jamaat_city, self_assessment, jersey_size, tennis_video_url, claim_status, claim_requested_by")
         .eq("id", claimPlayerId)
         .maybeSingle();
       if (data) {
+        const belongsToUser = data.claim_requested_by === user.id || data.auth_user_id === user.id;
+        if (!belongsToUser) {
+          router.replace("/player-check");
+          return;
+        }
+
         setClaimedProfile(data);
         setShirtSize(data.jersey_size || "M");
         setSelfAssessment(normalizeSkillLevel(data.self_assessment) || skillLevels[2].value);
@@ -418,7 +666,7 @@ export function NewPlayerScreen({ claimPlayerId }: { claimPlayerId?: string }) {
     };
 
     loadClaimedProfile();
-  }, [claimPlayerId]);
+  }, [claimPlayerId, router]);
 
   const createPlayer = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -434,18 +682,29 @@ export function NewPlayerScreen({ claimPlayerId }: { claimPlayerId?: string }) {
       router.push("/");
       return;
     }
+    authUserCache = { userId: user.id, checkedAt: Date.now() };
 
     setLoading(true);
     setMessage("");
+    const profilePayload = {
+      full_name: String(form.get("fullName") || "").trim(),
+      phone: String(form.get("phone") || "").trim(),
+      jamaat_city: String(form.get("jamaatCity") || "").trim(),
+      self_assessment: String(form.get("selfAssessment") || "").trim(),
+      jersey_size: String(form.get("jerseySize") || "").trim(),
+      tennis_video_url: String(form.get("tennisVideo") || "").trim()
+    };
+
+    if (!hasRequiredProfileFields(profilePayload)) {
+      setLoading(false);
+      setMessage("Please complete your name, phone number, shirt size, self evaluation, and Jamaat / City.");
+      return;
+    }
+
     const file = form.get("profilePhoto") instanceof File ? form.get("profilePhoto") as File : null;
     const photoUrl = file && file.size > 0 ? await uploadCompressedProfilePhoto(user.id, file) : null;
-    const profilePayload = {
-      full_name: String(form.get("fullName") || ""),
-      phone: String(form.get("phone") || ""),
-      jamaat_city: String(form.get("jamaatCity") || ""),
-      self_assessment: String(form.get("selfAssessment") || skillLevels[2].value),
-      jersey_size: String(form.get("jerseySize") || "M"),
-      tennis_video_url: String(form.get("tennisVideo") || ""),
+    const savedProfilePayload = {
+      ...profilePayload,
       ...(photoUrl ? { profile_photo_url: photoUrl } : {})
     };
 
@@ -453,13 +712,14 @@ export function NewPlayerScreen({ claimPlayerId }: { claimPlayerId?: string }) {
       ? (await supabase
           .from("players")
           .update({
-            ...profilePayload,
+            ...savedProfilePayload,
             auth_user_id: user.id,
             claim_status: "pending",
             claim_requested_by: user.id
           })
-          .eq("id", claimPlayerId)).error
-      : await createNewPlayerProfile(supabase, user.id, profilePayload);
+          .eq("id", claimPlayerId)
+          .or(`claim_requested_by.eq.${user.id},auth_user_id.eq.${user.id}`)).error
+      : await createNewPlayerProfile(supabase, user.id, savedProfilePayload);
 
     setLoading(false);
 
@@ -468,10 +728,13 @@ export function NewPlayerScreen({ claimPlayerId }: { claimPlayerId?: string }) {
       return;
     }
 
-    router.push("/dashboard");
+    markProfileComplete(user.id);
+    router.push(destinationPath);
   };
 
   const completionTitle = claimPlayerId ? "Complete<br />profile." : "New MRSA<br />player.";
+
+  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
 
   return (
     <AppFrame withNav={false}>
@@ -614,6 +877,8 @@ async function createNewPlayerProfile(
 }
 
 export function HomeScreen() {
+  const checkingAuth = useProtectedRoute("/dashboard");
+  useProfileCompletionRedirect("/dashboard");
   const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
   const [upcomingTournament, setUpcomingTournament] = useState<Tournament | null>(null);
   const [profileBadge, setProfileBadge] = useState<ProfileBadge>({ name: "Profile", initials: "P" });
@@ -700,23 +965,20 @@ export function HomeScreen() {
     };
   }, []);
 
+  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+
   return (
     <AppFrame active="home">
       <div className="screen home-screen">
         <header className="hero-header">
           <div className="brand-row">
             <span className="brand">MRSA</span>
-            <Link
-              className="profile-pill home-profile-pill tap-card"
-              href="/profile"
-              aria-label={`${profileBadge.name} profile`}
-              style={profileBadge.photoUrl ? { backgroundImage: `url(${profileBadge.photoUrl})` } : undefined}
-            >
-              {!profileBadge.photoUrl && profileBadge.initials}
-            </Link>
           </div>
+          <Link className="avatar-link home-avatar-link tap-card" href="/profile" aria-label={`${profileBadge.name} profile`}>
+            <Avatar className="profile-pill home-profile-pill" name={profileBadge.name || profileBadge.initials} photoUrl={profileBadge.photoUrl} />
+          </Link>
           <p className="season">2026 Season</p>
-          <h1>MRSA</h1>
+          <h1 className="dashboard-title">{upcomingTournament?.name || "Mumineen Racquet Sports Association"}</h1>
           <Link className="live-pill tap-card" href="/tournaments">
             <span className="blink-dot" />
             {upcomingTournament ? hasRegisteredTournament ? "you are registered" : "register now" : "no upcoming tournament"}
@@ -770,12 +1032,15 @@ export function HomeScreen() {
 
 export function DrawScreen() {
   const router = useRouter();
+  const checkingAuth = useProtectedRoute("/tournaments");
+  useProfileCompletionRedirect("/tournaments");
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [registeredPlayers, setRegisteredPlayers] = useState<RegisteredPlayer[]>([]);
   const [pastTournaments, setPastTournaments] = useState<PastTournamentSummary[]>([]);
   const [registered, setRegistered] = useState(false);
   const [paymentState, setPaymentState] = useState<PaymentState>("idle");
   const [paying, setPaying] = useState(false);
+  const [reconcilingPayment, setReconcilingPayment] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -851,7 +1116,7 @@ export function DrawScreen() {
       if (myPlayer && !paidRegistration) {
         const { data: latestPayment } = await supabase
           .from("payment_ledger")
-          .select("status")
+          .select("status, stripe_failure_message")
           .eq("tournament_id", mappedTournament.id)
           .eq("player_id", myPlayer.id)
           .eq("entry_type", "charge")
@@ -861,6 +1126,9 @@ export function DrawScreen() {
 
         if (latestPayment?.status === "pending" || latestPayment?.status === "failed") {
           setPaymentState(latestPayment.status);
+          if (latestPayment.status === "failed" && latestPayment.stripe_failure_message) {
+            setMessage(latestPayment.stripe_failure_message);
+          }
         }
       }
     }
@@ -870,13 +1138,50 @@ export function DrawScreen() {
   useEffect(() => {
     const supabase = getSupabaseClient();
     const paymentResult = new URLSearchParams(window.location.search).get("payment");
-    if (paymentResult === "success") {
-      setMessage("Payment received. Registration will appear once Stripe confirms it.");
-    }
-    if (paymentResult === "retry") {
+    const checkoutSessionId = new URLSearchParams(window.location.search).get("session_id");
+
+    const reconcileReturnedPayment = async () => {
+      if (!supabase || !checkoutSessionId || !paymentResult) return;
+      setReconcilingPayment(true);
+      setMessage(paymentResult === "success" ? "Confirming payment..." : "Checking payment status...");
+
+      const { data: session } = await supabase.auth.getSession();
+      const response = await fetch(`/api/stripe/checkout-status?session_id=${encodeURIComponent(checkoutSessionId)}&payment=${encodeURIComponent(paymentResult)}`, {
+        headers: {
+          Authorization: `Bearer ${session.session?.access_token || ""}`
+        }
+      });
+      const result = await response.json();
+      setReconcilingPayment(false);
+
+      if (!response.ok) {
+        setPaymentState("failed");
+        setMessage(result.error || "Could not verify payment status. Please retry registration.");
+        return;
+      }
+
+      if (result.registered || result.status === "paid") {
+        setRegistered(true);
+        setPaymentState("paid");
+        setMessage("Payment received. You are registered.");
+        await loadTournament();
+        window.history.replaceState(null, "", "/tournaments");
+        return;
+      }
+
+      if (result.status === "failed") {
+        setPaymentState("failed");
+        setMessage(result.error || "Payment was not completed. You can retry registration.");
+        await loadTournament();
+        window.history.replaceState(null, "", "/tournaments");
+        return;
+      }
+
       setPaymentState("pending");
-      setMessage("Payment was not completed. You can retry registration.");
-    }
+      setMessage("Payment is still pending. You can retry if it does not complete.");
+    };
+
+    reconcileReturnedPayment();
     loadTournament();
     if (!supabase) return;
 
@@ -909,7 +1214,7 @@ export function DrawScreen() {
       .maybeSingle();
 
     if (!player) {
-      router.push("/profile/new");
+      router.push(buildProfileCompletionPath(undefined, "/tournaments"));
       return;
     }
 
@@ -947,6 +1252,8 @@ export function DrawScreen() {
     }
   };
 
+  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+
   return (
     <AppFrame active="tournament">
       <div className="screen tournament-screen">
@@ -954,9 +1261,6 @@ export function DrawScreen() {
           <span className="eyebrow">Live Tournament</span>
           <h1 className="tournament-title">{tournament ? tournament.name : "No Live"}<br />Tournament</h1>
           <p>{tournament ? `${formatTournamentDates(tournament)} at ${tournament.venueName || "venue TBD"}.` : "No live tournament is open right now."}</p>
-          {tournament && <button className={registered ? "primary-action confirmed tournament-register tap-card" : "primary-action tournament-register tap-card"} type="button" onClick={registerForTournament} disabled={paying || registered}>
-            {getRegistrationButtonLabel({ registered, paying, paymentState })}
-          </button>}
           {tournament && <div className="live-pill draw-cta">
             <span className="blink-dot" />
             registration live
@@ -972,6 +1276,12 @@ export function DrawScreen() {
                 <a href={tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueAddress || tournament.venueName || "")}`} target="_blank" rel="noreferrer">Open venue address in Maps →</a>
               </div>
 
+              <button className={registered ? "primary-action confirmed tournament-register tap-card" : "primary-action tournament-register tap-card"} type="button" onClick={registerForTournament} disabled={paying || registered}>
+                {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState })}
+              </button>
+
+              <RegistrationCountdown closesAt={tournament.registrationClosesAt} />
+
               <div className="profile-metrics tournament-metrics">
                 <article><span>Tournament Days</span><strong>{formatTournamentDates(tournament)}</strong></article>
                 <article><span>Registration Ends</span><strong>{formatRegistrationClose(tournament.registrationClosesAt)}</strong></article>
@@ -979,7 +1289,6 @@ export function DrawScreen() {
                 <article><span>Spots Left</span><strong>{tournament.maxPlayers ? Math.max(tournament.maxPlayers - registeredPlayers.length, 0) : "Open"}</strong></article>
                 <article><span>Players</span><strong>{registeredPlayers.length}</strong></article>
               </div>
-              <RegistrationCountdown closesAt={tournament.registrationClosesAt} />
             </>
           ) : (
             <div className="empty-card">{loading ? "Loading tournament..." : "No live tournament found."}</div>
@@ -1025,6 +1334,7 @@ export function DrawScreen() {
 }
 
 export function PlayersScreen() {
+  const checkingAuth = useProtectedRoute("/dashboard");
   const [players, setPlayers] = useState<TopPlayer[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1058,6 +1368,8 @@ export function PlayersScreen() {
     loadPlayers();
   }, []);
 
+  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+
   return (
     <AppFrame active="profile">
       <div className="screen">
@@ -1085,6 +1397,10 @@ export function PlayersScreen() {
 }
 
 export function AboutScreen() {
+  const checkingAuth = useProtectedRoute("/dashboard");
+
+  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+
   return (
     <AppFrame active="home">
       <div className="screen">
@@ -1106,8 +1422,11 @@ export function AboutScreen() {
 }
 
 export function PlayerScreen() {
+  const checkingAuth = useProtectedRoute("/profile");
+  useProfileCompletionRedirect("/profile");
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState(initialProfile);
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -1131,11 +1450,35 @@ export function PlayerScreen() {
 
       if (data) {
         setProfile(mapProfile(data));
+
+        const { data: payments } = await supabase
+          .from("payment_ledger")
+          .select("id, entry_type, status, amount_cents, currency, occurred_at, notes, stripe_failure_message, tournaments(name)")
+          .eq("player_id", data.id)
+          .order("occurred_at", { ascending: false })
+          .limit(12);
+
+        setPaymentHistory((payments || []).map((payment) => {
+          const tournament = Array.isArray(payment.tournaments) ? payment.tournaments[0] : payment.tournaments;
+          return {
+            id: payment.id,
+            entryType: payment.entry_type,
+            status: payment.status,
+            amountCents: payment.amount_cents,
+            currency: payment.currency || "USD",
+            occurredAt: payment.occurred_at,
+            notes: payment.notes || "",
+            tournamentName: tournament?.name || "MRSA",
+            failureMessage: payment.stripe_failure_message || ""
+          };
+        }));
       }
     };
 
     loadProfile();
   }, []);
+
+  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
 
   const saveProfile = async () => {
     const supabase = getSupabaseClient();
@@ -1199,9 +1542,7 @@ export function PlayerScreen() {
         <header className="hero-header profile-hero">
           <div className="brand-row">
             <span className="brand">MRSA</span>
-            <div className="profile-photo" style={profile.profilePhotoUrl ? { backgroundImage: `url(${profile.profilePhotoUrl})` } : undefined}>
-              {!profile.profilePhotoUrl && getInitials(profile.fullName)}
-            </div>
+            <Avatar className="profile-photo" name={profile.fullName} photoUrl={profile.profilePhotoUrl} ariaLabel={`${profile.fullName} profile photo`} />
           </div>
           <p className="season">Player Profile</p>
           <h1 className="profile-name">{getCardName(profile.fullName)}</h1>
@@ -1230,6 +1571,24 @@ export function PlayerScreen() {
             <article><span>Rating</span><strong>{profile.rating}</strong></article>
             <article><span>Tournaments Played</span><strong>{profile.tournamentsPlayed}</strong></article>
             <article><span>Matches Played</span><strong>{profile.matchesPlayed}</strong></article>
+          </div>
+
+          <div className="section-title compact">
+            <h2>Payments</h2>
+            <span>{paymentHistory.length ? `${paymentHistory.length} records` : "No payments"}</span>
+          </div>
+          <div className="payment-history-list">
+            {paymentHistory.map((payment) => (
+              <article className={`payment-history-card ${payment.status}`} key={payment.id}>
+                <div>
+                  <span>{payment.tournamentName}</span>
+                  <strong>{formatCurrency(payment.amountCents, payment.currency)}</strong>
+                  <em>{formatPaymentHistoryLine(payment)}</em>
+                </div>
+                <b>{formatPaymentStatus(payment.status)}</b>
+              </article>
+            ))}
+            {!paymentHistory.length && <div className="empty-card">Completed tournament payments will appear here.</div>}
           </div>
 
           <div className="profile-info-list">
@@ -1323,8 +1682,29 @@ function getSkillLevelLabel(value?: string | null) {
   return skillLevels.find((level) => level.value === normalizedValue)?.label || "";
 }
 
-function formatCurrency(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
+function formatCurrency(cents: number, currency = "USD") {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
+}
+
+function formatPaymentStatus(status: PaymentHistoryItem["status"]) {
+  if (status === "paid") return "Paid";
+  if (status === "pending") return "Pending";
+  if (status === "failed") return "Failed";
+  if (status === "refunded") return "Refunded";
+  if (status === "waived") return "Waived";
+  return status;
+}
+
+function formatPaymentHistoryLine(payment: PaymentHistoryItem) {
+  const date = new Date(payment.occurredAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+  if (payment.status === "failed" && payment.failureMessage) {
+    return `${date} · ${payment.failureMessage}`;
+  }
+  return `${date} · ${payment.entryType}`;
 }
 
 function formatTournamentDates(tournament: Tournament) {
@@ -1340,7 +1720,7 @@ function formatTournamentDates(tournament: Tournament) {
 
 function formatRegistrationClose(value: string | null) {
   if (!value) return "TBD";
-  return new Date(value).toLocaleString("en-US", {
+  return getRegistrationCloseDate(value).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -1401,7 +1781,7 @@ function RegistrationCountdown({ closesAt }: { closesAt: string | null }) {
 }
 
 function getTimeRemaining(value: string | null) {
-  const targetTime = value ? new Date(value).getTime() : Date.now();
+  const targetTime = value ? getRegistrationCloseDate(value).getTime() : Date.now();
   const distance = Math.max(0, targetTime - Date.now());
 
   return {
@@ -1411,6 +1791,25 @@ function getTimeRemaining(value: string | null) {
     minutes: Math.floor((distance % 3600000) / 60000),
     seconds: Math.floor((distance % 60000) / 1000)
   };
+}
+
+function getRegistrationCloseDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return date;
+
+  const hasExplicitUtcOffset = /(?:z|[+-]00:?00)$/i.test(value);
+  if (hasExplicitUtcOffset && date.getUTCHours() === 23 && date.getHours() !== 23) {
+    return new Date(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      date.getUTCHours(),
+      date.getUTCMinutes(),
+      date.getUTCSeconds()
+    );
+  }
+
+  return date;
 }
 
 function buildPastTournamentSummaries(matches: { season_year: number | null; format: string | null }[]): PastTournamentSummary[] {
@@ -1545,6 +1944,10 @@ function ProfileField({
 }
 
 export function SavedScreen() {
+  const checkingAuth = useProtectedRoute("/dashboard");
+
+  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+
   return (
     <AppFrame active="logout">
       <div className="screen">
