@@ -74,6 +74,22 @@ const skillLevels = [
   { value: "Developing Intermediate", label: "Developing Intermediate (Improving players with basic consistency and game sense)" },
   { value: "Recreational", label: "Recreational (Casual players with limited experience but passion to play)" }
 ];
+const jamaatCityOptions = [
+  "Chicago",
+  "The Woodlands",
+  "Atlanta",
+  "Austin",
+  "Detroit",
+  "Houston",
+  "Minneapolis",
+  "Mississauga",
+  "Irvine",
+  "New Jersey",
+  "Philadelphia",
+  "Pittsburgh",
+  "Plano",
+  "Vancouver"
+];
 const videoDescription = "Capture a video of yourself playing tennis covering all the different shots (serve, forehand, backhand, volleys) and upload it on your Google Drive and share the link here. Even if you participated last year, we'd like to see how much you've improved. If you don't have the video while signing up, you can come back and upload it here, however, it is a mandatory requirement to be eligible for the draft.";
 type DbProfileRow = {
   id?: string;
@@ -679,6 +695,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
   const [claimedProfile, setClaimedProfile] = useState<DbProfileRow | null>(null);
   const [shirtSize, setShirtSize] = useState("M");
   const [selfAssessment, setSelfAssessment] = useState(skillLevels[2].value);
+  const [jamaatCity, setJamaatCity] = useState("");
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const destinationPath = normalizeNextPath(nextPath);
 
@@ -711,6 +728,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
         setClaimedProfile(data);
         setShirtSize(data.jersey_size || "M");
         setSelfAssessment(normalizeSkillLevel(data.self_assessment) || skillLevels[2].value);
+        setJamaatCity(data.jamaat_city || "");
       }
     };
 
@@ -804,7 +822,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
             </label>
             <label>
               <span>Jamaat / City</span>
-              <input name="jamaatCity" type="text" placeholder="Chicago" defaultValue={claimedProfile?.jamaat_city || ""} required />
+              <JamaatCityCombobox value={jamaatCity} onChange={setJamaatCity} />
             </label>
             <label>
               <span>Self Evaluation</span>
@@ -850,6 +868,117 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
         {sizeGuideOpen && <SizeGuideModal selectedSize={shirtSize} onSelect={setShirtSize} onClose={() => setSizeGuideOpen(false)} />}
       </div>
     </AppFrame>
+  );
+}
+
+function JamaatCityCombobox({
+  value,
+  onChange
+}: {
+  value: string;
+  onChange: (city: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<"preset" | "other">(value && !jamaatCityOptions.includes(value) ? "other" : "preset");
+  const [customCity, setCustomCity] = useState(value && !jamaatCityOptions.includes(value) ? value : "");
+  const filteredCities = jamaatCityOptions.filter((city) => city.toLowerCase().includes(query.trim().toLowerCase()));
+
+  useEffect(() => {
+    if (value && !jamaatCityOptions.includes(value)) {
+      setMode("other");
+      setCustomCity(value);
+    }
+  }, [value]);
+
+  const selectCity = (city: string) => {
+    setMode("preset");
+    setQuery("");
+    setOpen(false);
+    onChange(city);
+  };
+
+  const selectOther = () => {
+    setMode("other");
+    setQuery("");
+    setOpen(false);
+    onChange(customCity);
+  };
+
+  const updateCustomCity = (city: string) => {
+    setCustomCity(city);
+    onChange(city);
+  };
+
+  return (
+    <div
+      className="city-combobox"
+      onBlur={(event) => {
+        const nextFocus = event.relatedTarget;
+        if (!(nextFocus instanceof Node) || !event.currentTarget.contains(nextFocus)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <input name="jamaatCity" type="hidden" value={value} />
+      <button
+        className={`city-combobox-trigger${!value ? " is-placeholder" : ""}`}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {value || (mode === "other" ? "Other" : "Select Jamaat / City")}
+      </button>
+
+      {open && (
+        <div className="city-combobox-menu">
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search city"
+            aria-label="Search Jamaat city"
+            autoComplete="off"
+            autoFocus
+          />
+          <div className="city-combobox-options" role="listbox" aria-label="Jamaat city options">
+            {filteredCities.map((city) => (
+              <button
+                className={value === city ? "active" : ""}
+                type="button"
+                role="option"
+                aria-selected={value === city}
+                key={city}
+                onClick={() => selectCity(city)}
+              >
+                {city}
+              </button>
+            ))}
+            {!filteredCities.length && <em>No city matches.</em>}
+            <button
+              className={mode === "other" ? "active" : ""}
+              type="button"
+              role="option"
+              aria-selected={mode === "other"}
+              onClick={selectOther}
+            >
+              Other
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === "other" && (
+        <input
+          type="text"
+          value={customCity}
+          onChange={(event) => updateCustomCity(event.target.value)}
+          placeholder="Enter Jamaat / City"
+          required
+        />
+      )}
+    </div>
   );
 }
 
