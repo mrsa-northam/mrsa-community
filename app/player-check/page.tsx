@@ -3,9 +3,9 @@ import { PlayerCheckScreen } from "../tennis-app";
 export default async function PlayerCheckPage({
   searchParams
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ claim?: string; next?: string; player?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { claim, next, player } = await searchParams;
 
-  return <PlayerCheckScreen nextPath={next} />;
+  return <PlayerCheckScreen claimStatus={claim} rejectedPlayerName={player} nextPath={next} />;
 }

@@ -35,6 +35,14 @@ type AdminTournament = {
   registration_closes_at: string | null;
   registration_fee_cents: number;
 };
+type AdminRegisteredPlayer = {
+  id: string;
+  tournamentId: string;
+  fullName: string;
+  jamaatCity: string;
+  tier: number;
+  rating: number | null;
+};
 
 type AdminPayment = {
   id: string;
@@ -52,8 +60,10 @@ type AdminClaim = {
   requested_by: string;
   status: string;
   requester_note: string | null;
+  requester_email: string | null;
   created_at: string;
-  players: { full_name: string; jamaat_city: string | null } | { full_name: string; jamaat_city: string | null }[] | null;
+  player_full_name: string | null;
+  player_jamaat_city: string | null;
 };
 
 export function AdminFrame({ active, children }: { active: AdminTab; children: ReactNode }) {
@@ -238,6 +248,7 @@ export function AdminPlayersScreen() {
 
 export function AdminTournamentsScreen() {
   const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
+  const [registeredByTournament, setRegisteredByTournament] = useState<Record<string, AdminRegisteredPlayer[]>>({});
   const [editingTournament, setEditingTournament] = useState<AdminTournament | null>(null);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [creating, setCreating] = useState(false);
@@ -245,18 +256,43 @@ export function AdminTournamentsScreen() {
   const loadTournaments = async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
-    const { data, error } = await supabase
-      .from("tournaments")
-      .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents")
-      .order("starts_on", { ascending: false })
-      .limit(30);
+    const [{ data, error }, { data: registrations, error: registrationError }] = await Promise.all([
+      supabase
+        .from("tournaments")
+        .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents")
+        .order("starts_on", { ascending: false })
+        .limit(30),
+      supabase
+        .from("tournament_registrations")
+        .select("tournament_id, players(id, full_name, jamaat_city, tier, rating)")
+        .neq("status", "cancelled")
+        .in("payment_status", ["paid", "waived"])
+        .order("registered_at", { ascending: true })
+        .limit(500)
+    ]);
 
-    if (error) {
-      setNotice({ type: "error", text: error.message });
+    if (error || registrationError) {
+      setNotice({ type: "error", text: (error || registrationError)?.message || "Could not load tournaments." });
       return;
     }
 
     setTournaments((data || []) as AdminTournament[]);
+    const grouped = (registrations || []).reduce<Record<string, AdminRegisteredPlayer[]>>((acc, row) => {
+      const player = Array.isArray(row.players) ? row.players[0] : row.players;
+      if (!player || !row.tournament_id) return acc;
+      const tournamentPlayers = acc[row.tournament_id] || [];
+      tournamentPlayers.push({
+        id: player.id,
+        tournamentId: row.tournament_id,
+        fullName: player.full_name || "Unknown player",
+        jamaatCity: player.jamaat_city || "City missing",
+        tier: Number(player.tier || 4),
+        rating: player.rating
+      });
+      acc[row.tournament_id] = tournamentPlayers;
+      return acc;
+    }, {});
+    setRegisteredByTournament(grouped);
   };
 
   useEffect(() => {
@@ -433,10 +469,44 @@ export function AdminTournamentsScreen() {
               <button type="button" onClick={() => startEditingTournament(tournament)}>Edit</button>
               <button className="danger" type="button" onClick={() => deleteTournament(tournament)}>Delete</button>
             </div>
+            <TieredRegisteredPlayers players={registeredByTournament[tournament.id] || []} />
           </article>
         ))}
       </div>
     </AdminFrame>
+  );
+}
+
+function TieredRegisteredPlayers({ players }: { players: AdminRegisteredPlayer[] }) {
+  if (!players.length) {
+    return <div className="admin-tier-groups empty">No paid or waived registrations yet.</div>;
+  }
+
+  const grouped = [1, 2, 3, 4].map((tier) => ({
+    tier,
+    players: players.filter((player) => player.tier === tier).sort((a, b) => a.fullName.localeCompare(b.fullName))
+  }));
+
+  return (
+    <div className="admin-tier-groups" aria-label="Registered players grouped by tier">
+      {grouped.map((group) => (
+        <section className="admin-tier-group" key={group.tier}>
+          <strong>Tier {group.tier} registered list</strong>
+          {group.players.length ? (
+            <ul>
+              {group.players.map((player) => (
+                <li key={player.id}>
+                  <span>{player.fullName}</span>
+                  <em>{player.jamaatCity} · {formatAdminRating(player.rating)}</em>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <small>No Tier {group.tier} registrations.</small>
+          )}
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -494,12 +564,7 @@ export function AdminClaimsScreen() {
   const loadClaims = async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
-    const { data } = await supabase
-      .from("player_claims")
-      .select("id, player_id, requested_by, status, requester_note, created_at, players(full_name, jamaat_city)")
-      .eq("status", "pending")
-      .order("created_at", { ascending: true })
-      .limit(40);
+    const { data } = await supabase.rpc("admin_pending_player_claims");
     setClaims((data || []) as AdminClaim[]);
   };
 
@@ -526,6 +591,7 @@ export function AdminClaimsScreen() {
       .update({
         auth_user_id: approved ? claim.requested_by : null,
         claim_status: approved ? "claimed" : "unclaimed",
+        claim_requested_by: null,
         claimed_at: approved ? new Date().toISOString() : null,
         claim_reviewed_by: user?.id
       })
@@ -539,12 +605,14 @@ export function AdminClaimsScreen() {
       <AdminHeader eyebrow="Claims" title="Profile Claims" copy="Approve true claims or reject false profile matches." />
       <div className="admin-table">
         {claims.map((claim) => {
-          const player = Array.isArray(claim.players) ? claim.players[0] : claim.players;
           return (
             <article className="admin-row" key={claim.id}>
               <div>
-                <strong>{player?.full_name || "Unknown player"}</strong>
-                <em>{player?.jamaat_city || "City missing"} · {claim.requester_note || "No note"}</em>
+                <strong>{claim.player_full_name || "Unknown player"}</strong>
+                <em>
+                  {claim.player_jamaat_city || "City missing"} · claimed by {claim.requester_email || claim.requested_by} · {formatAdminDateTime(claim.created_at)}
+                </em>
+                <small>{claim.requester_note || "No note"}</small>
               </div>
               <button type="button" onClick={() => reviewClaim(claim, true)}>Approve</button>
               <button type="button" onClick={() => reviewClaim(claim, false)}>Reject</button>

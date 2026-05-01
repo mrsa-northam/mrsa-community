@@ -93,6 +93,14 @@ type DbProfileRow = {
   claim_status?: string | null;
   claim_requested_by?: string | null;
 };
+type RecentClaimRow = {
+  id: string;
+  player_id: string;
+  status: string;
+  created_at: string | null;
+  reviewed_at?: string | null;
+  players?: { full_name: string | null } | { full_name: string | null }[] | null;
+};
 type DbTournamentRow = {
   id: string;
   name: string;
@@ -131,6 +139,7 @@ type AppSessionState = {
   userId: string | null;
   player: DbProfileRow | null;
   profileComplete: boolean;
+  recentRejectedClaim: RecentClaimRow | null;
   refresh: () => Promise<void>;
 };
 
@@ -141,6 +150,7 @@ const emptyAppSession: AppSessionState = {
   userId: null,
   player: null,
   profileComplete: false,
+  recentRejectedClaim: null,
   refresh: async () => {}
 };
 const AppSessionContext = createContext<AppSessionState>(emptyAppSession);
@@ -173,6 +183,13 @@ function buildProfileCompletionPath(playerId: string | undefined, nextPath?: str
   return `/profile/new?${params.toString()}`;
 }
 
+function buildPlayerCheckPath(nextPath?: string | null, reason?: "rejected", playerName?: string | null) {
+  const params = new URLSearchParams({ next: normalizeNextPath(nextPath) });
+  if (reason) params.set("claim", reason);
+  if (playerName) params.set("player", playerName);
+  return `/player-check?${params.toString()}`;
+}
+
 function hasRequiredProfileFields(profile?: DbProfileRow | null) {
   return Boolean(
     profile?.full_name?.trim() &&
@@ -203,20 +220,33 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const { data: player } = await supabase
-      .from("players")
-      .select("id, auth_user_id, full_name, phone, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tier, rating, tournaments_played, matches_played, claim_status, claim_requested_by")
-      .or(`auth_user_id.eq.${user.id},claim_requested_by.eq.${user.id}`)
-      .limit(1)
-      .maybeSingle();
+    const [{ data: player }, { data: rejectedClaim }] = await Promise.all([
+      supabase
+        .from("players")
+        .select("id, auth_user_id, full_name, phone, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tier, rating, tournaments_played, matches_played, claim_status, claim_requested_by")
+        .or(`auth_user_id.eq.${user.id},claim_requested_by.eq.${user.id}`)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("player_claims")
+        .select("id, player_id, status, created_at, reviewed_at, players(full_name)")
+        .eq("requested_by", user.id)
+        .eq("status", "rejected")
+        .order("reviewed_at", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle()
+    ]);
+
+    const activePlayer = player && (player.auth_user_id === user.id || player.claim_status === "pending") ? player : null;
 
     setState({
       ready: true,
       session,
       user,
       userId: user.id,
-      player: player || null,
-      profileComplete: hasRequiredProfileFields(player),
+      player: activePlayer,
+      profileComplete: hasRequiredProfileFields(activePlayer),
+      recentRejectedClaim: rejectedClaim || null,
       refresh: () => loadState()
     });
   }, []);
@@ -238,6 +268,21 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [loadState]);
 
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !state.userId) return;
+
+    const channel = supabase
+      .channel(`app-session-${state.userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "player_claims", filter: `requested_by=eq.${state.userId}` }, () => loadState())
+      .on("postgres_changes", { event: "*", schema: "public", table: "players", filter: `auth_user_id=eq.${state.userId}` }, () => loadState())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadState, state.userId]);
+
   return <AppSessionContext.Provider value={{ ...state, refresh: () => loadState() }}>{children}</AppSessionContext.Provider>;
 }
 
@@ -258,9 +303,17 @@ function useProtectedRoute(nextPath = "/dashboard", requireCompleteProfile = fal
     }
 
     if (requireCompleteProfile && !appSession.profileComplete) {
-      router.replace(buildProfileCompletionPath(appSession.player?.id, nextPath));
+      if (!appSession.player) {
+        const claimedPlayer = Array.isArray(appSession.recentRejectedClaim?.players)
+          ? appSession.recentRejectedClaim?.players[0]
+          : appSession.recentRejectedClaim?.players;
+        router.replace(buildPlayerCheckPath(nextPath, appSession.recentRejectedClaim ? "rejected" : undefined, claimedPlayer?.full_name));
+        return;
+      }
+
+      router.replace(buildProfileCompletionPath(appSession.player.id, nextPath));
     }
-  }, [appSession.player?.id, appSession.profileComplete, appSession.ready, appSession.userId, nextPath, requireCompleteProfile, router]);
+  }, [appSession.player, appSession.profileComplete, appSession.ready, appSession.recentRejectedClaim, appSession.userId, nextPath, requireCompleteProfile, router]);
 
   return appSession;
 }
@@ -414,14 +467,26 @@ export function OtpScreen({ email = "player@mrsa.com", nextPath }: { email?: str
   );
 }
 
-export function PlayerCheckScreen({ nextPath }: { nextPath?: string }) {
+export function PlayerCheckScreen({
+  claimStatus,
+  rejectedPlayerName,
+  nextPath
+}: {
+  claimStatus?: string;
+  rejectedPlayerName?: string;
+  nextPath?: string;
+}) {
   const router = useRouter();
   const destinationPath = normalizeNextPath(nextPath);
   const appSession = useProtectedRoute(destinationPath);
   const [query, setQuery] = useState("");
   const [players, setPlayers] = useState<ReturningPlayer[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<ReturningPlayer | null>(null);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(
+    claimStatus === "rejected"
+      ? `Admin rejected your claim${rejectedPlayerName ? ` for ${rejectedPlayerName}` : ""}. Please search again or create a new player profile.`
+      : ""
+  );
   const filteredPlayers = query.trim()
     ? players.filter((player) => player.name.toLowerCase().includes(query.toLowerCase()))
     : [];
@@ -515,6 +580,7 @@ export function PlayerCheckScreen({ nextPath }: { nextPath?: string }) {
       : await supabase.from("player_claims").insert({
           player_id: playerId,
           requested_by: user.id,
+          requester_email: user.email || null,
           requester_note: "Player requested this profile from onboarding."
         });
 
@@ -717,7 +783,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
           </div>
           <p className="season">{claimPlayerId ? "Claim Profile" : "Create Profile"}</p>
           <h1 dangerouslySetInnerHTML={{ __html: completionTitle }} />
-          <p className="auth-copy">{claimPlayerId ? "Complete your profile details before moving forward. Admin can still review and handle false claims." : "Create your profile once. New players start at Tier 4 with a 1.5 rating."}</p>
+          <p className="auth-copy">{claimPlayerId ? "Complete your profile details before moving forward. Admin can still review and handle false claims." : `Create your profile once. New players start at Tier ${startingTennisTier} with a ${startingTennisRating.toFixed(3)} rating.`}</p>
         </header>
         <section className="content-panel auth-panel onboarding-panel">
           <form className="profile-create-form" onSubmit={createPlayer}>
