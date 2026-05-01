@@ -973,10 +973,10 @@ export function HomeScreen() {
         <header className="hero-header">
           <div className="brand-row">
             <span className="brand">MRSA</span>
+            <Link className="avatar-link home-avatar-link tap-card" href="/profile" aria-label={`${profileBadge.name} profile`}>
+              <Avatar className="profile-pill home-profile-pill" name={profileBadge.name || profileBadge.initials} photoUrl={profileBadge.photoUrl} />
+            </Link>
           </div>
-          <Link className="avatar-link home-avatar-link tap-card" href="/profile" aria-label={`${profileBadge.name} profile`}>
-            <Avatar className="profile-pill home-profile-pill" name={profileBadge.name || profileBadge.initials} photoUrl={profileBadge.photoUrl} />
-          </Link>
           <p className="season">2026 Season</p>
           <h1 className="dashboard-title">{upcomingTournament?.name || "Mumineen Racquet Sports Association"}</h1>
           <Link className="live-pill tap-card" href="/tournaments">

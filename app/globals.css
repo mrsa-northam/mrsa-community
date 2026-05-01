@@ -24,12 +24,14 @@
 
 html {
   min-width: 320px;
+  min-height: 100%;
   background: #EAF6E4;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     linear-gradient(90deg, transparent calc(50% - 1px), rgba(255, 255, 255, 0.72) calc(50% - 1px), rgba(255, 255, 255, 0.72) calc(50% + 1px), transparent calc(50% + 1px)),
     linear-gradient(0deg, transparent 23%, rgba(255, 255, 255, 0.55) 23%, rgba(255, 255, 255, 0.55) calc(23% + 1px), transparent calc(23% + 1px)),
@@ -386,6 +388,7 @@ a {
 .app-stage {
   display: grid;
   min-height: 100vh;
+  min-height: 100dvh;
   place-items: center;
   padding: 14px;
 }
@@ -423,6 +426,7 @@ a {
   height: 100%;
   overflow-y: auto;
   background: var(--page);
+  padding-bottom: 96px;
   animation: screenIn 0.15s ease both;
 }
 
@@ -434,15 +438,16 @@ a {
 }
 
 .brand-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   width: 100%;
   gap: 18px;
   margin-bottom: 46px;
 }
 
 .brand {
+  min-width: 0;
   color: var(--accent);
   font-family: "DM Serif Display", serif;
   font-size: 31px;
@@ -452,7 +457,9 @@ a {
 .profile-pill {
   display: grid;
   width: 56px;
+  min-width: 56px;
   height: 56px;
+  min-height: 56px;
   place-items: center;
   aspect-ratio: 1;
   flex: 0 0 auto;
@@ -467,13 +474,24 @@ a {
 }
 
 .avatar-link {
+  display: inline-grid;
+  place-items: center;
+  justify-self: end;
   flex: 0 0 auto;
-  margin-left: auto;
-  width: auto;
+  margin-left: 0;
+  width: fit-content;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.avatar-link.tap-card {
+  width: fit-content;
+  text-align: initial;
 }
 
 .avatar-fallback {
   position: relative;
+  flex: 0 0 auto;
 }
 
 .avatar-fallback img {
@@ -491,8 +509,10 @@ a {
 
 .home-profile-pill {
   width: 56px;
+  min-width: 56px;
   max-width: 56px;
   height: 56px;
+  min-height: 56px;
   border: 2px solid rgba(255, 254, 248, 0.9);
   box-shadow: 0 10px 24px rgba(18, 55, 47, 0.14);
 }
@@ -506,11 +526,6 @@ a {
 }
 
 .home-avatar-link {
-  position: absolute;
-  top: 32px;
-  right: 24px;
-  z-index: 2;
-  margin-left: 0;
   width: 56px;
   height: 56px;
 }
@@ -592,7 +607,7 @@ h1 {
 
 .content-panel,
 .light-section {
-  padding: 32px 19px 96px;
+  padding: 32px 19px 132px;
 }
 
 .auth-copy {
@@ -1481,6 +1496,7 @@ h1 {
 .profile-section {
   display: grid;
   gap: 16px;
+  padding-bottom: 132px;
 }
 
 .profile-chip-row .chip {
@@ -1850,13 +1866,21 @@ h1 {
 .bottom-nav {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  position: sticky;
-  bottom: 0;
+  position: fixed;
+  right: auto;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  left: 50%;
   z-index: 30;
+  width: min(430px, calc(100vw - 28px));
   min-height: 76px;
   border-top: 0.5px solid var(--line);
-  background: var(--white);
-  padding: 8px 8px 10px;
+  border-radius: 999px;
+  background: rgba(255, 254, 248, 0.72);
+  box-shadow: 0 18px 44px rgba(18, 55, 47, 0.16);
+  transform: translateX(-50%);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
 }
 
 .nav-tab {
@@ -1902,7 +1926,14 @@ h1 {
 }
 
 @media (max-width: 699px) {
+  html,
+  body {
+    background: var(--page);
+  }
+
   .app-stage {
+    min-height: 100dvh;
+    background: var(--page);
     padding: 0;
   }
 
@@ -1910,14 +1941,28 @@ h1 {
     width: 100%;
     max-width: none;
     height: 100dvh;
+    min-height: 100dvh;
     border: 0;
     border-radius: 0;
+    background: var(--page);
+    box-shadow: none;
+  }
+
+  .screen-stack {
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .screen {
+    min-height: 100dvh;
+    padding-bottom: 118px;
   }
 
   .hero-header,
   .player-header,
   .page-head {
     border-radius: 0;
+    padding-top: 24px;
   }
 }
 
@@ -2098,15 +2143,17 @@ h1 {
 
   .bottom-nav {
     position: fixed;
-    right: 24px;
-    bottom: 24px;
-    left: 24px;
+    right: auto;
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    left: 50%;
     z-index: 20;
+    width: min(440px, calc(100vw - 48px));
     max-width: 440px;
     min-height: 62px;
-    margin: 0 auto;
+    margin: 0;
     border: 0.5px solid var(--line);
     border-radius: 100px;
+    transform: translateX(-50%);
     padding: 7px;
   }
 }
