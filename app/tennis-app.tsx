@@ -125,6 +125,8 @@ let authUserCache: { userId: string | null; checkedAt: number } | null = null;
 let profileCompletionCache: { userId: string; redirectPath: string | null; checkedAt: number } | null = null;
 const authCacheMs = 60_000;
 const profileCompletionCacheMs = 30_000;
+const startingTennisTier = 4;
+const startingTennisRating = 3.6;
 
 function LoadingScreen({ label = "Loading..." }: { label?: string }) {
   return (
@@ -791,7 +793,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
 
             <div className="assignment-card">
               <span>{claimPlayerId ? "Claimed profile" : "Assigned after signup"}</span>
-              <strong>{claimPlayerId ? "Existing tier and rating kept" : "Tier 4 · Rating 1.5"}</strong>
+              <strong>{claimPlayerId ? "Existing tier and rating kept" : `Tier ${startingTennisTier} · Rating ${startingTennisRating.toFixed(3)}`}</strong>
               <em>{claimPlayerId ? "Admin can approve or reject this claim." : "0 tournaments played · 0 matches played"}</em>
             </div>
 
@@ -865,8 +867,9 @@ async function createNewPlayerProfile(
     sport_id: sportId,
     auth_user_id: userId,
     ...profilePayload,
-    tier: 4,
-    rating: 1.5,
+    tier: startingTennisTier,
+    rating: startingTennisRating,
+    rating_provisional: true,
     tournaments_played: 0,
     matches_played: 0,
     claim_status: "claimed",
@@ -1346,19 +1349,18 @@ export function PlayersScreen() {
       }
 
       const { data } = await supabase
-        .from("rankings")
-        .select("rank, mrsa_rating, players(full_name, jamaat_city)")
-        .eq("ranking_scope", "overall")
-        .order("rank")
+        .from("players")
+        .select("full_name, jamaat_city, tier, rating, rating_provisional")
+        .order("rating", { ascending: false, nullsFirst: false })
+        .order("full_name")
         .limit(50);
 
       setPlayers((data || []).map((row) => {
-        const player = Array.isArray(row.players) ? row.players[0] : row.players;
         return {
-          rank: String(row.rank).padStart(2, "0"),
-          name: player?.full_name || "Player",
-          rating: formatRating(row.mrsa_rating),
-          form: player?.jamaat_city || "City not added"
+          rank: row.tier ? `T${row.tier}` : "UR",
+          name: row.full_name || "Player",
+          rating: formatRating(row.rating),
+          form: row.jamaat_city || (row.rating_provisional ? "Provisional rating" : "City not added")
         };
       }));
       setLoading(false);
@@ -1375,10 +1377,10 @@ export function PlayersScreen() {
         <header className="page-head">
           <span className="eyebrow">Players</span>
           <h1>All<br />Players</h1>
-          <p>MRSA rankings with player city and rating.</p>
+          <p>MRSA player directory with tier, city, and rating when available.</p>
         </header>
         <section className="light-section">
-          <div className="rating-list" aria-label="All ranked players">
+          <div className="rating-list" aria-label="All players">
             {players.map((player) => (
               <Link className="rating-card tap-card" href="/profile" key={`${player.rank}-${player.name}`}>
                 <span className="rating-rank">{player.rank}</span>
