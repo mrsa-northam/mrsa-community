@@ -1286,7 +1286,6 @@ export function DrawScreen() {
                 <article><span>Tournament Days</span><strong>{formatTournamentDates(tournament)}</strong></article>
                 <article><span>Registration Ends</span><strong>{formatRegistrationClose(tournament.registrationClosesAt)}</strong></article>
                 <article><span>Registration Fee</span><strong>{formatCurrency(tournament.registrationFeeCents)}</strong></article>
-                <article><span>Spots Left</span><strong>{tournament.maxPlayers ? Math.max(tournament.maxPlayers - registeredPlayers.length, 0) : "Open"}</strong></article>
                 <article><span>Players</span><strong>{registeredPlayers.length}</strong></article>
               </div>
             </>
