@@ -1,5 +1,11 @@
 import { LoginScreen } from "./tennis-app";
 
-export default function LoginPage() {
-  return <LoginScreen />;
+export default async function LoginPage({
+  searchParams
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
+
+  return <LoginScreen nextPath={next} />;
 }

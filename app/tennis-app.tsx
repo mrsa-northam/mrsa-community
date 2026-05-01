@@ -4,7 +4,8 @@ import { Home, LogOut, Trophy, UsersRound } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChangeEvent, FormEvent, ReactNode, useEffect, useState } from "react";
+import { ChangeEvent, createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import type { Session, User } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./lib/supabase";
 
 type Tab = "home" | "tournament" | "profile" | "logout";
@@ -121,24 +122,28 @@ const initialProfile: ProfileData = {
   tennisVideo: "Google Drive Link"
 };
 
-let authUserCache: { userId: string | null; checkedAt: number } | null = null;
-let profileCompletionCache: { userId: string; redirectPath: string | null; checkedAt: number } | null = null;
-const authCacheMs = 60_000;
-const profileCompletionCacheMs = 30_000;
 const startingTennisTier = 4;
 const startingTennisRating = 3.6;
+type AppSessionState = {
+  ready: boolean;
+  session: Session | null;
+  user: User | null;
+  userId: string | null;
+  player: DbProfileRow | null;
+  profileComplete: boolean;
+  refresh: () => Promise<void>;
+};
 
-function LoadingScreen({ label = "Loading..." }: { label?: string }) {
-  return (
-    <AppFrame withNav={false}>
-      <div className="screen auth-screen onboarding-screen">
-        <section className="content-panel auth-panel onboarding-panel">
-          <div className="empty-card">{label}</div>
-        </section>
-      </div>
-    </AppFrame>
-  );
-}
+const emptyAppSession: AppSessionState = {
+  ready: false,
+  session: null,
+  user: null,
+  userId: null,
+  player: null,
+  profileComplete: false,
+  refresh: async () => {}
+};
+const AppSessionContext = createContext<AppSessionState>(emptyAppSession);
 
 function Avatar({ className, name, photoUrl, ariaLabel }: AvatarProps) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -178,127 +183,86 @@ function hasRequiredProfileFields(profile?: DbProfileRow | null) {
   );
 }
 
-async function getIncompleteProfileRedirect(
-  supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
-  userId: string,
-  nextPath: string
-) {
-  const now = Date.now();
-  if (
-    profileCompletionCache?.userId === userId &&
-    now - profileCompletionCache.checkedAt < profileCompletionCacheMs
-  ) {
-    return profileCompletionCache.redirectPath
-      ? profileCompletionCache.redirectPath.replace(/next=[^&]*/, `next=${encodeURIComponent(normalizeNextPath(nextPath))}`)
-      : null;
-  }
+export function AppSessionProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AppSessionState>(emptyAppSession);
 
-  const { data } = await supabase
-    .from("players")
-    .select("id, full_name, phone, jamaat_city, self_assessment, jersey_size, claim_status, claim_requested_by, auth_user_id")
-    .or(`auth_user_id.eq.${userId},claim_requested_by.eq.${userId}`)
-    .limit(1)
-    .maybeSingle();
+  const loadState = useCallback(async (sessionOverride?: Session | null) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setState({ ...emptyAppSession, ready: true });
+      return;
+    }
 
-  if (data && !hasRequiredProfileFields(data)) {
-    const redirectPath = buildProfileCompletionPath(data.id, nextPath);
-    profileCompletionCache = { userId, redirectPath, checkedAt: now };
-    return redirectPath;
-  }
+    const session = sessionOverride === undefined
+      ? (await supabase.auth.getSession()).data.session
+      : sessionOverride;
+    const user = session?.user || null;
 
-  profileCompletionCache = { userId, redirectPath: null, checkedAt: now };
-  return null;
+    if (!user) {
+      setState({ ...emptyAppSession, ready: true });
+      return;
+    }
+
+    const { data: player } = await supabase
+      .from("players")
+      .select("id, auth_user_id, full_name, phone, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tier, rating, tournaments_played, matches_played, claim_status, claim_requested_by")
+      .or(`auth_user_id.eq.${user.id},claim_requested_by.eq.${user.id}`)
+      .limit(1)
+      .maybeSingle();
+
+    setState({
+      ready: true,
+      session,
+      user,
+      userId: user.id,
+      player: player || null,
+      profileComplete: hasRequiredProfileFields(player),
+      refresh: () => loadState()
+    });
+  }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setState({ ...emptyAppSession, ready: true });
+      return;
+    }
+
+    loadState();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => {
+        loadState(session);
+      }, 0);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [loadState]);
+
+  return <AppSessionContext.Provider value={{ ...state, refresh: () => loadState() }}>{children}</AppSessionContext.Provider>;
 }
 
-async function getCachedAuthUserId(supabase: NonNullable<ReturnType<typeof getSupabaseClient>>) {
-  const now = Date.now();
-  if (authUserCache && now - authUserCache.checkedAt < authCacheMs) {
-    return authUserCache.userId;
-  }
-
-  const { data: { session } } = await supabase.auth.getSession();
-  const userId = session?.user?.id || null;
-  authUserCache = { userId, checkedAt: now };
-  return userId;
-}
-
-function markProfileComplete(userId: string) {
-  profileCompletionCache = { userId, redirectPath: null, checkedAt: Date.now() };
+function useAppSession() {
+  return useContext(AppSessionContext);
 }
 
 function useProtectedRoute(nextPath = "/dashboard", requireCompleteProfile = false) {
   const router = useRouter();
-  const [checking, setChecking] = useState(() => {
-    if (!authUserCache) return true;
-    if (Date.now() - authUserCache.checkedAt >= authCacheMs) return true;
-    return !authUserCache.userId;
-  });
+  const appSession = useAppSession();
 
   useEffect(() => {
-    let active = true;
+    if (!appSession.ready) return;
 
-    const checkAuth = async () => {
-      const supabase = getSupabaseClient();
-      if (!supabase) {
-        if (active) setChecking(false);
-        return;
-      }
+    if (!appSession.userId) {
+      router.replace(`/?next=${encodeURIComponent(normalizeNextPath(nextPath))}`);
+      return;
+    }
 
-      const userId = await getCachedAuthUserId(supabase);
-      if (!active) return;
+    if (requireCompleteProfile && !appSession.profileComplete) {
+      router.replace(buildProfileCompletionPath(appSession.player?.id, nextPath));
+    }
+  }, [appSession.player?.id, appSession.profileComplete, appSession.ready, appSession.userId, nextPath, requireCompleteProfile, router]);
 
-      if (!userId) {
-        router.replace("/");
-        return;
-      }
-
-      if (requireCompleteProfile) {
-        const profileRedirect = await getIncompleteProfileRedirect(supabase, userId, nextPath);
-        if (!active) return;
-        if (profileRedirect) {
-          router.replace(profileRedirect);
-          return;
-        }
-      }
-
-      setChecking(false);
-    };
-
-    checkAuth();
-
-    return () => {
-      active = false;
-    };
-  }, [nextPath, requireCompleteProfile, router]);
-
-  return checking;
-}
-
-function useProfileCompletionRedirect(nextPath: string) {
-  const router = useRouter();
-
-  useEffect(() => {
-    let active = true;
-
-    const checkProfile = async () => {
-      const supabase = getSupabaseClient();
-      if (!supabase) return;
-
-      const userId = await getCachedAuthUserId(supabase);
-      if (!active || !userId) return;
-
-      const profileRedirect = await getIncompleteProfileRedirect(supabase, userId, nextPath);
-      if (active && profileRedirect) {
-        router.replace(profileRedirect);
-      }
-    };
-
-    checkProfile();
-
-    return () => {
-      active = false;
-    };
-  }, [nextPath, router]);
+  return appSession;
 }
 
 export function AppFrame({
@@ -320,7 +284,7 @@ export function AppFrame({
   );
 }
 
-export function LoginScreen() {
+export function LoginScreen({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
@@ -347,7 +311,8 @@ export function LoginScreen() {
       return;
     }
 
-    router.push(`/otp?email=${encodeURIComponent(email)}`);
+    const destination = normalizeNextPath(nextPath);
+    router.push(`/otp?email=${encodeURIComponent(email)}&next=${encodeURIComponent(destination)}`);
   };
 
   return (
@@ -375,8 +340,9 @@ export function LoginScreen() {
   );
 }
 
-export function OtpScreen({ email = "player@mrsa.com" }: { email?: string }) {
+export function OtpScreen({ email = "player@mrsa.com", nextPath }: { email?: string; nextPath?: string }) {
   const router = useRouter();
+  const appSession = useAppSession();
   const [otp, setOtp] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -409,16 +375,16 @@ export function OtpScreen({ email = "player@mrsa.com" }: { email?: string }) {
       router.push("/player-check");
       return;
     }
-    authUserCache = { userId, checkedAt: Date.now() };
-
     const { data: linkedPlayer } = await supabase
       .from("players")
       .select("id")
       .eq("auth_user_id", userId)
       .maybeSingle();
 
+    await appSession.refresh();
     setLoading(false);
-    router.push(linkedPlayer ? "/dashboard" : "/player-check");
+    const destination = normalizeNextPath(nextPath);
+    router.push(linkedPlayer ? destination : `/player-check?next=${encodeURIComponent(destination)}`);
   };
 
   return (
@@ -448,9 +414,10 @@ export function OtpScreen({ email = "player@mrsa.com" }: { email?: string }) {
   );
 }
 
-export function PlayerCheckScreen() {
+export function PlayerCheckScreen({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
-  const checkingAuth = useProtectedRoute("/dashboard");
+  const destinationPath = normalizeNextPath(nextPath);
+  const appSession = useProtectedRoute(destinationPath);
   const [query, setQuery] = useState("");
   const [players, setPlayers] = useState<ReturningPlayer[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<ReturningPlayer | null>(null);
@@ -460,6 +427,8 @@ export function PlayerCheckScreen() {
     : [];
 
   useEffect(() => {
+    if (!appSession.ready || !appSession.userId) return;
+
     const loadPlayers = async () => {
       const supabase = getSupabaseClient();
       if (!supabase) {
@@ -490,18 +459,17 @@ export function PlayerCheckScreen() {
     };
 
     loadPlayers();
-  }, []);
+  }, [appSession.ready, appSession.userId]);
 
   const claimProfile = async (playerId: string) => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = appSession.user;
     if (!user) {
       router.push("/");
       return;
     }
-    authUserCache = { userId: user.id, checkedAt: Date.now() };
 
     const { data: reservedPlayer, error: playerError } = await supabase
       .from("players")
@@ -555,11 +523,12 @@ export function PlayerCheckScreen() {
       return;
     }
 
+    await appSession.refresh();
     setMessage("Profile reserved. Complete your details before continuing.");
-    router.push(buildProfileCompletionPath(playerId, "/dashboard"));
+    router.push(buildProfileCompletionPath(playerId, destinationPath));
   };
 
-  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+  if (!appSession.ready || !appSession.userId) return null;
 
   return (
     <AppFrame withNav={false}>
@@ -616,7 +585,7 @@ export function PlayerCheckScreen() {
 
           <div className="new-player-actions">
             <p className="form-status">New or first time players, click First Time Player.</p>
-            <Link className="primary-action tap-card" href="/profile/new">First time player</Link>
+            <Link className="primary-action tap-card" href={`/profile/new?next=${encodeURIComponent(destinationPath)}`}>First time player</Link>
           </div>
           {message && <p className="form-status">{message}</p>}
         </section>
@@ -627,7 +596,7 @@ export function PlayerCheckScreen() {
 
 export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: string; nextPath?: string }) {
   const router = useRouter();
-  const checkingAuth = useProtectedRoute(normalizeNextPath(nextPath), false);
+  const appSession = useProtectedRoute(normalizeNextPath(nextPath), false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [claimedProfile, setClaimedProfile] = useState<DbProfileRow | null>(null);
@@ -637,17 +606,18 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
   const destinationPath = normalizeNextPath(nextPath);
 
   useEffect(() => {
+    if (!appSession.ready || !appSession.userId) return;
+
     const loadClaimedProfile = async () => {
       const supabase = getSupabaseClient();
       if (!supabase) return;
       if (!claimPlayerId) return;
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = appSession.user;
       if (!user) {
         router.replace("/");
         return;
       }
-      authUserCache = { userId: user.id, checkedAt: Date.now() };
 
       const { data } = await supabase
         .from("players")
@@ -668,7 +638,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
     };
 
     loadClaimedProfile();
-  }, [claimPlayerId, router]);
+  }, [appSession.ready, appSession.user, appSession.userId, claimPlayerId, router]);
 
   const createPlayer = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -679,12 +649,11 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
       return;
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = appSession.user;
     if (!user) {
       router.push("/");
       return;
     }
-    authUserCache = { userId: user.id, checkedAt: Date.now() };
 
     setLoading(true);
     setMessage("");
@@ -730,13 +699,13 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
       return;
     }
 
-    markProfileComplete(user.id);
+    await appSession.refresh();
     router.push(destinationPath);
   };
 
   const completionTitle = claimPlayerId ? "Complete<br />profile." : "New MRSA<br />player.";
 
-  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+  if (!appSession.ready || !appSession.userId) return null;
 
   return (
     <AppFrame withNav={false}>
@@ -880,8 +849,7 @@ async function createNewPlayerProfile(
 }
 
 export function HomeScreen() {
-  const checkingAuth = useProtectedRoute("/dashboard");
-  useProfileCompletionRedirect("/dashboard");
+  const appSession = useProtectedRoute("/dashboard", true);
   const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
   const [upcomingTournament, setUpcomingTournament] = useState<Tournament | null>(null);
   const [profileBadge, setProfileBadge] = useState<ProfileBadge>({ name: "Profile", initials: "P" });
@@ -889,6 +857,8 @@ export function HomeScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!appSession.ready || !appSession.userId) return;
+
     const supabase = getSupabaseClient();
     if (!supabase) {
       setLoading(false);
@@ -897,7 +867,6 @@ export function HomeScreen() {
 
     const loadDashboard = async () => {
       const today = new Date().toISOString().slice(0, 10);
-      const { data: { user } } = await supabase.auth.getUser();
       const [{ data: rankingData }, { data: tournamentData }, { data: profileData }] = await Promise.all([
         supabase
           .from("rankings")
@@ -913,11 +882,11 @@ export function HomeScreen() {
           .order("starts_on")
           .limit(1)
           .maybeSingle(),
-        user
+        appSession.userId
           ? supabase
               .from("players")
               .select("id, full_name, profile_photo_url")
-              .eq("auth_user_id", user.id)
+              .eq("auth_user_id", appSession.userId)
               .maybeSingle()
           : Promise.resolve({ data: null })
       ]);
@@ -966,9 +935,9 @@ export function HomeScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [appSession.ready, appSession.userId]);
 
-  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 
   return (
     <AppFrame active="home">
@@ -1035,8 +1004,7 @@ export function HomeScreen() {
 
 export function DrawScreen() {
   const router = useRouter();
-  const checkingAuth = useProtectedRoute("/tournaments");
-  useProfileCompletionRedirect("/tournaments");
+  const appSession = useProtectedRoute("/tournaments", true);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [registeredPlayers, setRegisteredPlayers] = useState<RegisteredPlayer[]>([]);
   const [pastTournaments, setPastTournaments] = useState<PastTournamentSummary[]>([]);
@@ -1047,7 +1015,9 @@ export function DrawScreen() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const loadTournament = async () => {
+  const loadTournament = useCallback(async () => {
+    if (!appSession.ready || !appSession.userId) return;
+
     const supabase = getSupabaseClient();
     if (!supabase) {
       setMessage("Supabase env vars are missing.");
@@ -1105,13 +1075,8 @@ export function DrawScreen() {
       };
     }));
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: myPlayer } = await supabase
-        .from("players")
-        .select("id")
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
+    if (appSession.player?.id) {
+      const myPlayer = { id: appSession.player.id };
       const paidRegistration = Boolean(myPlayer && registrations?.some((row) => row.player_id === myPlayer.id));
       setRegistered(paidRegistration);
       setPaymentState(paidRegistration ? "paid" : "idle");
@@ -1136,9 +1101,11 @@ export function DrawScreen() {
       }
     }
     setLoading(false);
-  };
+  }, [appSession.player?.id, appSession.ready, appSession.userId]);
 
   useEffect(() => {
+    if (!appSession.ready || !appSession.userId) return;
+
     const supabase = getSupabaseClient();
     const paymentResult = new URLSearchParams(window.location.search).get("payment");
     const checkoutSessionId = new URLSearchParams(window.location.search).get("session_id");
@@ -1198,23 +1165,18 @@ export function DrawScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [appSession.ready, appSession.userId, appSession.player?.id, loadTournament]);
 
   const registerForTournament = async () => {
     const supabase = getSupabaseClient();
     if (!supabase || !tournament) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!appSession.user) {
       router.push("/");
       return;
     }
 
-    const { data: player } = await supabase
-      .from("players")
-      .select("id")
-      .eq("auth_user_id", user.id)
-      .maybeSingle();
+    const player = appSession.player?.id ? { id: appSession.player.id } : null;
 
     if (!player) {
       router.push(buildProfileCompletionPath(undefined, "/tournaments"));
@@ -1255,7 +1217,7 @@ export function DrawScreen() {
     }
   };
 
-  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 
   return (
     <AppFrame active="tournament">
@@ -1336,11 +1298,13 @@ export function DrawScreen() {
 }
 
 export function PlayersScreen() {
-  const checkingAuth = useProtectedRoute("/dashboard");
+  const appSession = useProtectedRoute("/dashboard", true);
   const [players, setPlayers] = useState<TopPlayer[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!appSession.ready || !appSession.userId) return;
+
     const loadPlayers = async () => {
       const supabase = getSupabaseClient();
       if (!supabase) {
@@ -1367,9 +1331,9 @@ export function PlayersScreen() {
     };
 
     loadPlayers();
-  }, []);
+  }, [appSession.ready, appSession.userId]);
 
-  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 
   return (
     <AppFrame active="profile">
@@ -1398,9 +1362,9 @@ export function PlayersScreen() {
 }
 
 export function AboutScreen() {
-  const checkingAuth = useProtectedRoute("/dashboard");
+  const appSession = useProtectedRoute("/dashboard", true);
 
-  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 
   return (
     <AppFrame active="home">
@@ -1423,8 +1387,7 @@ export function AboutScreen() {
 }
 
 export function PlayerScreen() {
-  const checkingAuth = useProtectedRoute("/profile");
-  useProfileCompletionRedirect("/profile");
+  const appSession = useProtectedRoute("/profile", true);
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState(initialProfile);
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
@@ -1436,17 +1399,16 @@ export function PlayerScreen() {
   };
 
   useEffect(() => {
+    if (!appSession.ready || !appSession.userId) return;
+
     const loadProfile = async () => {
       const supabase = getSupabaseClient();
       if (!supabase) return;
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data } = await supabase
         .from("players")
         .select("id, full_name, phone, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tier, rating, tournaments_played, matches_played")
-        .eq("auth_user_id", user.id)
+        .eq("auth_user_id", appSession.userId)
         .maybeSingle();
 
       if (data) {
@@ -1477,9 +1439,9 @@ export function PlayerScreen() {
     };
 
     loadProfile();
-  }, []);
+  }, [appSession.ready, appSession.userId]);
 
-  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 
   const saveProfile = async () => {
     const supabase = getSupabaseClient();
@@ -1509,6 +1471,7 @@ export function PlayerScreen() {
     }
 
     setIsEditing(false);
+    await appSession.refresh();
     setMessage("Profile saved.");
   };
 
@@ -1517,7 +1480,7 @@ export function PlayerScreen() {
     const supabase = getSupabaseClient();
     if (!file || !supabase || !profile.id) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = appSession.user;
     if (!user) return;
 
     setMessage("Compressing and uploading photo...");
@@ -1534,6 +1497,7 @@ export function PlayerScreen() {
     }
 
     setProfile((current) => ({ ...current, profilePhotoUrl: photoUrl }));
+    await appSession.refresh();
     setMessage("Photo updated.");
   };
 
@@ -1945,9 +1909,9 @@ function ProfileField({
 }
 
 export function SavedScreen() {
-  const checkingAuth = useProtectedRoute("/dashboard");
+  const appSession = useProtectedRoute("/dashboard", true);
 
-  if (checkingAuth) return <LoadingScreen label="Checking sign in..." />;
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 
   return (
     <AppFrame active="logout">

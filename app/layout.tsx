@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AppSessionProvider } from "./tennis-app";
 
 export const metadata: Metadata = {
   title: "MRSA Tennis",
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <AppSessionProvider>{children}</AppSessionProvider>
+      </body>
     </html>
   );
 }
