@@ -713,7 +713,8 @@ h1 {
 
 .auth-form input:focus,
 .profile-create-form input:focus,
-.profile-create-form select:focus {
+.profile-create-form select:focus,
+.city-combobox-trigger:focus {
   border-color: var(--dark);
 }
 
@@ -746,6 +747,94 @@ h1 {
   display: grid;
   align-items: center;
   padding-top: 15px;
+}
+
+.city-combobox {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+
+.city-combobox-trigger {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 54px;
+  border: 0.5px solid var(--line);
+  border-radius: 18px;
+  background: var(--white);
+  color: var(--dark);
+  font: inherit;
+  font-size: 18px;
+  padding: 0 48px 0 16px;
+  text-align: left;
+}
+
+.city-combobox-trigger::after {
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  transform: translateY(-50%);
+  content: "⌄";
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.city-combobox-trigger.is-placeholder {
+  color: var(--muted);
+}
+
+.city-combobox-menu {
+  position: absolute;
+  top: 62px;
+  right: 0;
+  left: 0;
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  border: 0.5px solid rgba(46, 139, 95, 0.2);
+  border-radius: 18px;
+  background: var(--white);
+  padding: 10px;
+  box-shadow: 0 16px 34px rgba(21, 54, 44, 0.14);
+}
+
+.city-combobox-menu input {
+  min-height: 44px;
+  border-radius: 14px;
+  font-size: 16px;
+}
+
+.city-combobox-options {
+  display: grid;
+  max-height: 224px;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.city-combobox-options button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dark);
+  font: inherit;
+  font-size: 16px;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.city-combobox-options button:hover,
+.city-combobox-options button.active {
+  background: #EEF6E8;
+}
+
+.city-combobox-options em {
+  color: var(--muted);
+  font-size: 14px;
+  font-style: normal;
+  padding: 8px 10px;
 }
 
 .otp-input {
@@ -2410,6 +2499,7 @@ h1 {
 .auth-form input,
 .profile-create-form input,
 .profile-create-form select,
+.city-combobox-trigger,
 .profile-input,
 .admin-search {
   border-color: rgba(46, 139, 95, 0.2);
@@ -2419,6 +2509,7 @@ h1 {
 .auth-form input:focus,
 .profile-create-form input:focus,
 .profile-create-form select:focus,
+.city-combobox-trigger:focus,
 .profile-input:focus,
 .admin-search:focus {
   border-color: var(--court);
