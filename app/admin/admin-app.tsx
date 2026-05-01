@@ -65,6 +65,15 @@ type AdminClaim = {
   player_full_name: string | null;
   player_jamaat_city: string | null;
 };
+type LegacyAdminClaim = {
+  id: string;
+  player_id: string;
+  requested_by: string;
+  status: string;
+  requester_note: string | null;
+  created_at: string;
+  players: { full_name: string | null; jamaat_city: string | null } | { full_name: string | null; jamaat_city: string | null }[] | null;
+};
 
 export function AdminFrame({ active, children }: { active: AdminTab; children: ReactNode }) {
   const router = useRouter();
@@ -560,12 +569,46 @@ export function AdminPaymentsScreen() {
 
 export function AdminClaimsScreen() {
   const [claims, setClaims] = useState<AdminClaim[]>([]);
+  const [claimsNotice, setClaimsNotice] = useState("");
 
   const loadClaims = async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
-    const { data } = await supabase.rpc("admin_pending_player_claims");
-    setClaims((data || []) as AdminClaim[]);
+    const { data, error } = await supabase.rpc("admin_pending_player_claims");
+    if (!error) {
+      setClaims((data || []) as AdminClaim[]);
+      setClaimsNotice("");
+      return;
+    }
+
+    const fallback = await supabase
+      .from("player_claims")
+      .select("id, player_id, requested_by, status, requester_note, created_at, players(full_name, jamaat_city)")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(40);
+
+    if (fallback.error) {
+      setClaims([]);
+      setClaimsNotice(fallback.error.message || error.message);
+      return;
+    }
+
+    setClaims(((fallback.data || []) as LegacyAdminClaim[]).map((claim) => {
+      const player = Array.isArray(claim.players) ? claim.players[0] : claim.players;
+      return {
+        id: claim.id,
+        player_id: claim.player_id,
+        requested_by: claim.requested_by,
+        status: claim.status,
+        requester_note: claim.requester_note,
+        requester_email: null,
+        created_at: claim.created_at,
+        player_full_name: player?.full_name || null,
+        player_jamaat_city: player?.jamaat_city || null
+      };
+    }));
+    setClaimsNotice("Claim email requires the latest Supabase migration. Showing pending claims with user IDs for now.");
   };
 
   useEffect(() => {
@@ -603,6 +646,7 @@ export function AdminClaimsScreen() {
   return (
     <AdminFrame active="claims">
       <AdminHeader eyebrow="Claims" title="Profile Claims" copy="Approve true claims or reject false profile matches." />
+      {claimsNotice && <p className="admin-notice error">{claimsNotice}</p>}
       <div className="admin-table">
         {claims.map((claim) => {
           return (

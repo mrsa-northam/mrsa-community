@@ -575,17 +575,28 @@ export function PlayerCheckScreen({
       .eq("status", "pending")
       .maybeSingle();
 
-    const { error } = existingClaim
-      ? { error: null }
-      : await supabase.from("player_claims").insert({
+    let claimInsertError = null;
+    if (!existingClaim) {
+      const claimInsert = await supabase.from("player_claims").insert({
           player_id: playerId,
           requested_by: user.id,
           requester_email: user.email || null,
           requester_note: "Player requested this profile from onboarding."
         });
+      claimInsertError = claimInsert.error;
 
-    if (error) {
-      setMessage(getFriendlyError(error));
+      if (claimInsertError?.message?.includes("requester_email")) {
+        const fallbackInsert = await supabase.from("player_claims").insert({
+          player_id: playerId,
+          requested_by: user.id,
+          requester_note: "Player requested this profile from onboarding."
+        });
+        claimInsertError = fallbackInsert.error;
+      }
+    }
+
+    if (claimInsertError) {
+      setMessage(getFriendlyError(claimInsertError));
       return;
     }
 
