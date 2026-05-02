@@ -581,6 +581,20 @@ export function AdminClaimsScreen() {
       return;
     }
 
+    const { data: sessionData } = await supabase.auth.getSession();
+    const response = await fetch("/api/admin/pending-claims", {
+      headers: {
+        Authorization: `Bearer ${sessionData.session?.access_token || ""}`
+      }
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      setClaims((result.claims || []) as AdminClaim[]);
+      setClaimsNotice("");
+      return;
+    }
+
     const fallback = await supabase
       .from("player_claims")
       .select("id, player_id, requested_by, status, requester_note, created_at, players(full_name, jamaat_city)")
@@ -608,7 +622,7 @@ export function AdminClaimsScreen() {
         player_jamaat_city: player?.jamaat_city || null
       };
     }));
-    setClaimsNotice("Claim email requires the latest Supabase migration. Showing pending claims with user IDs for now.");
+    setClaimsNotice("Claim email requires either the latest Supabase migration or SUPABASE_SERVICE_ROLE_KEY on the server. Showing pending claims with user IDs for now.");
   };
 
   useEffect(() => {
