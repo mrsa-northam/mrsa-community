@@ -570,6 +570,8 @@ export function AdminPaymentsScreen() {
 export function AdminClaimsScreen() {
   const [claims, setClaims] = useState<AdminClaim[]>([]);
   const [claimsNotice, setClaimsNotice] = useState("");
+  const [rejectConfirmId, setRejectConfirmId] = useState<string | null>(null);
+  const [reviewingClaimId, setReviewingClaimId] = useState<string | null>(null);
 
   const loadClaims = async () => {
     const supabase = getSupabaseClient();
@@ -632,29 +634,44 @@ export function AdminClaimsScreen() {
   const reviewClaim = async (claim: AdminClaim, approved: boolean) => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
+    setReviewingClaimId(claim.id);
     const { data: { user } } = await supabase.auth.getUser();
 
-    await supabase
-      .from("player_claims")
-      .update({
-        status: approved ? "approved" : "rejected",
-        reviewed_by: user?.id,
-        reviewed_at: new Date().toISOString()
-      })
-      .eq("id", claim.id);
+    try {
+      await supabase
+        .from("player_claims")
+        .update({
+          status: approved ? "approved" : "rejected",
+          reviewed_by: user?.id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq("id", claim.id);
 
-    await supabase
-      .from("players")
-      .update({
-        auth_user_id: approved ? claim.requested_by : null,
-        claim_status: approved ? "claimed" : "unclaimed",
-        claim_requested_by: null,
-        claimed_at: approved ? new Date().toISOString() : null,
-        claim_reviewed_by: user?.id
-      })
-      .eq("id", claim.player_id);
+      await supabase
+        .from("players")
+        .update({
+          auth_user_id: approved ? claim.requested_by : null,
+          claim_status: approved ? "claimed" : "unclaimed",
+          claim_requested_by: null,
+          claimed_at: approved ? new Date().toISOString() : null,
+          claim_reviewed_by: user?.id
+        })
+        .eq("id", claim.player_id);
 
-    await loadClaims();
+      await loadClaims();
+    } finally {
+      setReviewingClaimId(null);
+      setRejectConfirmId(null);
+    }
+  };
+
+  const rejectClaim = async (claim: AdminClaim) => {
+    if (rejectConfirmId !== claim.id) {
+      setRejectConfirmId(claim.id);
+      return;
+    }
+
+    await reviewClaim(claim, false);
   };
 
   return (
@@ -663,6 +680,8 @@ export function AdminClaimsScreen() {
       {claimsNotice && <p className="admin-notice error">{claimsNotice}</p>}
       <div className="admin-table">
         {claims.map((claim) => {
+          const isConfirmingReject = rejectConfirmId === claim.id;
+          const isReviewing = reviewingClaimId === claim.id;
           return (
             <article className="admin-row" key={claim.id}>
               <div>
@@ -672,8 +691,15 @@ export function AdminClaimsScreen() {
                 </em>
                 <small>{claim.requester_note || "No note"}</small>
               </div>
-              <button type="button" onClick={() => reviewClaim(claim, true)}>Approve</button>
-              <button type="button" onClick={() => reviewClaim(claim, false)}>Reject</button>
+              <button type="button" onClick={() => reviewClaim(claim, true)} disabled={isReviewing}>Approve</button>
+              <button className={isConfirmingReject ? "danger" : undefined} type="button" onClick={() => rejectClaim(claim)} disabled={isReviewing}>
+                {isReviewing ? "Working..." : isConfirmingReject ? "Confirm Reject" : "Reject"}
+              </button>
+              {isConfirmingReject && (
+                <button type="button" onClick={() => setRejectConfirmId(null)} disabled={isReviewing}>
+                  Cancel
+                </button>
+              )}
             </article>
           );
         })}
