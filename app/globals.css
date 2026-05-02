@@ -1287,9 +1287,9 @@ h1 {
 .claim-confirm-card {
   display: grid;
   gap: 10px;
-  border: 0.5px solid rgba(200, 241, 53, 0.5);
+  border: 0.5px solid rgba(219, 112, 71, 0.7);
   border-radius: 24px;
-  background: var(--dark);
+  background: #174030;
   color: var(--white);
   padding: 18px;
 }
@@ -1308,7 +1308,7 @@ h1 {
 }
 
 .claim-confirm-card em {
-  color: var(--lost);
+  color: #ffcfb8;
   font-size: 14px;
   font-style: italic;
 }
@@ -1326,6 +1326,11 @@ h1 {
 
 .claim-confirm-card .secondary-action {
   background: rgba(255, 255, 255, 0.1);
+  color: var(--white);
+}
+
+.claim-confirm-card .danger-action {
+  background: #db7047;
   color: var(--white);
 }
 

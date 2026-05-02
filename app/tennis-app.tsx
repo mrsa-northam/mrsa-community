@@ -498,6 +498,7 @@ export function PlayerCheckScreen({
   const [query, setQuery] = useState("");
   const [players, setPlayers] = useState<ReturningPlayer[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<ReturningPlayer | null>(null);
+  const [confirmClaimId, setConfirmClaimId] = useState<string | null>(null);
   const [message, setMessage] = useState(
     claimStatus === "rejected"
       ? `Admin rejected your claim${rejectedPlayerName ? ` for ${rejectedPlayerName}` : ""}. Please search again or create a new player profile.`
@@ -542,13 +543,19 @@ export function PlayerCheckScreen({
     loadPlayers();
   }, [appSession.ready, appSession.userId]);
 
-  const claimProfile = async (playerId: string) => {
+  const claimProfile = async (player: ReturningPlayer) => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
     const user = appSession.user;
     if (!user) {
       router.push("/");
+      return;
+    }
+
+    if (confirmClaimId !== player.id) {
+      setConfirmClaimId(player.id);
+      setMessage("Please confirm one more time that this is your profile.");
       return;
     }
 
@@ -559,7 +566,7 @@ export function PlayerCheckScreen({
         claim_requested_by: user.id,
         auth_user_id: user.id
       })
-      .eq("id", playerId)
+      .eq("id", player.id)
       .eq("claim_status", "unclaimed")
       .select("id")
       .maybeSingle();
@@ -573,7 +580,7 @@ export function PlayerCheckScreen({
       const { data: existingPlayer } = await supabase
         .from("players")
         .select("id, auth_user_id, claim_requested_by")
-        .eq("id", playerId)
+        .eq("id", player.id)
         .maybeSingle();
 
       const belongsToUser = existingPlayer?.auth_user_id === user.id || existingPlayer?.claim_requested_by === user.id;
@@ -586,7 +593,7 @@ export function PlayerCheckScreen({
     const { data: existingClaim } = await supabase
       .from("player_claims")
       .select("id")
-      .eq("player_id", playerId)
+      .eq("player_id", player.id)
       .eq("requested_by", user.id)
       .eq("status", "pending")
       .maybeSingle();
@@ -594,18 +601,18 @@ export function PlayerCheckScreen({
     let claimInsertError = null;
     if (!existingClaim) {
       const claimInsert = await supabase.from("player_claims").insert({
-          player_id: playerId,
-          requested_by: user.id,
-          requester_email: user.email || null,
-          requester_note: "Player requested this profile from onboarding."
-        });
+        player_id: player.id,
+        requested_by: user.id,
+        requester_email: user.email || null,
+        requester_note: "Player confirmed twice that this is their profile from onboarding."
+      });
       claimInsertError = claimInsert.error;
 
       if (claimInsertError?.message?.includes("requester_email")) {
         const fallbackInsert = await supabase.from("player_claims").insert({
-          player_id: playerId,
+          player_id: player.id,
           requested_by: user.id,
-          requester_note: "Player requested this profile from onboarding."
+          requester_note: "Player confirmed twice that this is their profile from onboarding."
         });
         claimInsertError = fallbackInsert.error;
       }
@@ -618,7 +625,7 @@ export function PlayerCheckScreen({
 
     await appSession.refresh();
     setMessage("Profile reserved. Complete your details before continuing.");
-    router.push(buildProfileCompletionPath(playerId, destinationPath));
+    router.push(buildProfileCompletionPath(player.id, destinationPath));
   };
 
   if (!appSession.ready || !appSession.userId) return null;
@@ -647,6 +654,7 @@ export function PlayerCheckScreen({
               onChange={(event) => {
                 setQuery(event.target.value);
                 setSelectedPlayer(null);
+                setConfirmClaimId(null);
               }}
             />
             <p className="form-status">If you have played a previous MRSA tournament, type your name and select the appropriate profile to claim.</p>
@@ -655,7 +663,15 @@ export function PlayerCheckScreen({
           <div className="returning-list">
             {filteredPlayers.map((player) => (
               <div className="returning-result" key={player.id}>
-                <button className={selectedPlayer?.id === player.id ? "returning-card selected tap-card" : "returning-card tap-card"} type="button" onClick={() => setSelectedPlayer(player)}>
+                <button
+                  className={selectedPlayer?.id === player.id ? "returning-card selected tap-card" : "returning-card tap-card"}
+                  type="button"
+                  onClick={() => {
+                    setSelectedPlayer(player);
+                    setConfirmClaimId(null);
+                    setMessage("");
+                  }}
+                >
                   <span>{player.name}</span>
                   <strong>{selectedPlayer?.id === player.id ? "Selected Profile" : `Rating ${player.rating}`}</strong>
                   <em>{player.city} · Tier {player.tier} · Select to claim</em>
@@ -664,9 +680,11 @@ export function PlayerCheckScreen({
                   <div className="claim-confirm-card">
                     <span>Confirm claim</span>
                     <strong>Are you claiming {player.name} profile?</strong>
-                    <em>Please only continue if this is you.</em>
+                    <em>Please claim this profile only if it is your own player profile. False claims may be rejected by the admin.</em>
                     <div>
-                      <button className="primary-action tap-card" type="button" onClick={() => claimProfile(player.id)}>Yes, this is me</button>
+                      <button className={confirmClaimId === player.id ? "primary-action danger-action tap-card" : "primary-action tap-card"} type="button" onClick={() => claimProfile(player)}>
+                        {confirmClaimId === player.id ? "Confirm: this is my profile" : "Yes, this is me"}
+                      </button>
                       <button className="secondary-action tap-card" type="button" onClick={() => setSelectedPlayer(null)}>Cancel</button>
                     </div>
                   </div>
