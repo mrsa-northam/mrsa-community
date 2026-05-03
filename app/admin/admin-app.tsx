@@ -1,6 +1,7 @@
 "use client";
 
 import { BadgeDollarSign, ClipboardCheck, Home, Shield, Trophy, UsersRound } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
@@ -75,6 +76,17 @@ type LegacyAdminClaim = {
   players: { full_name: string | null; jamaat_city: string | null } | { full_name: string | null; jamaat_city: string | null }[] | null;
 };
 
+function AdminBrandMark({ light = false }: { light?: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="relative h-10 w-10 shrink-0 overflow-hidden">
+        <Image src="/brand/logo-v3.png" alt="" fill sizes="40px" className="object-contain" priority />
+      </span>
+      <strong className={light ? "text-[22px] font-medium leading-none tracking-[-0.4px] text-white" : "text-[22px] font-medium leading-none tracking-[-0.4px] text-brand"}>MRSA</strong>
+    </span>
+  );
+}
+
 export function AdminFrame({ active, children }: { active: AdminTab; children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -108,20 +120,65 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
 
   if (allowed === null) {
     return (
-      <main className="admin-stage admin-access-stage">
-        <div className="admin-loading">Checking admin access...</div>
+      <main className="grid min-h-dvh place-items-center bg-page px-4 py-8 font-sans text-text-primary">
+        <section className="grid w-full max-w-[520px] gap-4 rounded-[24px] border-hairline border-line bg-white p-5 shadow-[0_24px_80px_rgba(12,59,32,0.10)]">
+          <div className="relative overflow-hidden rounded-[20px] bg-brand p-5 text-white">
+            <div className="pointer-events-none absolute inset-0 -right-12 -top-8 text-white opacity-[0.06]" aria-hidden="true">
+              <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            </div>
+            <div className="relative grid gap-2">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/12 text-white">
+                <Shield size={18} />
+              </span>
+              <h1 className="text-[24px] font-medium leading-tight tracking-[-0.4px] text-white">Checking admin access.</h1>
+              <p className="text-[13px] leading-relaxed text-white/65">Verifying whether this MRSA account has permission to open the admin console.</p>
+            </div>
+          </div>
+        </section>
       </main>
     );
   }
 
   if (!allowed) {
     return (
-      <main className="admin-stage admin-access-stage">
-        <section className="admin-denied">
-          <Shield size={22} />
-          <h1>Admin access required</h1>
-          <p>Your account is not marked as an MRSA admin.</p>
-          <Link className="primary-action tap-card" href="/dashboard">Back to app</Link>
+      <main className="grid min-h-dvh place-items-center bg-page px-4 py-8 font-sans text-text-primary">
+        <section className="grid w-full max-w-[760px] overflow-hidden rounded-[24px] border-hairline border-line bg-white shadow-[0_24px_80px_rgba(12,59,32,0.10)] md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div className="relative min-h-[220px] overflow-hidden bg-brand p-5 text-white md:min-h-[420px] md:p-6">
+            <div className="pointer-events-none absolute inset-0 -right-16 -top-8 text-white opacity-[0.07]" aria-hidden="true">
+              <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            </div>
+            <div className="relative grid h-full content-between gap-8">
+              <AdminBrandMark light />
+              <div className="grid gap-3">
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/12 text-white">
+                  <Shield size={20} />
+                </span>
+                <h1 className="text-[30px] font-medium leading-[1.05] tracking-[-0.4px] text-white">Admin access required.</h1>
+                <p className="max-w-[320px] text-[13px] leading-relaxed text-white/65">The admin console is limited to approved MRSA administrators.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid content-center gap-5 p-5 md:p-8">
+            <div className="grid gap-2">
+              <span className="inline-flex w-max rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">Protected area</span>
+              <h2 className="text-[24px] font-medium leading-tight tracking-[-0.4px] text-text-primary">You do not have admin permission.</h2>
+              <p className="text-[13px] leading-relaxed text-text-secondary">Your account is signed in, but it is not marked as an MRSA admin. If this seems wrong, ask an existing admin to update your role.</p>
+            </div>
+
+            <div className="grid gap-2 rounded-[16px] border-hairline border-line bg-surface/60 p-4">
+              <span className="text-[11px] text-text-secondary">What you can do</span>
+              <p className="text-[13px] leading-relaxed text-text-primary">Return to the player app and continue viewing tournaments, profile details, and registered players.</p>
+            </div>
+
+            <Link className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white md:w-max" href="/dashboard">Back to app →</Link>
+          </div>
         </section>
       </main>
     );
@@ -130,7 +187,7 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
   return (
     <main className="admin-stage">
       <aside className="admin-sidebar">
-        <Link className="brand admin-brand" href="/admin">MRSA</Link>
+        <Link className="brand admin-brand" href="/admin"><AdminBrandMark light /></Link>
         <nav className="admin-nav" aria-label="Admin navigation">
           <AdminNavItem active={active === "overview"} href="/admin" icon={<Home size={17} />} label="Overview" />
           <AdminNavItem active={active === "tournaments"} href="/admin/tournaments" icon={<Trophy size={17} />} label="Tournaments" />
