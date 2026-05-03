@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Bell, CheckCircle2, ChevronDown, Home, LogIn, LogOut, Mail, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, CheckCircle2, ChevronDown, Home, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -90,7 +90,7 @@ const jamaatCityOptions = [
   "Plano",
   "Vancouver"
 ];
-const videoDescription = "Optional: add a Google Drive link to a short tennis video covering your serve, forehand, backhand, and volleys. You can skip this now and add it later from your profile.";
+const videoDescription = "Optional: add a Google Drive link to a short video of you playing. Include your serve, forehand, backhand, volleys, and a few rally points so captains and organizers can evaluate your level for drafts.";
 type DbProfileRow = {
   id?: string;
   auth_user_id?: string | null;
@@ -144,7 +144,7 @@ const initialProfile: ProfileData = {
   tournamentsPlayed: "2",
   matchesPlayed: "11",
   jerseySize: "M",
-  tennisVideo: "Google Drive Link"
+  tennisVideo: ""
 };
 
 const startingTennisTier = 4;
@@ -191,11 +191,11 @@ function Avatar({ className, name, photoUrl, ariaLabel }: AvatarProps) {
 
 function BrandMark({ light = false }: { light?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className="relative h-10 w-10 shrink-0 overflow-hidden">
-        <NextImage src="/brand/logo-v3.png" alt="" fill sizes="40px" className="object-contain" priority />
+    <span className="inline-flex items-center gap-2.5">
+      <span className="relative h-12 w-12 shrink-0 overflow-hidden">
+        <NextImage src="/brand/logo-v3.png" alt="" fill sizes="48px" className="object-contain" priority />
       </span>
-      <strong className={light ? "text-[22px] font-medium leading-none tracking-[-0.4px] text-white" : "text-[22px] font-medium leading-none tracking-[-0.4px] text-brand"}>MRSA</strong>
+      <strong className={light ? "text-[26px] font-medium leading-none tracking-[-0.4px] text-white" : "text-[26px] font-medium leading-none tracking-[-0.4px] text-brand"}>MRSA</strong>
     </span>
   );
 }
@@ -1261,6 +1261,10 @@ export function HomeScreen() {
   const [upcomingTournament, setUpcomingTournament] = useState<Tournament | null>(null);
   const [profileBadge, setProfileBadge] = useState<ProfileBadge>({ name: "Profile", initials: "P" });
   const [hasRegisteredTournament, setHasRegisteredTournament] = useState(false);
+  const [needsVideoLink, setNeedsVideoLink] = useState(false);
+  const [dashboardVideoLink, setDashboardVideoLink] = useState("");
+  const [dashboardVideoMessage, setDashboardVideoMessage] = useState("");
+  const [savingDashboardVideo, setSavingDashboardVideo] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1292,7 +1296,7 @@ export function HomeScreen() {
         appSession.userId
           ? supabase
               .from("players")
-              .select("id, full_name, profile_photo_url")
+              .select("id, full_name, profile_photo_url, tennis_video_url")
               .eq("auth_user_id", appSession.userId)
               .maybeSingle()
           : Promise.resolve({ data: null })
@@ -1315,6 +1319,8 @@ export function HomeScreen() {
           initials: getInitials(profileData.full_name || "Profile"),
           photoUrl: profileData.profile_photo_url || undefined
         });
+        setNeedsVideoLink(!hasPlayerVideoLink(profileData.tennis_video_url));
+        setDashboardVideoLink(hasPlayerVideoLink(profileData.tennis_video_url) ? profileData.tennis_video_url || "" : "");
       }
       if (profileData && tournamentData) {
         const { data: registration } = await supabase
@@ -1344,16 +1350,42 @@ export function HomeScreen() {
     };
   }, [appSession.ready, appSession.userId]);
 
+  const saveDashboardVideoLink = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const supabase = getSupabaseClient();
+    if (!supabase || !appSession.player?.id) return;
+
+    const trimmedLink = dashboardVideoLink.trim();
+    if (!trimmedLink) {
+      setDashboardVideoMessage("Please add your Google Drive video link.");
+      return;
+    }
+
+    setSavingDashboardVideo(true);
+    setDashboardVideoMessage("");
+    const { error } = await supabase.from("players").update({ tennis_video_url: trimmedLink }).eq("id", appSession.player.id);
+    setSavingDashboardVideo(false);
+
+    if (error) {
+      setDashboardVideoMessage(getFriendlyError(error));
+      return;
+    }
+
+    setNeedsVideoLink(false);
+    setDashboardVideoMessage("Video link saved.");
+    await appSession.refresh();
+  };
+
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 
   return (
     <AppFrame active="home">
-      <div className="min-h-dvh bg-page pb-28 font-sans text-text-primary">
-        <header className="sticky top-0 z-30 border-b-hairline border-surface bg-white/95 px-4 py-3 backdrop-blur">
+      <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
+        <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-3 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-shell items-center justify-between">
             <BrandMark />
             <div className="flex items-center gap-2">
-              <button className="relative grid h-8 w-8 place-items-center rounded-full border-hairline border-line bg-card text-text-primary" type="button" aria-label="Notifications">
+              <button className="relative grid h-8 w-8 place-items-center rounded-full border-hairline border-white/80 bg-white/65 text-text-primary shadow-[0_8px_22px_rgba(24,24,26,0.06)] backdrop-blur" type="button" aria-label="Notifications">
                 <Bell size={16} />
                 <span className="absolute right-[6px] top-[5px] h-1.5 w-1.5 rounded-full border-[1.5px] border-white bg-accent-clay" />
               </button>
@@ -1365,7 +1397,25 @@ export function HomeScreen() {
         </header>
 
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
-          <section className="relative grid min-h-[220px] overflow-hidden rounded-[22px] bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] md:items-center md:gap-x-8 lg:p-6">
+          {needsVideoLink && (
+            <form className="grid gap-3 rounded-[18px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-4 md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:items-end md:p-5" onSubmit={saveDashboardVideoLink}>
+              <span className="grid gap-1">
+                <strong className="text-[15px] font-medium text-[#8a4a22]">Upload your tennis video link</strong>
+                <em className="text-[12px] not-italic leading-relaxed text-[#8a4a22]/80">Captains and organizers use your Google Drive video to draft teams. If it is not uploaded, you may not be drafted.</em>
+                {dashboardVideoMessage && <b className="text-[11px] font-medium text-[#8a4a22]">{dashboardVideoMessage}</b>}
+              </span>
+              <span className="grid gap-2">
+                <label className="grid gap-1 text-[10px] text-[#8a4a22]" htmlFor="dashboard-video-link">
+                  Google Drive video link
+                  <input className="min-h-10 rounded-[12px] border-hairline border-[#f2dccb] bg-white px-3 text-[13px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" id="dashboard-video-link" value={dashboardVideoLink} onChange={(event) => setDashboardVideoLink(event.target.value)} placeholder="https://drive.google.com/..." inputMode="url" />
+                </label>
+                <button className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-xs font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.18)] disabled:opacity-60" type="submit" disabled={savingDashboardVideo}>
+                  {savingDashboardVideo ? "Saving..." : "Submit video link"}
+                </button>
+              </span>
+            </form>
+          )}
+          <section className="relative grid min-h-[220px] overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] md:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] md:items-center md:gap-x-8 lg:p-6">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -1377,7 +1427,7 @@ export function HomeScreen() {
               <h1 className="max-w-[680px] text-2xl font-medium leading-[1.12] tracking-[-0.4px] text-white">{upcomingTournament?.name || "Mumineen Racquet Sports Association"}</h1>
               <p className="max-w-[680px] text-xs text-white/55">{upcomingTournament ? `${upcomingTournament.venueName || "Venue TBD"} · ${formatTournamentDates(upcomingTournament)}` : "No upcoming tournament"}</p>
             </div>
-            <div className="relative mt-5 grid gap-4 rounded-[18px] border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
+            <div className="relative mt-5 grid gap-4 rounded-[20px] border-hairline border-white/20 bg-white/[0.13] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-xl md:mt-0">
               {upcomingTournament?.status === "registration_open" && (
                 <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/12 px-2.5 py-1 text-[11px] text-white/85"><span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />Registration open</span>
               )}
@@ -1385,7 +1435,7 @@ export function HomeScreen() {
               <span className="text-center text-xs font-medium text-white/80">
                 {upcomingTournament ? hasRegisteredTournament ? "Registered" : "Register now" : "View"}
               </span>
-              <Link className="tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[14px] bg-white px-4 text-xs font-medium text-[#072912]" href="/tournaments">
+              <Link className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70" href="/tournaments">
                 View details →
               </Link>
             </div>
@@ -1419,7 +1469,7 @@ export function HomeScreen() {
                 <strong className="text-lg font-medium leading-tight text-brand">Mumineen Racquet Sports Association</strong>
                 <em className="text-[13px] not-italic leading-relaxed text-text-secondary">MRSA brings Mumineen tennis players together through organized tournaments, rankings, match play, and community events.</em>
               </span>
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white" aria-hidden="true">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] text-white shadow-[0_12px_24px_rgba(12,59,32,0.18)]" aria-hidden="true">
                 <ArrowRight size={18} />
               </span>
             </Link>
@@ -1440,6 +1490,10 @@ export function DrawScreen() {
   const [paymentState, setPaymentState] = useState<PaymentState>("idle");
   const [paying, setPaying] = useState(false);
   const [reconcilingPayment, setReconcilingPayment] = useState(false);
+  const [showVideoPrompt, setShowVideoPrompt] = useState(false);
+  const [videoLink, setVideoLink] = useState("");
+  const [videoPromptMessage, setVideoPromptMessage] = useState("");
+  const [savingVideoLink, setSavingVideoLink] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -1595,7 +1649,7 @@ export function DrawScreen() {
     };
   }, [appSession.ready, appSession.userId, appSession.player?.id, loadTournament]);
 
-  const registerForTournament = async () => {
+  const continueRegistrationCheckout = async () => {
     const supabase = getSupabaseClient();
     if (!supabase || !tournament) return;
 
@@ -1645,16 +1699,58 @@ export function DrawScreen() {
     }
   };
 
+  const registerForTournament = async () => {
+    if (!hasPlayerVideoLink(appSession.player?.tennis_video_url)) {
+      setVideoLink(hasPlayerVideoLink(videoLink) ? videoLink : "");
+      setVideoPromptMessage("");
+      setShowVideoPrompt(true);
+      return;
+    }
+
+    await continueRegistrationCheckout();
+  };
+
+  const saveVideoLinkAndContinue = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !appSession.player?.id) return;
+
+    const trimmedLink = videoLink.trim();
+    if (!trimmedLink) {
+      setVideoPromptMessage("Add a Google Drive video link or choose skip for now.");
+      return;
+    }
+
+    setSavingVideoLink(true);
+    setMessage("");
+    setVideoPromptMessage("");
+    const { error } = await supabase.from("players").update({ tennis_video_url: trimmedLink }).eq("id", appSession.player.id);
+    setSavingVideoLink(false);
+
+    if (error) {
+      setVideoPromptMessage(getFriendlyError(error));
+      return;
+    }
+
+    setShowVideoPrompt(false);
+    await appSession.refresh();
+    await continueRegistrationCheckout();
+  };
+
+  const skipVideoLinkAndContinue = async () => {
+    setShowVideoPrompt(false);
+    await continueRegistrationCheckout();
+  };
+
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 
   return (
     <AppFrame active="tournament">
-      <div className="min-h-dvh bg-page pb-28 font-sans text-text-primary">
-        <header className="sticky top-0 z-30 border-b-hairline border-surface bg-white/95 px-4 py-3 backdrop-blur">
+      <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
+        <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-3 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-shell items-center justify-between">
             <BrandMark />
             <div className="flex items-center gap-2">
-              <button className="relative grid h-8 w-8 place-items-center rounded-full border-hairline border-line bg-card text-text-primary" type="button" aria-label="Notifications">
+              <button className="relative grid h-8 w-8 place-items-center rounded-full border-hairline border-white/80 bg-white/65 text-text-primary shadow-[0_8px_22px_rgba(24,24,26,0.06)] backdrop-blur" type="button" aria-label="Notifications">
                 <Bell size={16} />
                 <span className="absolute right-[6px] top-[5px] h-1.5 w-1.5 rounded-full border-[1.5px] border-white bg-accent-clay" />
               </button>
@@ -1665,7 +1761,7 @@ export function DrawScreen() {
           </div>
         </header>
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
-          <header className="relative grid min-h-[220px] overflow-hidden rounded-[22px] bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] md:items-center md:gap-x-8 lg:p-6">
+          <header className="relative grid min-h-[220px] overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] md:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] md:items-center md:gap-x-8 lg:p-6">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -1678,14 +1774,16 @@ export function DrawScreen() {
               <p className="max-w-[680px] text-xs text-white/55">{tournament ? `${formatTournamentDates(tournament)} at ${tournament.venueName || "venue TBD"}.` : "No live tournament is open right now."}</p>
             </div>
             {tournament && (
-              <div className="relative mt-5 grid gap-4 rounded-[18px] border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
+              <div className="relative mt-5 grid gap-4 rounded-[20px] border-hairline border-white/20 bg-white/[0.13] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-xl md:mt-0">
                 <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/12 px-2.5 py-1 text-[11px] text-white/85"><span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />Registration live</span>
                 <p className="text-[12px] leading-relaxed text-white/70">
                   Registration is live. Pay {formatCurrency(tournament.registrationFeeCents)} and confirm your spot.
                 </p>
                 <RegistrationCountdown closesAt={tournament.registrationClosesAt} />
-                <button className={registered ? "tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[14px] bg-white px-4 text-xs font-medium text-[#072912] disabled:opacity-80" : "tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[14px] bg-white px-4 text-xs font-medium text-[#072912] disabled:opacity-60"} type="button" onClick={registerForTournament} disabled={paying || registered}>
+                <button className={registered ? "tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-100" : "tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-70"} type="button" onClick={registerForTournament} disabled={paying || registered}>
+                  {registered && <CheckCircle2 size={16} />}
                   {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState })}
+                  {!registered && " →"}
                 </button>
               </div>
             )}
@@ -1697,7 +1795,10 @@ export function DrawScreen() {
               <div className="grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
                 <span className="text-[11px] text-text-secondary">Venue</span>
                 <strong className="text-lg font-medium leading-tight text-text-primary">{tournament.venueName || "Venue TBD"}</strong>
-                <a className="text-xs font-medium text-brand" href={tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueAddress || tournament.venueName || "")}`} target="_blank" rel="noreferrer">Open venue address in Maps →</a>
+                <a className="tap-card inline-flex w-max items-center gap-1.5 text-xs font-medium text-brand" href={tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueAddress || tournament.venueName || "")}`} target="_blank" rel="noreferrer">
+                  <MapPin size={14} />
+                  Open venue address in Maps →
+                </a>
               </div>
 
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -1754,6 +1855,33 @@ export function DrawScreen() {
           {message && <p className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">{message}</p>}
         </section>
         </main>
+        {showVideoPrompt && (
+          <div className="fixed inset-0 z-50 grid place-items-end bg-black/35 px-3 pb-3 pt-16 backdrop-blur-sm sm:place-items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="tournament-video-title">
+            <section className="grid w-full max-w-[520px] gap-4 rounded-[24px] border-hairline border-white/80 bg-white/90 p-5 shadow-[0_24px_80px_rgba(24,24,26,0.22)] backdrop-blur-xl">
+              <div className="grid gap-2">
+                <span className="inline-flex w-max items-center rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">Tournament draft video</span>
+                <h2 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary" id="tournament-video-title">Add your playing video</h2>
+                <p className="text-[13px] leading-relaxed text-text-secondary">Please upload a Google Drive link with video of you playing and showcasing your skills. This helps captains and organizers draft you fairly.</p>
+                <p className="rounded-[14px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-3 text-[12px] leading-relaxed text-[#8a4a22]">If the Google Drive link is not uploaded, you may not be drafted. You can skip this step during registration and add it later from your profile.</p>
+              </div>
+              <label className="grid gap-2 text-[11px] text-text-secondary">
+                Google Drive video link
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" value={videoLink} onChange={(event) => setVideoLink(event.target.value)} placeholder="https://drive.google.com/..." inputMode="url" />
+                <em className="text-[11px] not-italic leading-relaxed text-text-secondary">Show your serve, forehand, backhand, volleys, and a few rally points if possible.</em>
+              </label>
+              {videoPromptMessage && <p className="rounded-[14px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-3 text-[12px] text-[#8a4a22]">{videoPromptMessage}</p>}
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-sm font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.18)] disabled:opacity-60" type="button" onClick={saveVideoLinkAndContinue} disabled={savingVideoLink || paying}>
+                  {savingVideoLink ? "Saving..." : "Save link and continue"}
+                </button>
+                <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] border-hairline border-line bg-white px-4 text-sm font-medium text-text-secondary disabled:opacity-60" type="button" onClick={skipVideoLinkAndContinue} disabled={savingVideoLink || paying}>
+                  Skip for now
+                </button>
+              </div>
+              <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] text-xs font-medium text-text-secondary" type="button" onClick={() => setShowVideoPrompt(false)} disabled={savingVideoLink || paying}>Cancel registration</button>
+            </section>
+          </div>
+        )}
       </div>
     </AppFrame>
   );
@@ -1841,16 +1969,16 @@ export function RegisteredPlayersScreen() {
 
   return (
     <AppFrame active="tournament">
-      <div className="min-h-dvh bg-page pb-28 font-sans text-text-primary">
-        <header className="sticky top-0 z-30 border-b-hairline border-surface bg-white/95 px-4 py-3 backdrop-blur">
+      <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
+        <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-3 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-shell items-center justify-between">
             <BrandMark />
-            <Link className="tap-card rounded-full border-hairline border-line bg-card px-4 py-2 text-xs font-medium text-brand" href="/tournaments">Back</Link>
+            <Link className="tap-card rounded-full border-hairline border-white/80 bg-white/65 px-4 py-2 text-xs font-medium text-brand shadow-[0_8px_22px_rgba(24,24,26,0.06)] backdrop-blur" href="/tournaments">Back</Link>
           </div>
         </header>
 
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
-          <section className="relative grid overflow-hidden rounded-[22px] bg-brand p-5 text-white lg:p-6">
+          <section className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] lg:p-6">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -2168,8 +2296,8 @@ export function PlayerScreen() {
 
   return (
     <AppFrame active="profile">
-      <div className="min-h-dvh bg-page pb-28 font-sans text-text-primary">
-        <header className="sticky top-0 z-30 border-b-hairline border-surface bg-white/95 px-4 py-3 backdrop-blur">
+      <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
+        <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-3 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-shell items-center justify-between">
             <BrandMark />
             <Avatar className="relative grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-full bg-brand text-[11px] font-medium text-white" name={profile.fullName} photoUrl={profile.profilePhotoUrl} ariaLabel={`${profile.fullName} profile photo`} />
@@ -2177,14 +2305,14 @@ export function PlayerScreen() {
         </header>
 
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
-        <section className="relative grid min-h-[220px] overflow-hidden rounded-[22px] bg-brand p-5 text-white md:grid-cols-[auto_minmax(0,1fr)] md:items-center md:gap-6 lg:p-6">
+        <section className="relative grid min-h-[220px] overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] md:grid-cols-[auto_minmax(0,1fr)] md:items-center md:gap-6 lg:p-6">
           <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
             <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
               <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
             </svg>
           </div>
-          <Avatar className="relative grid h-20 w-20 place-items-center overflow-hidden rounded-full border-hairline border-white/20 bg-white/12 text-xl font-medium text-white md:h-24 md:w-24" name={profile.fullName} photoUrl={profile.profilePhotoUrl} ariaLabel={`${profile.fullName} profile photo`} />
+          <Avatar className="relative grid h-20 w-20 place-items-center overflow-hidden rounded-full border-hairline border-white/35 bg-white/16 text-xl font-medium text-white shadow-[0_18px_44px_rgba(0,0,0,0.14)] backdrop-blur md:h-24 md:w-24" name={profile.fullName} photoUrl={profile.profilePhotoUrl} ariaLabel={`${profile.fullName} profile photo`} />
           <div className="relative grid gap-3">
             <span className="text-[11px] text-white/60">Player profile</span>
             <h1 className="text-3xl font-medium leading-none tracking-[-0.4px] text-white">{profile.fullName}</h1>
@@ -2211,7 +2339,7 @@ export function PlayerScreen() {
                 Editing now
               </span>
             ) : (
-              <button className="tap-card inline-flex min-h-9 items-center gap-2 justify-self-end whitespace-nowrap rounded-full bg-brand px-3 text-[12px] font-medium text-white" type="button" onClick={startProfileEdit}>
+              <button className="tap-card inline-flex min-h-9 items-center gap-2 justify-self-end whitespace-nowrap rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-3 text-[12px] font-medium text-white shadow-[0_10px_22px_rgba(12,59,32,0.16)]" type="button" onClick={startProfileEdit}>
                 <Pencil size={14} />
                 Edit profile
               </button>
@@ -2243,7 +2371,7 @@ export function PlayerScreen() {
             {!paymentHistory.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">Completed tournament payments will appear here.</div>}
           </div>
 
-          <div ref={editSectionRef} className={isEditing ? "grid gap-3 rounded-[20px] border-hairline border-[#bdd7aa] bg-[#f8fbf4] p-3 shadow-[0_18px_42px_rgba(12,59,32,0.10)] ring-2 ring-brand-light md:p-4" : "grid gap-3"}>
+          <div ref={editSectionRef} className={isEditing ? "grid gap-3 rounded-[20px] border-hairline border-[#bdd7aa] bg-[linear-gradient(135deg,#f8fbf4,#ffffff)] p-3 shadow-[0_18px_42px_rgba(12,59,32,0.10)] ring-2 ring-brand-light md:p-4" : "grid gap-3"}>
             {isEditing && (
               <div className="grid gap-1 rounded-[16px] border-hairline border-[#dbe8cd] bg-white p-4">
                 <span className="inline-flex w-max items-center gap-2 rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">
@@ -2273,17 +2401,17 @@ export function PlayerScreen() {
                 helper={<a href="https://www.nike.com/size-fit/mens-tops-alpha" target="_blank" rel="noreferrer">Size guide</a>}
               />
               <ProfileField
-                label="Tennis playing video optional"
+                label="Tennis video Google Drive link optional"
                 value={profile.tennisVideo}
                 editing={isEditing}
                 onChange={(value) => updateProfile("tennisVideo", value)}
-                helper={<a href="https://drive.google.com/" target="_blank" rel="noreferrer">Open video</a>}
+                helper={<span>{videoDescription} Captains and organizers use this for tournament drafts.</span>}
               />
             </div>
 
             {isEditing && (
               <div className="grid gap-2 sm:grid-cols-[auto_auto]">
-                <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-sm font-medium text-white disabled:opacity-60" type="button" onClick={saveProfile} disabled={saving}>
+                <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-sm font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.18)] disabled:opacity-60" type="button" onClick={saveProfile} disabled={saving}>
                   <CheckCircle2 size={16} />
                   {saving ? "Saving..." : "Save profile"}
                 </button>
@@ -2321,7 +2449,7 @@ function mapProfile(row: DbProfileRow): ProfileData {
     tournamentsPlayed: String(row.tournaments_played || 0),
     matchesPlayed: String(row.matches_played || 0),
     jerseySize: row.jersey_size || initialProfile.jerseySize,
-    tennisVideo: row.tennis_video_url || initialProfile.tennisVideo
+    tennisVideo: hasPlayerVideoLink(row.tennis_video_url) ? row.tennis_video_url || "" : ""
   };
 }
 
@@ -2352,6 +2480,12 @@ function normalizeSkillLevel(value?: string | null) {
   if (!value) return "";
   const skillLevel = skillLevels.find((level) => value === level.value || value === level.label || value.startsWith(level.value));
   return skillLevel?.value || value;
+}
+
+function hasPlayerVideoLink(value?: string | null) {
+  const normalizedValue = (value || "").trim();
+  if (!normalizedValue) return false;
+  return !/^google drive link$/i.test(normalizedValue);
 }
 
 function getSkillLevelLabel(value?: string | null) {
@@ -2657,9 +2791,9 @@ function BottomNav({ active, showAdmin }: { active: Tab; showAdmin: boolean }) {
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 grid border-t-hairline border-line bg-white/95 px-4 py-3 shadow-nav backdrop-blur md:inset-x-6 md:bottom-4 md:mx-auto md:max-w-shell md:rounded-[22px] md:border-hairline lg:left-1/2 lg:right-auto lg:w-[min(760px,calc(100vw-64px))] lg:-translate-x-1/2" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }} aria-label="Primary mobile navigation">
+    <nav className="fixed inset-x-0 bottom-0 z-50 grid border-t-hairline border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,255,255,0.72))] px-4 py-3 shadow-[0_-18px_44px_rgba(24,24,26,0.08)] backdrop-blur-2xl md:inset-x-6 md:bottom-4 md:mx-auto md:max-w-shell md:rounded-[24px] md:border-hairline md:shadow-[0_18px_50px_rgba(24,24,26,0.12)] lg:left-1/2 lg:right-auto lg:w-[min(760px,calc(100vw-64px))] lg:-translate-x-1/2" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }} aria-label="Primary mobile navigation">
       {tabs.map(({ id, href, label, icon: Icon }) => (
-        <Link className={active === id ? "grid min-h-12 place-items-center content-center gap-1 text-brand" : "grid min-h-12 place-items-center content-center gap-1 text-[#c0bdb6]"} href={href} key={id}>
+        <Link className={active === id ? "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] bg-white/45 text-brand" : "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#b6b1a8]"} href={href} key={id}>
           <Icon size={20} strokeWidth={active === id ? 2.2 : 1.7} />
           <span className={active === id ? "text-[10px] font-medium leading-none" : "text-[10px] font-normal leading-none"}>{label}</span>
           <span className={active === id ? "h-1 w-1 rounded-full bg-brand" : "h-1 w-1 rounded-full bg-transparent"} />

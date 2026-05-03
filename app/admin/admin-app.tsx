@@ -48,6 +48,7 @@ type AdminRegisteredPlayer = {
   fullName: string;
   jamaatCity: string;
   profilePhotoUrl: string;
+  tennisVideoUrl: string;
   age: string;
   tier: number;
   rating: number | null;
@@ -729,7 +730,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .maybeSingle(),
       supabase
         .from("tournament_registrations")
-        .select("tournament_id, players(id, full_name, jamaat_city, age, profile_photo_url, tier, rating)")
+        .select("tournament_id, players(id, full_name, jamaat_city, age, profile_photo_url, tennis_video_url, tier, rating)")
         .eq("tournament_id", tournamentId)
         .neq("status", "cancelled")
         .in("payment_status", ["paid", "waived"])
@@ -752,6 +753,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         fullName: player.full_name || "Unknown player",
         jamaatCity: player.jamaat_city || "City missing",
         profilePhotoUrl: player.profile_photo_url || "",
+        tennisVideoUrl: player.tennis_video_url || "",
         age: player.age ? `Age ${player.age}` : "Age not set",
         tier: Number(player.tier || 4),
         rating: player.rating
@@ -941,10 +943,10 @@ function TieredRegisteredPlayers({
         <span className="text-[11px] text-text-secondary">{players.length} players</span>
       </div>
       {grouped.map((group) => (
-        <section className="grid gap-2 rounded-[14px] border-hairline border-line bg-white p-3" key={group.tier}>
+        <section className={`grid gap-2 rounded-[14px] border-hairline p-3 ${getAdminTierSectionClass(group.tier)}`} key={group.tier}>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-            <strong className="text-[13px] font-medium text-text-primary">Tier {group.tier}</strong>
-            <span className="rounded-full bg-brand-light px-2.5 py-1 text-[10px] font-medium text-[#3b6d11]">{group.players.length} players</span>
+            <strong className={`text-[13px] font-medium ${getAdminTierTextClass(group.tier)}`}>Tier {group.tier}</strong>
+            <span className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${getAdminTierBadgeClass(group.tier)}`}>{group.players.length} players</span>
           </div>
           {group.players.length ? (
             <ul className="grid gap-2">
@@ -997,7 +999,7 @@ function TieredRegisteredPlayerRow({
   const hasTierChange = pendingTier !== player.tier;
 
   return (
-    <li className="grid min-h-[64px] gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3 sm:grid-cols-[38px_minmax(0,1fr)_auto] sm:items-center" key={player.id}>
+    <li className="grid min-h-[64px] gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3 lg:grid-cols-[minmax(220px,1fr)_auto_auto] lg:items-center" key={player.id}>
       <div className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-3">
         <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[11px] font-medium text-[#3b6d11]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
           {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
@@ -1007,35 +1009,63 @@ function TieredRegisteredPlayerRow({
           <em className="truncate text-[11px] not-italic text-text-secondary">{player.jamaatCity} · {player.age}</em>
         </span>
       </div>
-      <div className="grid gap-2 sm:justify-items-end">
+      <div className="grid grid-cols-[auto_auto] items-center gap-2 lg:grid-cols-1 lg:justify-items-end">
         <strong className="text-[13px] font-medium leading-none text-brand">{formatAdminRating(player.rating)}</strong>
-        <div className="grid grid-cols-[minmax(86px,1fr)_auto] items-end gap-2 sm:grid-cols-[86px_auto]">
-          <label className="grid gap-1 text-[10px] text-text-secondary">
-            Tier
-            <select
-              className="h-9 rounded-[10px] border-hairline border-line bg-white px-2 text-[12px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
-              value={pendingTier}
-              onChange={(event) => onPendingTierChange(Number(event.target.value))}
-              aria-label={`Select tier for ${player.fullName}`}
-              disabled={saving}
-            >
-              {[1, 2, 3, 4].map((tier) => (
-                <option value={tier} key={tier}>Tier {tier}</option>
-              ))}
-            </select>
-          </label>
-          <button
-            className={hasTierChange ? "tap-card inline-flex h-9 items-center justify-center rounded-[10px] bg-brand px-3 text-[11px] font-medium text-white disabled:opacity-60" : "tap-card inline-flex h-9 items-center justify-center rounded-[10px] border-hairline border-line bg-white px-3 text-[11px] font-medium text-text-muted disabled:opacity-50"}
-            type="button"
-            onClick={onSaveTier}
-            disabled={!hasTierChange || saving}
+        {player.tennisVideoUrl ? (
+          <a className="tap-card inline-flex h-7 w-max items-center justify-center rounded-full bg-[#e5f1ff] px-2.5 text-[10px] font-medium text-[#185fa5]" href={player.tennisVideoUrl} target="_blank" rel="noreferrer">
+            View video
+          </a>
+        ) : (
+          <span className="inline-flex h-7 w-max items-center justify-center rounded-full bg-[#f1efe8] px-2.5 text-[10px] font-medium text-text-secondary">No video</span>
+        )}
+      </div>
+      <div className="grid grid-cols-[minmax(120px,1fr)_auto] items-end gap-2 lg:grid-cols-[112px_auto]">
+        <label className="grid gap-1 text-[10px] text-text-secondary">
+          Tier
+          <select
+            className="h-9 rounded-[10px] border-hairline border-line bg-white px-2 text-[12px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
+            value={pendingTier}
+            onChange={(event) => onPendingTierChange(Number(event.target.value))}
+            aria-label={`Select tier for ${player.fullName}`}
+            disabled={saving}
           >
-            {saving ? "Saving" : "Save"}
-          </button>
-        </div>
+            {[1, 2, 3, 4].map((tier) => (
+              <option value={tier} key={tier}>Tier {tier}</option>
+            ))}
+          </select>
+        </label>
+        <button
+          className={hasTierChange ? "tap-card inline-flex h-9 items-center justify-center rounded-[10px] bg-brand px-3 text-[11px] font-medium text-white disabled:opacity-60" : "tap-card inline-flex h-9 items-center justify-center rounded-[10px] border-hairline border-line bg-white px-3 text-[11px] font-medium text-text-muted disabled:opacity-50"}
+          type="button"
+          onClick={onSaveTier}
+          disabled={!hasTierChange || saving}
+        >
+          {saving ? "Saving" : "Save"}
+        </button>
       </div>
     </li>
   );
+}
+
+function getAdminTierSectionClass(tier: number) {
+  if (tier === 1) return "border-[#f0dcaa] bg-[#fffaf0]";
+  if (tier === 2) return "border-[#d6e6f5] bg-[#f4f9fd]";
+  if (tier === 3) return "border-[#dbe8cd] bg-[#f6fbf1]";
+  return "border-[#ead6e1] bg-[#fff6fa]";
+}
+
+function getAdminTierTextClass(tier: number) {
+  if (tier === 1) return "text-[#8a5a00]";
+  if (tier === 2) return "text-[#185fa5]";
+  if (tier === 3) return "text-[#3b6d11]";
+  return "text-[#aa3f6b]";
+}
+
+function getAdminTierBadgeClass(tier: number) {
+  if (tier === 1) return "bg-[#f6e7bf] text-[#8a5a00]";
+  if (tier === 2) return "bg-[#e5f1ff] text-[#185fa5]";
+  if (tier === 3) return "bg-brand-light text-[#3b6d11]";
+  return "bg-[#fbe7ef] text-[#aa3f6b]";
 }
 
 export function AdminPaymentsScreen() {
