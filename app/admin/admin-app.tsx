@@ -1,10 +1,10 @@
 "use client";
 
-import { BadgeDollarSign, ClipboardCheck, Home, Shield, Trophy, UsersRound } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, CheckCircle2, ClipboardCheck, Home, Pencil, Shield, Trophy, UsersRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import { getSupabaseClient } from "../lib/supabase";
 
 type AdminTab = "overview" | "tournaments" | "players" | "payments" | "claims";
@@ -17,12 +17,18 @@ type CountMap = {
 
 type AdminPlayer = {
   id: string;
+  auth_user_id: string | null;
   full_name: string;
+  phone: string | null;
+  age: number | null;
+  profile_photo_url: string | null;
   jamaat_city: string | null;
+  tier: number;
   rating: number | null;
   claim_status: string;
   tournaments_played: number;
   matches_played: number;
+  is_admin?: boolean;
 };
 
 type AdminTournament = {
@@ -41,17 +47,24 @@ type AdminRegisteredPlayer = {
   tournamentId: string;
   fullName: string;
   jamaatCity: string;
+  profilePhotoUrl: string;
+  age: string;
   tier: number;
   rating: number | null;
 };
 
 type AdminPayment = {
   id: string;
+  player_id: string;
+  tournament_id: string | null;
+  registration_id: string | null;
   entry_type: string;
   status: string;
   amount_cents: number;
+  currency: string;
+  notes: string | null;
   occurred_at: string;
-  players: { full_name: string } | { full_name: string }[] | null;
+  players: { full_name: string; jamaat_city: string | null } | { full_name: string; jamaat_city: string | null }[] | null;
   tournaments: { name: string } | { name: string }[] | null;
 };
 
@@ -185,19 +198,19 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
   }
 
   return (
-    <main className="admin-stage">
-      <aside className="admin-sidebar">
-        <Link className="brand admin-brand" href="/admin"><AdminBrandMark light /></Link>
-        <nav className="admin-nav" aria-label="Admin navigation">
+    <main className="min-h-dvh bg-page font-sans text-text-primary lg:grid lg:grid-cols-[260px_minmax(0,1fr)]">
+      <aside className="sticky top-0 z-40 grid gap-4 border-b-hairline border-line bg-brand px-4 py-4 text-white lg:h-dvh lg:content-start lg:border-b-0 lg:border-r-hairline lg:px-5 lg:py-5">
+        <Link className="tap-card w-max" href="/admin"><AdminBrandMark light /></Link>
+        <nav className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-1" aria-label="Admin navigation">
           <AdminNavItem active={active === "overview"} href="/admin" icon={<Home size={17} />} label="Overview" />
           <AdminNavItem active={active === "tournaments"} href="/admin/tournaments" icon={<Trophy size={17} />} label="Tournaments" />
           <AdminNavItem active={active === "players"} href="/admin/players" icon={<UsersRound size={17} />} label="Players" />
           <AdminNavItem active={active === "payments"} href="/admin/payments" icon={<BadgeDollarSign size={17} />} label="Payments" />
           <AdminNavItem active={active === "claims"} href="/admin/claims" icon={<ClipboardCheck size={17} />} label="Claims" />
         </nav>
-        <Link className="admin-back" href="/dashboard">Player app →</Link>
+        <Link className="tap-card hidden min-h-10 items-center justify-center rounded-[14px] border-hairline border-white/12 bg-white/10 px-4 text-xs font-medium text-white/85 lg:mt-auto lg:inline-flex" href="/dashboard">Player app →</Link>
       </aside>
-      <section className="admin-main">{children}</section>
+      <section className="mx-auto grid w-full max-w-shell content-start gap-4 px-4 py-5 pb-10 md:px-6 lg:px-8">{children}</section>
     </main>
   );
 }
@@ -214,7 +227,7 @@ function AdminNavItem({
   label: string;
 }) {
   return (
-    <Link className={active ? "admin-nav-item active" : "admin-nav-item"} href={href}>
+    <Link className={active ? "tap-card grid min-h-11 place-items-center gap-1 rounded-[14px] bg-white px-3 py-2 text-center text-[11px] font-medium text-brand lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:text-left" : "tap-card grid min-h-11 place-items-center gap-1 rounded-[14px] px-3 py-2 text-center text-[11px] font-medium text-white/68 hover:bg-white/10 hover:text-white lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:text-left"} href={href}>
       {icon}
       <span>{label}</span>
     </Link>
@@ -249,14 +262,31 @@ export function AdminOverviewScreen() {
 
   return (
     <AdminFrame active="overview">
-      <AdminHeader eyebrow="Admin" title="Control Room" copy="Manage MRSA tournaments, players, claims, and payment ledger without loading this data for regular players." />
-      <div className="admin-stat-grid">
+      <section className="relative grid min-h-[230px] overflow-hidden rounded-[22px] bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] md:items-center md:gap-8 lg:p-6">
+        <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
+          <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
+        </div>
+        <div className="relative grid gap-3">
+          <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-[11px] text-white/75">Admin</span>
+          <h1 className="max-w-[680px] text-3xl font-medium leading-[1.08] tracking-[-0.4px] text-white md:text-[40px]">Control room</h1>
+          <p className="max-w-[620px] text-sm leading-relaxed text-white/68">Manage MRSA tournaments, players, claims, and payment ledger without loading this data for regular players.</p>
+        </div>
+        <div className="relative mt-5 grid gap-2 rounded-[18px] border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
+          <span className="text-[11px] text-white/55">Admin status</span>
+          <strong className="text-[22px] font-medium text-white">Live dashboard</strong>
+          <em className="text-[12px] not-italic leading-relaxed text-white/62">Counts update when the admin overview loads.</em>
+        </div>
+      </section>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <AdminStat label="Players" value={counts.players} />
         <AdminStat label="Tournaments" value={counts.tournaments} />
-        <AdminStat label="Pending Payments" value={counts.payments} />
-        <AdminStat label="Pending Claims" value={counts.claims} />
+        <AdminStat label="Pending payments" value={counts.payments} />
+        <AdminStat label="Pending claims" value={counts.claims} />
       </div>
-      <div className="admin-card-grid">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <AdminLinkCard href="/admin/tournaments" title="Manage tournaments" copy="Review live, upcoming, and past tournament setup." />
         <AdminLinkCard href="/admin/players" title="Manage players" copy="Search player records, claimed status, city, and ratings." />
         <AdminLinkCard href="/admin/payments" title="Manage payments" copy="Track charges, payments, refunds, and adjustments." />
@@ -269,44 +299,188 @@ export function AdminOverviewScreen() {
 export function AdminPlayersScreen() {
   const [players, setPlayers] = useState<AdminPlayer[]>([]);
   const [query, setQuery] = useState("");
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [savingPlayerId, setSavingPlayerId] = useState<string | null>(null);
+  const [playerNotice, setPlayerNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const loadPlayers = useCallback(async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    let request = supabase
+      .from("players")
+      .select("id, auth_user_id, full_name, phone, age, profile_photo_url, jamaat_city, tier, rating, claim_status, tournaments_played, matches_played")
+      .order("full_name")
+      .limit(80);
+
+    if (query.trim()) {
+      request = request.ilike("full_name", `%${query.trim()}%`);
+    }
+
+    const [{ data, error }, { data: roles, error: rolesError }] = await Promise.all([
+      request,
+      supabase.from("member_roles").select("auth_user_id, role").eq("role", "admin")
+    ]);
+    if (error) {
+      setPlayerNotice({ type: "error", text: error.message });
+      return;
+    }
+    if (rolesError) {
+      setPlayerNotice({ type: "error", text: rolesError.message });
+      return;
+    }
+    const adminUserIds = new Set((roles || []).map((role) => role.auth_user_id));
+    setPlayers(((data || []) as AdminPlayer[]).map((player) => ({
+      ...player,
+      is_admin: Boolean(player.auth_user_id && adminUserIds.has(player.auth_user_id))
+    })));
+  }, [query]);
 
   useEffect(() => {
-    const loadPlayers = async () => {
-      const supabase = getSupabaseClient();
-      if (!supabase) return;
-
-      let request = supabase
-        .from("players")
-        .select("id, full_name, jamaat_city, rating, claim_status, tournaments_played, matches_played")
-        .order("full_name")
-        .limit(40);
-
-      if (query.trim()) {
-        request = request.ilike("full_name", `%${query.trim()}%`);
-      }
-
-      const { data } = await request;
-      setPlayers((data || []) as AdminPlayer[]);
-    };
-
     loadPlayers();
-  }, [query]);
+  }, [loadPlayers]);
+
+  const updatePlayerDetails = async (event: FormEvent<HTMLFormElement>, player: AdminPlayer) => {
+    event.preventDefault();
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setPlayerNotice({ type: "error", text: "Supabase is not configured. Check your environment variables." });
+      return;
+    }
+
+    const form = new FormData(event.currentTarget);
+    const ageValue = String(form.get("age") || "").trim();
+    const tierValue = Number(form.get("tier") || player.tier || 4);
+    setSavingPlayerId(player.id);
+    setPlayerNotice(null);
+
+    const { error } = await supabase
+      .from("players")
+      .update({
+        phone: String(form.get("phone") || "").trim() || null,
+        age: ageValue ? Number(ageValue) : null,
+        tier: tierValue
+      })
+      .eq("id", player.id);
+
+    setSavingPlayerId(null);
+    if (error) {
+      setPlayerNotice({ type: "error", text: error.message });
+      return;
+    }
+
+    setEditingPlayerId(null);
+    setPlayerNotice({ type: "success", text: `${player.full_name} updated.` });
+    await loadPlayers();
+  };
+
+  const updatePlayerAdminRole = async (player: AdminPlayer, makeAdmin: boolean) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setPlayerNotice({ type: "error", text: "Supabase is not configured. Check your environment variables." });
+      return;
+    }
+
+    if (!player.auth_user_id) {
+      setPlayerNotice({ type: "error", text: `${player.full_name} does not have a linked login yet.` });
+      return;
+    }
+
+    setSavingPlayerId(player.id);
+    setPlayerNotice(null);
+    const result = makeAdmin
+      ? await supabase.from("member_roles").upsert({ auth_user_id: player.auth_user_id, role: "admin" }, { onConflict: "auth_user_id" })
+      : await supabase.from("member_roles").update({ role: "player" }).eq("auth_user_id", player.auth_user_id);
+    setSavingPlayerId(null);
+
+    if (result.error) {
+      setPlayerNotice({ type: "error", text: result.error.message });
+      return;
+    }
+
+    setPlayerNotice({ type: "success", text: makeAdmin ? `${player.full_name} is now an admin.` : `${player.full_name} is no longer an admin.` });
+    await loadPlayers();
+  };
 
   return (
     <AdminFrame active="players">
-      <AdminHeader eyebrow="Players" title="Player Management" copy="Search is server-side and limited to keep the admin panel fast." />
-      <input className="admin-search" placeholder="Search player name" value={query} onChange={(event) => setQuery(event.target.value)} />
-      <div className="admin-table">
+      <div className="grid gap-3 rounded-[22px] border-hairline border-line bg-card p-5 md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:items-center md:p-6">
+        <div className="grid gap-2">
+          <span className="text-[11px] text-text-secondary">Players</span>
+          <h1 className="text-3xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Player management</h1>
+          <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Search player records and review city, phone, age, tier, rating, claim status, and tournament history. Details can only be changed after opening a player for update.</p>
+        </div>
+        <label className="grid gap-2 text-[11px] text-text-secondary">
+          Search player name
+          <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" placeholder="Search player name" value={query} onChange={(event) => setQuery(event.target.value)} />
+        </label>
+      </div>
+      {playerNotice && <p className={playerNotice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[13px] text-[#a32d2d]" : "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[13px] text-[#3b6d11]"}>{playerNotice.type === "success" && <CheckCircle2 size={16} />}{playerNotice.text}</p>}
+      <div className="grid gap-3">
         {players.map((player) => (
-          <article className="admin-row" key={player.id}>
-            <div>
-              <strong>{player.full_name}</strong>
-              <em>{player.jamaat_city || "City missing"} · {player.claim_status}</em>
+          <article className="grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" key={player.id}>
+            <div className="grid gap-3 md:grid-cols-[44px_minmax(0,1fr)_auto] md:items-center">
+              <span className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[12px] font-medium text-[#3b6d11]" style={player.profile_photo_url ? { backgroundImage: `url(${player.profile_photo_url})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+                {!player.profile_photo_url && getAdminInitials(player.full_name)}
+              </span>
+              <div className="grid min-w-0 gap-2">
+                <div className="grid gap-1">
+                  <strong className="truncate text-[16px] font-medium text-text-primary">{player.full_name}</strong>
+                  <em className="truncate text-[12px] not-italic text-text-secondary">{player.jamaat_city || "City missing"} · {formatAdminClaimStatus(player.claim_status)}</em>
+                </div>
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
+                  <AdminPlayerMeta label="Phone" value={player.phone || "Missing"} />
+                  <AdminPlayerMeta label="Age" value={player.age ? String(player.age) : "Not set"} />
+                  <AdminPlayerMeta label="Tier" value={`Tier ${player.tier || 4}`} />
+                  <AdminPlayerMeta label="Rating" value={formatAdminRating(player.rating)} />
+                  <AdminPlayerMeta label="Record" value={`${player.tournaments_played}T · ${player.matches_played}M`} />
+                  <AdminPlayerMeta label="Role" value={player.is_admin ? "Admin" : "Player"} />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <button className={editingPlayerId === player.id ? "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-text-secondary" : "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-xs font-medium text-white"} type="button" onClick={() => setEditingPlayerId(editingPlayerId === player.id ? null : player.id)}>
+                  {editingPlayerId === player.id ? <X size={15} /> : <Pencil size={15} />}
+                  {editingPlayerId === player.id ? "Cancel" : "Update details"}
+                </button>
+                <button
+                  className={player.is_admin ? "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d] disabled:opacity-50" : "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-brand disabled:opacity-50"}
+                  type="button"
+                  onClick={() => updatePlayerAdminRole(player, !player.is_admin)}
+                  disabled={savingPlayerId === player.id || !player.auth_user_id}
+                  title={player.auth_user_id ? undefined : "Player must have a linked login before they can be made admin."}
+                >
+                  {player.is_admin ? "Remove admin" : "Make admin"}
+                </button>
+              </div>
             </div>
-            <span>{formatAdminRating(player.rating)}</span>
-            <small>{player.tournaments_played} tournaments · {player.matches_played} matches</small>
+
+            {editingPlayerId === player.id && (
+              <form className="grid gap-3 rounded-[16px] border-hairline border-line bg-surface/50 p-3 md:grid-cols-[repeat(3,minmax(0,1fr))_auto] md:items-end" onSubmit={(event) => updatePlayerDetails(event, player)}>
+                <label className="grid gap-2 text-[11px] text-text-secondary">
+                  Phone number
+                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[13px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="phone" type="tel" defaultValue={player.phone || ""} placeholder="9999999999" />
+                </label>
+                <label className="grid gap-2 text-[11px] text-text-secondary">
+                  Age
+                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[13px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="age" type="number" min="1" max="120" defaultValue={player.age || ""} placeholder="Age" />
+                </label>
+                <label className="grid gap-2 text-[11px] text-text-secondary">
+                  Tier
+                  <select className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[13px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="tier" defaultValue={player.tier || 4}>
+                    {[1, 2, 3, 4].map((tier) => (
+                      <option value={tier} key={tier}>Tier {tier}</option>
+                    ))}
+                  </select>
+                </label>
+                <button className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[12px] bg-brand px-4 text-xs font-medium text-white disabled:opacity-60" type="submit" disabled={savingPlayerId === player.id}>
+                  <CheckCircle2 size={15} />
+                  {savingPlayerId === player.id ? "Saving..." : "Save"}
+                </button>
+              </form>
+            )}
           </article>
         ))}
+        {!players.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">No players found.</div>}
       </div>
     </AdminFrame>
   );
@@ -314,51 +488,25 @@ export function AdminPlayersScreen() {
 
 export function AdminTournamentsScreen() {
   const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
-  const [registeredByTournament, setRegisteredByTournament] = useState<Record<string, AdminRegisteredPlayer[]>>({});
-  const [editingTournament, setEditingTournament] = useState<AdminTournament | null>(null);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [creating, setCreating] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
 
   const loadTournaments = async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
-    const [{ data, error }, { data: registrations, error: registrationError }] = await Promise.all([
-      supabase
-        .from("tournaments")
-        .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents")
-        .order("starts_on", { ascending: false })
-        .limit(30),
-      supabase
-        .from("tournament_registrations")
-        .select("tournament_id, players(id, full_name, jamaat_city, tier, rating)")
-        .neq("status", "cancelled")
-        .in("payment_status", ["paid", "waived"])
-        .order("registered_at", { ascending: true })
-        .limit(500)
-    ]);
+    const { data, error } = await supabase
+      .from("tournaments")
+      .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents")
+      .order("starts_on", { ascending: false })
+      .limit(30);
 
-    if (error || registrationError) {
-      setNotice({ type: "error", text: (error || registrationError)?.message || "Could not load tournaments." });
+    if (error) {
+      setNotice({ type: "error", text: error.message || "Could not load tournaments." });
       return;
     }
 
     setTournaments((data || []) as AdminTournament[]);
-    const grouped = (registrations || []).reduce<Record<string, AdminRegisteredPlayer[]>>((acc, row) => {
-      const player = Array.isArray(row.players) ? row.players[0] : row.players;
-      if (!player || !row.tournament_id) return acc;
-      const tournamentPlayers = acc[row.tournament_id] || [];
-      tournamentPlayers.push({
-        id: player.id,
-        tournamentId: row.tournament_id,
-        fullName: player.full_name || "Unknown player",
-        jamaatCity: player.jamaat_city || "City missing",
-        tier: Number(player.tier || 4),
-        rating: player.rating
-      });
-      acc[row.tournament_id] = tournamentPlayers;
-      return acc;
-    }, {});
-    setRegisteredByTournament(grouped);
   };
 
   useEffect(() => {
@@ -400,12 +548,10 @@ export function AdminTournamentsScreen() {
       currency: "USD",
       max_players: 64
     };
-    const { error } = editingTournament
-      ? await supabase.from("tournaments").update(tournamentPayload).eq("id", editingTournament.id)
-      : await supabase.from("tournaments").insert({
-          sport_id: sportId,
-          ...tournamentPayload
-        });
+    const { error } = await supabase.from("tournaments").insert({
+      sport_id: sportId,
+      ...tournamentPayload
+    });
     setCreating(false);
 
     if (error) {
@@ -414,14 +560,19 @@ export function AdminTournamentsScreen() {
     }
 
     target.reset();
-    setEditingTournament(null);
-    setNotice({ type: "success", text: editingTournament ? "Tournament updated successfully." : "Tournament published successfully." });
+    setFormOpen(false);
+    setNotice({ type: "success", text: "Tournament published successfully." });
     await loadTournaments();
   };
 
-  const startEditingTournament = (tournament: AdminTournament) => {
-    setEditingTournament(tournament);
-    setNotice({ type: "success", text: `Editing ${tournament.name}. Make changes above, then save.` });
+  const startCreatingTournament = () => {
+    setFormOpen(true);
+    setNotice(null);
+  };
+
+  const cancelTournamentForm = () => {
+    setFormOpen(false);
+    setNotice(null);
   };
 
   const deleteTournament = async (tournament: AdminTournament) => {
@@ -462,90 +613,320 @@ export function AdminTournamentsScreen() {
       return;
     }
 
-    if (editingTournament?.id === tournament.id) {
-      setEditingTournament(null);
-    }
     setNotice({ type: "success", text: `${tournament.name} deleted. Registrations were removed with it.` });
     await loadTournaments();
   };
 
   return (
     <AdminFrame active="tournaments">
-      <AdminHeader eyebrow="Tournaments" title="Tournament Management" copy="Create, edit, publish, or delete tournaments for players." />
-      <form className="admin-form" onSubmit={createTournament} key={editingTournament?.id || "new-tournament-form"}>
-        <label>
-          <span>Name</span>
-          <input name="name" placeholder="MRSA 2026" defaultValue={editingTournament?.name || ""} required />
-        </label>
-        <div className="admin-form-grid">
-          <label>
-            <span>Start date</span>
-            <input name="startsOn" type="date" defaultValue={editingTournament?.starts_on || ""} required />
-          </label>
-          <label>
-            <span>End date</span>
-            <input name="endsOn" type="date" defaultValue={editingTournament?.ends_on || ""} required />
-          </label>
+      <div className="grid gap-3 rounded-[22px] border-hairline border-line bg-card p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-6">
+        <div className="grid gap-2">
+          <span className="text-[11px] text-text-secondary">Tournaments</span>
+          <h1 className="text-3xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Tournament management</h1>
+          <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Create tournaments here, then open a tournament workspace to manage details, registrations, tiers, matches, drafts, and captains.</p>
         </div>
-        <label>
-          <span>Registration ends</span>
-          <input name="registrationClosesAt" type="datetime-local" defaultValue={formatAdminDateTimeInput(editingTournament?.registration_closes_at)} required />
-        </label>
-        <label>
-          <span>Status</span>
-          <select name="status" defaultValue={editingTournament?.status || "registration_open"} required>
-            <option value="draft">Draft</option>
-            <option value="registration_open">Registration open</option>
-            <option value="registration_closed">Registration closed</option>
-            <option value="live">Live</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </label>
-        <label>
-          <span>Venue name</span>
-          <input name="venueName" placeholder="Forest Sports Club" defaultValue={editingTournament?.venue_name || ""} required />
-        </label>
-        <label>
-          <span>Venue Google Maps URL</span>
-          <input name="mapsUrl" type="url" placeholder="https://maps.google.com/..." defaultValue={editingTournament?.venue_maps_url || ""} required />
-        </label>
-        <label>
-          <span>Tournament fees</span>
-          <input name="fee" type="number" min="0" step="1" placeholder="110" defaultValue={editingTournament ? editingTournament.registration_fee_cents / 100 : ""} required />
-        </label>
-        <div className="admin-form-actions">
-          <button className="primary-action tap-card" type="submit" disabled={creating}>{creating ? "Saving..." : editingTournament ? "Save tournament" : "Create tournament"}</button>
-          {editingTournament && (
-            <button className="secondary-action tap-card" type="button" onClick={() => setEditingTournament(null)} disabled={creating}>Cancel edit</button>
-          )}
-        </div>
-        {notice && <p className={`admin-notice ${notice.type}`}>{notice.text}</p>}
-      </form>
-      <div className="admin-table">
+        <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white" type="button" onClick={startCreatingTournament}>Create new tournament</button>
+      </div>
+
+      {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[13px] text-[#a32d2d]" : "rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[13px] text-[#3b6d11]"}>{notice.text}</p>}
+
+      {formOpen && (
+        <form className="grid gap-4 rounded-[22px] border-hairline border-line bg-card p-4 md:p-5" onSubmit={createTournament} key="new-tournament-form">
+          <div className="grid gap-1">
+            <span className="text-[11px] text-text-secondary">Create tournament</span>
+            <strong className="text-xl font-medium tracking-[-0.4px] text-text-primary">New tournament</strong>
+          </div>
+          <label className="grid gap-2 text-[11px] text-text-secondary">
+            Name
+            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="name" placeholder="MRSA 2026" required />
+          </label>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="grid gap-2 text-[11px] text-text-secondary">
+              Start date
+              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="startsOn" type="date" required />
+            </label>
+            <label className="grid gap-2 text-[11px] text-text-secondary">
+              End date
+              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="endsOn" type="date" required />
+            </label>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="grid gap-2 text-[11px] text-text-secondary">
+              Registration ends
+              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" required />
+            </label>
+            <label className="grid gap-2 text-[11px] text-text-secondary">
+              Status
+              <select className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="status" defaultValue="registration_open" required>
+                <option value="draft">Draft</option>
+                <option value="registration_open">Registration open</option>
+                <option value="registration_closed">Registration closed</option>
+                <option value="live">Live</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+          </div>
+          <label className="grid gap-2 text-[11px] text-text-secondary">
+            Venue name
+            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="venueName" placeholder="Forest Sports Club" required />
+          </label>
+          <label className="grid gap-2 text-[11px] text-text-secondary">
+            Venue Google Maps URL
+            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" placeholder="https://maps.google.com/..." required />
+          </label>
+          <label className="grid gap-2 text-[11px] text-text-secondary">
+            Tournament fees
+            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="1" placeholder="110" required />
+          </label>
+          <div className="grid gap-2 sm:grid-cols-[auto_auto]">
+            <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={creating}>{creating ? "Saving..." : "Create tournament"}</button>
+            <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] border-hairline border-line bg-white px-5 text-sm font-medium text-brand" type="button" onClick={cancelTournamentForm} disabled={creating}>Cancel</button>
+          </div>
+        </form>
+      )}
+
+      <div className="grid gap-3">
         {tournaments.map((tournament) => (
-          <article className="admin-row" key={tournament.id}>
-            <div>
-              <strong>{tournament.name}</strong>
-              <em>{tournament.venue_name || "Venue TBD"} · {tournament.status}</em>
+          <article className="grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" key={tournament.id}>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+              <div className="grid gap-2">
+                <span className="inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[10px] font-medium text-[#3b6d11]">{formatAdminTournamentStatus(tournament.status)}</span>
+                <strong className="text-xl font-medium leading-tight tracking-[-0.4px] text-text-primary">{tournament.name}</strong>
+                <em className="text-[12px] not-italic leading-relaxed text-text-secondary">{tournament.venue_name || "Venue TBD"} · {formatAdminDate(tournament.starts_on)} - {formatAdminDate(tournament.ends_on)} · closes {formatAdminDateTime(tournament.registration_closes_at)}</em>
+              </div>
+              <div className="grid gap-2 md:justify-items-end">
+                <strong className="text-[18px] font-medium text-brand">{formatAdminCurrency(tournament.registration_fee_cents)}</strong>
+                <div className="flex flex-wrap gap-2">
+                  <Link className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white" href={`/admin/tournaments/${tournament.id}`}>Manage</Link>
+                  <button className="tap-card min-h-9 rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d]" type="button" onClick={() => deleteTournament(tournament)}>Delete</button>
+                </div>
+              </div>
             </div>
-            <span>{formatAdminCurrency(tournament.registration_fee_cents)}</span>
-            <small>{formatAdminDate(tournament.starts_on)} - {formatAdminDate(tournament.ends_on)} · closes {formatAdminDateTime(tournament.registration_closes_at)}</small>
-            <div className="admin-row-actions">
-              <button type="button" onClick={() => startEditingTournament(tournament)}>Edit</button>
-              <button className="danger" type="button" onClick={() => deleteTournament(tournament)}>Delete</button>
-            </div>
-            <TieredRegisteredPlayers players={registeredByTournament[tournament.id] || []} />
           </article>
         ))}
+        {!tournaments.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">No tournaments found.</div>}
       </div>
     </AdminFrame>
   );
 }
 
-function TieredRegisteredPlayers({ players }: { players: AdminRegisteredPlayer[] }) {
+export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: string }) {
+  const [tournament, setTournament] = useState<AdminTournament | null>(null);
+  const [registeredPlayers, setRegisteredPlayers] = useState<AdminRegisteredPlayer[]>([]);
+  const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const loadTournamentWorkspace = useCallback(async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const [{ data, error }, { data: registrations, error: registrationError }] = await Promise.all([
+      supabase
+        .from("tournaments")
+        .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents")
+        .eq("id", tournamentId)
+        .maybeSingle(),
+      supabase
+        .from("tournament_registrations")
+        .select("tournament_id, players(id, full_name, jamaat_city, age, profile_photo_url, tier, rating)")
+        .eq("tournament_id", tournamentId)
+        .neq("status", "cancelled")
+        .in("payment_status", ["paid", "waived"])
+        .order("registered_at", { ascending: true })
+        .limit(500)
+    ]);
+
+    if (error || registrationError) {
+      setNotice({ type: "error", text: (error || registrationError)?.message || "Could not load tournament workspace." });
+      return;
+    }
+
+    setTournament((data || null) as AdminTournament | null);
+    setRegisteredPlayers((registrations || []).flatMap((row) => {
+      const player = Array.isArray(row.players) ? row.players[0] : row.players;
+      if (!player || !row.tournament_id) return [];
+      return [{
+        id: player.id,
+        tournamentId: row.tournament_id,
+        fullName: player.full_name || "Unknown player",
+        jamaatCity: player.jamaat_city || "City missing",
+        profilePhotoUrl: player.profile_photo_url || "",
+        age: player.age ? `Age ${player.age}` : "Age not set",
+        tier: Number(player.tier || 4),
+        rating: player.rating
+      }];
+    }));
+  }, [tournamentId]);
+
+  useEffect(() => {
+    loadTournamentWorkspace();
+  }, [loadTournamentWorkspace]);
+
+  const saveTournamentDetails = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    const form = new FormData(event.currentTarget);
+    const feeDollars = Number(form.get("fee") || 0);
+    setSaving(true);
+    setNotice(null);
+    const { error } = await supabase.from("tournaments").update({
+      name: String(form.get("name") || ""),
+      status: String(form.get("status") || "registration_open"),
+      venue_name: String(form.get("venueName") || ""),
+      venue_address: String(form.get("venueName") || ""),
+      venue_maps_url: String(form.get("mapsUrl") || ""),
+      starts_on: String(form.get("startsOn") || "") || null,
+      ends_on: String(form.get("endsOn") || "") || null,
+      registration_closes_at: localDateTimeInputToIso(String(form.get("registrationClosesAt") || "")),
+      registration_fee_cents: Math.round(feeDollars * 100)
+    }).eq("id", tournament.id);
+    setSaving(false);
+
+    if (error) {
+      setNotice({ type: "error", text: error.message });
+      return;
+    }
+
+    setNotice({ type: "success", text: "Tournament details saved." });
+    await loadTournamentWorkspace();
+  };
+
+  const updateRegisteredPlayerTier = async (playerId: string, selectedTournamentId: string, tier: number) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setNotice({ type: "error", text: "Supabase is not configured. Check your environment variables." });
+      return false;
+    }
+
+    const seasonYear = tournament?.starts_on ? new Date(`${tournament.starts_on}T00:00:00`).getFullYear() : new Date().getFullYear();
+    const [playerUpdate, seasonTierUpdate] = await Promise.all([
+      supabase.from("players").update({ tier }).eq("id", playerId),
+      supabase
+        .from("player_season_tiers")
+        .upsert({ player_id: playerId, season_year: seasonYear, tier }, { onConflict: "player_id,season_year" })
+    ]);
+
+    if (playerUpdate.error || seasonTierUpdate.error) {
+      setNotice({ type: "error", text: playerUpdate.error?.message || seasonTierUpdate.error?.message || "Could not update player tier." });
+      return false;
+    }
+
+    setRegisteredPlayers((current) => current.map((player) => player.id === playerId && player.tournamentId === selectedTournamentId ? { ...player, tier } : player));
+    setNotice({ type: "success", text: `Player tier saved for ${seasonYear}.` });
+    return true;
+  };
+
+  return (
+    <AdminFrame active="tournaments">
+      <div className="grid gap-3 rounded-[22px] border-hairline border-line bg-card p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-6">
+        <div className="grid gap-2">
+          <Link className="tap-card w-max text-[12px] font-medium text-brand" href="/admin/tournaments">← Tournaments</Link>
+          <span className="text-[11px] text-text-secondary">Tournament workspace</span>
+          <h1 className="text-3xl font-medium leading-tight tracking-[-0.4px] text-text-primary">{tournament?.name || "Tournament"}</h1>
+          <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Manage this tournament’s setup, registrations, tiers, and future operational workflows.</p>
+        </div>
+        <span className="rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">{registeredPlayers.length} registered</span>
+      </div>
+
+      {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[13px] text-[#a32d2d]" : "rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[13px] text-[#3b6d11]"}>{notice.text}</p>}
+
+      {tournament ? (
+        <>
+          <section className="grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
+            <div className="grid gap-1">
+              <span className="text-[11px] text-text-secondary">Details</span>
+              <strong className="text-xl font-medium tracking-[-0.4px] text-text-primary">Tournament setup</strong>
+            </div>
+            <form className="grid gap-3" onSubmit={saveTournamentDetails}>
+              <label className="grid gap-2 text-[11px] text-text-secondary">
+                Name
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="name" defaultValue={tournament.name} required />
+              </label>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-2 text-[11px] text-text-secondary">
+                  Start date
+                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="startsOn" type="date" defaultValue={tournament.starts_on || ""} required />
+                </label>
+                <label className="grid gap-2 text-[11px] text-text-secondary">
+                  End date
+                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="endsOn" type="date" defaultValue={tournament.ends_on || ""} required />
+                </label>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-2 text-[11px] text-text-secondary">
+                  Registration ends
+                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" defaultValue={formatAdminDateTimeInput(tournament.registration_closes_at)} required />
+                </label>
+                <label className="grid gap-2 text-[11px] text-text-secondary">
+                  Status
+                  <select className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="status" defaultValue={tournament.status} required>
+                    <option value="draft">Draft</option>
+                    <option value="registration_open">Registration open</option>
+                    <option value="registration_closed">Registration closed</option>
+                    <option value="live">Live</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </label>
+              </div>
+              <label className="grid gap-2 text-[11px] text-text-secondary">
+                Venue name
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="venueName" defaultValue={tournament.venue_name || ""} required />
+              </label>
+              <label className="grid gap-2 text-[11px] text-text-secondary">
+                Venue Google Maps URL
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" defaultValue={tournament.venue_maps_url || ""} required />
+              </label>
+              <label className="grid gap-2 text-[11px] text-text-secondary">
+                Tournament fees
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="1" defaultValue={tournament.registration_fee_cents / 100} required />
+              </label>
+              <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save details"}</button>
+            </form>
+          </section>
+
+          <section className="grid gap-3 md:grid-cols-3">
+            <AdminFutureCard title="Match creation" copy="Build singles, doubles, and scheduled match flows here." />
+            <AdminFutureCard title="Draft creation" copy="Prepare future draft pools and team assignments here." />
+            <AdminFutureCard title="Captain selection" copy="Choose captains and manage leadership assignments here." />
+          </section>
+
+          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
+            <TieredRegisteredPlayers players={registeredPlayers} onTierChange={updateRegisteredPlayerTier} />
+          </section>
+        </>
+      ) : (
+        <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">Loading tournament workspace...</div>
+      )}
+    </AdminFrame>
+  );
+}
+
+function AdminFutureCard({ title, copy }: { title: string; copy: string }) {
+  return (
+    <article className="grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4">
+      <span className="inline-flex w-max rounded-full bg-surface px-2.5 py-1 text-[10px] font-medium text-text-secondary">Coming soon</span>
+      <strong className="text-lg font-medium leading-tight text-text-primary">{title}</strong>
+      <em className="text-[13px] not-italic leading-relaxed text-text-secondary">{copy}</em>
+    </article>
+  );
+}
+
+function TieredRegisteredPlayers({
+  players,
+  onTierChange
+}: {
+  players: AdminRegisteredPlayer[];
+  onTierChange: (playerId: string, tournamentId: string, tier: number) => Promise<boolean>;
+}) {
+  const [pendingTiers, setPendingTiers] = useState<Record<string, number>>({});
+  const [savingTierKey, setSavingTierKey] = useState<string | null>(null);
+
   if (!players.length) {
-    return <div className="admin-tier-groups empty">No paid or waived registrations yet.</div>;
+    return <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[13px] text-text-secondary">No paid or waived registrations yet.</div>;
   }
 
   const grouped = [1, 2, 3, 4].map((tier) => ({
@@ -554,21 +935,45 @@ function TieredRegisteredPlayers({ players }: { players: AdminRegisteredPlayer[]
   }));
 
   return (
-    <div className="admin-tier-groups" aria-label="Registered players grouped by tier">
+    <div className="grid gap-3" aria-label="Registered players grouped by tier">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-[13px] font-medium text-text-primary">Registered players</h3>
+        <span className="text-[11px] text-text-secondary">{players.length} players</span>
+      </div>
       {grouped.map((group) => (
-        <section className="admin-tier-group" key={group.tier}>
-          <strong>Tier {group.tier} registered list</strong>
+        <section className="grid gap-2 rounded-[14px] border-hairline border-line bg-white p-3" key={group.tier}>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+            <strong className="text-[13px] font-medium text-text-primary">Tier {group.tier}</strong>
+            <span className="rounded-full bg-brand-light px-2.5 py-1 text-[10px] font-medium text-[#3b6d11]">{group.players.length} players</span>
+          </div>
           {group.players.length ? (
-            <ul>
+            <ul className="grid gap-2">
               {group.players.map((player) => (
-                <li key={player.id}>
-                  <span>{player.fullName}</span>
-                  <em>{player.jamaatCity} · {formatAdminRating(player.rating)}</em>
-                </li>
+                <TieredRegisteredPlayerRow
+                  key={player.id}
+                  player={player}
+                  pendingTier={pendingTiers[`${player.tournamentId}:${player.id}`] ?? player.tier}
+                  saving={savingTierKey === `${player.tournamentId}:${player.id}`}
+                  onPendingTierChange={(tier) => setPendingTiers((current) => ({ ...current, [`${player.tournamentId}:${player.id}`]: tier }))}
+                  onSaveTier={async () => {
+                    const playerKey = `${player.tournamentId}:${player.id}`;
+                    const nextTier = pendingTiers[playerKey] ?? player.tier;
+                    setSavingTierKey(playerKey);
+                    const saved = await onTierChange(player.id, player.tournamentId, nextTier);
+                    setSavingTierKey(null);
+                    if (saved) {
+                      setPendingTiers((current) => {
+                        const next = { ...current };
+                        delete next[playerKey];
+                        return next;
+                      });
+                    }
+                  }}
+                />
               ))}
             </ul>
           ) : (
-            <small>No Tier {group.tier} registrations.</small>
+            <small className="text-[12px] text-text-secondary">No Tier {group.tier} registrations.</small>
           )}
         </section>
       ))}
@@ -576,49 +981,204 @@ function TieredRegisteredPlayers({ players }: { players: AdminRegisteredPlayer[]
   );
 }
 
+function TieredRegisteredPlayerRow({
+  player,
+  pendingTier,
+  saving,
+  onPendingTierChange,
+  onSaveTier
+}: {
+  player: AdminRegisteredPlayer;
+  pendingTier: number;
+  saving: boolean;
+  onPendingTierChange: (tier: number) => void;
+  onSaveTier: () => Promise<void>;
+}) {
+  const hasTierChange = pendingTier !== player.tier;
+
+  return (
+    <li className="grid min-h-[64px] gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3 sm:grid-cols-[38px_minmax(0,1fr)_auto] sm:items-center" key={player.id}>
+      <div className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-3">
+        <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[11px] font-medium text-[#3b6d11]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+          {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
+        </span>
+        <span className="grid min-w-0 gap-1">
+          <strong className="truncate text-[13px] font-medium text-text-primary">{player.fullName}</strong>
+          <em className="truncate text-[11px] not-italic text-text-secondary">{player.jamaatCity} · {player.age}</em>
+        </span>
+      </div>
+      <div className="grid gap-2 sm:justify-items-end">
+        <strong className="text-[13px] font-medium leading-none text-brand">{formatAdminRating(player.rating)}</strong>
+        <div className="grid grid-cols-[minmax(86px,1fr)_auto] items-end gap-2 sm:grid-cols-[86px_auto]">
+          <label className="grid gap-1 text-[10px] text-text-secondary">
+            Tier
+            <select
+              className="h-9 rounded-[10px] border-hairline border-line bg-white px-2 text-[12px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
+              value={pendingTier}
+              onChange={(event) => onPendingTierChange(Number(event.target.value))}
+              aria-label={`Select tier for ${player.fullName}`}
+              disabled={saving}
+            >
+              {[1, 2, 3, 4].map((tier) => (
+                <option value={tier} key={tier}>Tier {tier}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            className={hasTierChange ? "tap-card inline-flex h-9 items-center justify-center rounded-[10px] bg-brand px-3 text-[11px] font-medium text-white disabled:opacity-60" : "tap-card inline-flex h-9 items-center justify-center rounded-[10px] border-hairline border-line bg-white px-3 text-[11px] font-medium text-text-muted disabled:opacity-50"}
+            type="button"
+            onClick={onSaveTier}
+            disabled={!hasTierChange || saving}
+          >
+            {saving ? "Saving" : "Save"}
+          </button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 export function AdminPaymentsScreen() {
   const [payments, setPayments] = useState<AdminPayment[]>([]);
+  const [paymentNotice, setPaymentNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
+  const [confirmRefundId, setConfirmRefundId] = useState<string | null>(null);
 
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("payment_ledger")
-      .select("id, entry_type, status, amount_cents, occurred_at, players(full_name), tournaments(name)")
+      .select("id, player_id, tournament_id, registration_id, entry_type, status, amount_cents, currency, notes, occurred_at, players(full_name, jamaat_city), tournaments(name)")
       .order("occurred_at", { ascending: false })
-      .limit(40);
+      .limit(80);
+    if (error) {
+      setPaymentNotice({ type: "error", text: error.message });
+      return;
+    }
     setPayments((data || []) as AdminPayment[]);
-  };
+  }, []);
 
   useEffect(() => {
     loadPayments();
-  }, []);
+  }, [loadPayments]);
 
-  const markPaid = async (id: string) => {
+  const markPaid = async (payment: AdminPayment) => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
-    await supabase.from("payment_ledger").update({ status: "paid" }).eq("id", id);
+    setUpdatingPaymentId(payment.id);
+    setPaymentNotice(null);
+    const paidAt = new Date().toISOString();
+    const { error } = await supabase.from("payment_ledger").update({ status: "paid", occurred_at: paidAt }).eq("id", payment.id);
+    if (!error && payment.registration_id) {
+      await supabase.from("tournament_registrations").update({ payment_status: "paid", status: "registered" }).eq("id", payment.registration_id);
+    }
+    setUpdatingPaymentId(null);
+    if (error) {
+      setPaymentNotice({ type: "error", text: error.message });
+      return;
+    }
+    setPaymentNotice({ type: "success", text: "Payment marked paid." });
+    await loadPayments();
+  };
+
+  const refundPayment = async (payment: AdminPayment) => {
+    if (confirmRefundId !== payment.id) {
+      setConfirmRefundId(payment.id);
+      setPaymentNotice(null);
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    setUpdatingPaymentId(payment.id);
+    setPaymentNotice(null);
+    const refundedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from("payment_ledger")
+      .update({ status: "refunded", entry_type: "refund", occurred_at: refundedAt })
+      .eq("id", payment.id);
+    if (!error && payment.registration_id) {
+      await supabase.from("tournament_registrations").update({ payment_status: "refunded" }).eq("id", payment.registration_id);
+    }
+    setUpdatingPaymentId(null);
+    if (error) {
+      setPaymentNotice({ type: "error", text: error.message });
+      return;
+    }
+    setPaymentNotice({ type: "success", text: "Payment marked refunded." });
+    setConfirmRefundId(null);
     await loadPayments();
   };
 
   return (
     <AdminFrame active="payments">
-      <AdminHeader eyebrow="Payments" title="Payment Ledger" copy="Limited ledger view. Admins can mark pending entries as paid." />
-      <div className="admin-table">
+      <div className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
+        <div className="grid gap-1">
+          <span className="text-[11px] text-text-secondary">Payments</span>
+          <h1 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Payment ledger</h1>
+          <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Who paid, why, Jamaat / city, amount, status, and paid date.</p>
+        </div>
+        <span className="rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">{payments.length} entries</span>
+      </div>
+      {paymentNotice && <p className={paymentNotice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[13px] text-[#a32d2d]" : "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[13px] text-[#3b6d11]"}>{paymentNotice.type === "success" && <CheckCircle2 size={16} />}{paymentNotice.text}</p>}
+      <div className="grid gap-2">
         {payments.map((payment) => {
           const player = Array.isArray(payment.players) ? payment.players[0] : payment.players;
           const tournament = Array.isArray(payment.tournaments) ? payment.tournaments[0] : payment.tournaments;
           return (
-            <article className="admin-row" key={payment.id}>
-              <div>
-                <strong>{player?.full_name || "Unknown player"}</strong>
-                <em>{tournament?.name || "General"} · {payment.entry_type} · {payment.status}</em>
+            <article className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center md:p-4" key={payment.id}>
+              <span className={payment.status === "paid" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#eaf3de] text-[11px] font-medium text-[#3b6d11]" : payment.status === "refunded" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fcebeb] text-[11px] font-medium text-[#a32d2d]" : payment.status === "pending" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fff4d8] text-[11px] font-medium text-[#8a5a00]" : "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#f1efe8] text-[11px] font-medium text-[#5f5e5a]"}>
+                {getAdminInitials(player?.full_name || "Player")}
+              </span>
+
+              <div className="grid min-w-0 gap-2">
+                <div className="grid gap-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+                  <span className="grid min-w-0 gap-1">
+                    <strong className="truncate text-[15px] font-medium leading-tight text-text-primary">{player?.full_name || "Unknown player"}</strong>
+                    <em className="truncate text-[11px] not-italic leading-tight text-text-secondary">{player?.jamaat_city || "City missing"} · {tournament?.name || payment.notes || "General payment"}</em>
+                  </span>
+                  <span className={payment.status === "paid" ? "inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[10px] font-medium text-[#3b6d11]" : payment.status === "refunded" ? "inline-flex w-max rounded-full bg-[#fcebeb] px-2.5 py-1 text-[10px] font-medium text-[#a32d2d]" : payment.status === "pending" ? "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[10px] font-medium text-[#8a5a00]" : "inline-flex w-max rounded-full bg-[#f1efe8] px-2.5 py-1 text-[10px] font-medium text-[#5f5e5a]"}>
+                    {formatAdminPaymentStatus(payment.status)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                  <PaymentMeta label="Reason" value={tournament?.name || payment.notes || "General"} tone="green" />
+                  <PaymentMeta label="Type" value={formatAdminPaymentType(payment.entry_type)} tone="blue" />
+                  <PaymentMeta label={payment.status === "paid" ? "Paid" : payment.status === "refunded" ? "Refunded" : "Recorded"} value={formatAdminDateTime(payment.occurred_at)} tone="neutral" />
+                  <PaymentMeta label="Amount" value={formatAdminCurrency(payment.amount_cents, payment.currency)} tone="clay" />
+                </div>
+                {payment.notes && <p className="truncate text-[11px] font-medium text-text-secondary">{payment.notes}</p>}
               </div>
-              <span>{formatAdminCurrency(payment.amount_cents)}</span>
-              {payment.status === "pending" ? <button type="button" onClick={() => markPaid(payment.id)}>Mark paid</button> : <small>{formatAdminDate(payment.occurred_at)}</small>}
+
+              <div className={payment.status === "refunded" ? "grid gap-2 rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff7f7] p-3 md:min-w-[150px] md:justify-items-end" : "grid gap-2 rounded-[14px] border-hairline border-[#dbe8cd] bg-[#f8fbf4] p-3 md:min-w-[150px] md:justify-items-end"}>
+                <span className="grid gap-1 md:justify-items-end">
+                  <em className="text-[10px] not-italic leading-none text-text-secondary">{payment.status === "refunded" ? "Refunded amount" : "Payment amount"}</em>
+                  <strong className={payment.status === "refunded" ? "text-[20px] font-medium leading-none text-[#a32d2d]" : "text-[20px] font-medium leading-none text-brand"}>{formatAdminCurrency(payment.amount_cents, payment.currency)}</strong>
+                </span>
+                <div className="grid gap-2 md:justify-items-end">
+                  {payment.status === "pending" && (
+                    <button className="tap-card min-h-9 rounded-[12px] bg-brand px-4 text-xs font-medium text-white disabled:opacity-60" type="button" onClick={() => markPaid(payment)} disabled={updatingPaymentId === payment.id}>
+                      {updatingPaymentId === payment.id ? "Saving..." : "Mark paid"}
+                    </button>
+                  )}
+                  {payment.status === "paid" && (
+                    <>
+                      <button className={confirmRefundId === payment.id ? "tap-card min-h-9 rounded-[12px] bg-[#a32d2d] px-4 text-xs font-medium text-white disabled:opacity-60" : "tap-card min-h-9 rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-4 text-xs font-medium text-[#a32d2d] disabled:opacity-60"} type="button" onClick={() => refundPayment(payment)} disabled={updatingPaymentId === payment.id}>
+                        {updatingPaymentId === payment.id ? "Saving..." : confirmRefundId === payment.id ? "Confirm refund" : "Refund"}
+                      </button>
+                      {confirmRefundId === payment.id && (
+                        <button className="tap-card text-[11px] font-medium text-text-secondary" type="button" onClick={() => setConfirmRefundId(null)}>Cancel</button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
             </article>
           );
         })}
+        {!payments.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">No payment entries found.</div>}
       </div>
     </AdminFrame>
   );
@@ -733,64 +1293,112 @@ export function AdminClaimsScreen() {
 
   return (
     <AdminFrame active="claims">
-      <AdminHeader eyebrow="Claims" title="Profile Claims" copy="Approve true claims or reject false profile matches." />
-      {claimsNotice && <p className="admin-notice error">{claimsNotice}</p>}
-      <div className="admin-table">
+      <div className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
+        <div className="grid gap-1">
+          <span className="text-[11px] text-text-secondary">Claims</span>
+          <h1 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Profile claims</h1>
+          <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Approve true profile matches or reject incorrect claims before they link to a player record.</p>
+        </div>
+        <span className="rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">{claims.length} pending</span>
+      </div>
+      {claimsNotice && <p className="rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[13px] text-[#a32d2d]">{claimsNotice}</p>}
+      <div className="grid gap-2">
         {claims.map((claim) => {
           const isConfirmingReject = rejectConfirmId === claim.id;
           const isReviewing = reviewingClaimId === claim.id;
           return (
-            <article className="admin-row" key={claim.id}>
-              <div>
-                <strong>{claim.player_full_name || "Unknown player"}</strong>
-                <em>
-                  {claim.player_jamaat_city || "City missing"} · claimed by {claim.requester_email || claim.requested_by} · {formatAdminDateTime(claim.created_at)}
-                </em>
-                <small>{claim.requester_note || "No note"}</small>
+            <article className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center md:p-4" key={claim.id}>
+              <span className={isConfirmingReject ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fcebeb] text-[11px] font-medium text-[#a32d2d]" : "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#eaf3de] text-[11px] font-medium text-[#3b6d11]"}>
+                {getAdminInitials(claim.player_full_name || "Player")}
+              </span>
+
+              <div className="grid min-w-0 gap-2">
+                <div className="grid gap-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+                  <span className="grid min-w-0 gap-1">
+                    <strong className="truncate text-[15px] font-medium leading-tight text-text-primary">{claim.player_full_name || "Unknown player"}</strong>
+                    <em className="truncate text-[11px] not-italic leading-tight text-text-secondary">{claim.player_jamaat_city || "City missing"} · {formatAdminDateTime(claim.created_at)}</em>
+                  </span>
+                  <span className={isConfirmingReject ? "inline-flex w-max rounded-full bg-[#fcebeb] px-2.5 py-1 text-[10px] font-medium text-[#a32d2d]" : "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[10px] font-medium text-[#8a5a00]"}>
+                    {isConfirmingReject ? "Confirm rejection" : "Pending review"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
+                  <PaymentMeta label="Claimed by" value={claim.requester_email || claim.requested_by} tone="blue" />
+                  <PaymentMeta label="City" value={claim.player_jamaat_city || "City missing"} tone="green" />
+                  <PaymentMeta label="Requested" value={formatAdminDateTime(claim.created_at)} tone="neutral" />
+                </div>
+                <p className="truncate text-[11px] font-medium text-text-secondary">{claim.requester_note || "No note provided."}</p>
               </div>
-              <button type="button" onClick={() => reviewClaim(claim, true)} disabled={isReviewing}>Approve</button>
-              <button className={isConfirmingReject ? "danger" : undefined} type="button" onClick={() => rejectClaim(claim)} disabled={isReviewing}>
-                {isReviewing ? "Working..." : isConfirmingReject ? "Confirm Reject" : "Reject"}
-              </button>
-              {isConfirmingReject && (
-                <button type="button" onClick={() => setRejectConfirmId(null)} disabled={isReviewing}>
-                  Cancel
+
+              <div className="grid gap-2 md:min-w-[150px]">
+                <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white disabled:opacity-60" type="button" onClick={() => reviewClaim(claim, true)} disabled={isReviewing}>
+                  {isReviewing ? "Working..." : "Approve"}
                 </button>
-              )}
+                <button className={isConfirmingReject ? "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-[#a32d2d] px-4 text-xs font-medium text-white disabled:opacity-60" : "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d] disabled:opacity-60"} type="button" onClick={() => rejectClaim(claim)} disabled={isReviewing}>
+                  {isReviewing ? "Working..." : isConfirmingReject ? "Confirm reject" : "Reject"}
+                </button>
+                {isConfirmingReject && (
+                  <button className="tap-card text-[11px] font-medium text-text-secondary" type="button" onClick={() => setRejectConfirmId(null)} disabled={isReviewing}>
+                    Cancel
+                  </button>
+                )}
+              </div>
             </article>
           );
         })}
-        {!claims.length && <div className="admin-empty">No pending claims.</div>}
+        {!claims.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">No pending claims.</div>}
       </div>
     </AdminFrame>
   );
 }
 
-function AdminHeader({ eyebrow, title, copy }: { eyebrow: string; title: string; copy: string }) {
-  return (
-    <header className="admin-header">
-      <span>{eyebrow}</span>
-      <h1>{title}</h1>
-      <p>{copy}</p>
-    </header>
-  );
-}
-
 function AdminStat({ label, value }: { label: string; value: number }) {
   return (
-    <article className="admin-stat">
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4">
+      <span className="text-[11px] text-text-secondary">{label}</span>
+      <strong className="text-[26px] font-medium leading-none tracking-[-0.4px] text-text-primary">{value}</strong>
     </article>
   );
 }
 
 function AdminLinkCard({ href, title, copy }: { href: string; title: string; copy: string }) {
   return (
-    <Link className="admin-link-card" href={href}>
-      <strong>{title}</strong>
-      <em>{copy}</em>
+    <Link className="tap-card grid min-h-[136px] gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:p-5" href={href}>
+      <span className="grid h-10 w-10 place-items-center rounded-full bg-brand-light text-brand">
+        <ArrowRight size={17} />
+      </span>
+      <span className="grid gap-1">
+        <strong className="text-lg font-medium leading-tight text-text-primary">{title}</strong>
+        <em className="text-[13px] not-italic leading-relaxed text-text-secondary">{copy}</em>
+      </span>
     </Link>
+  );
+}
+
+function AdminPlayerMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="grid gap-1 rounded-[12px] border-hairline border-line bg-white px-3 py-2">
+      <em className="text-[10px] not-italic text-text-secondary">{label}</em>
+      <strong className="truncate text-[12px] font-medium text-text-primary">{value}</strong>
+    </span>
+  );
+}
+
+function PaymentMeta({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "green" | "blue" | "clay" | "neutral" }) {
+  const toneClass = tone === "green"
+    ? "border-[#dbe8cd] bg-[#f5faef]"
+    : tone === "blue"
+      ? "border-[#d6e6f5] bg-[#f4f9fd]"
+      : tone === "clay"
+        ? "border-[#f2dccb] bg-[#fff8f1]"
+        : "border-line bg-white";
+
+  return (
+    <span className={`min-w-0 rounded-[10px] border-hairline px-2.5 py-2 ${toneClass}`}>
+      <em className="block text-[10px] not-italic leading-tight text-text-secondary">{label}</em>
+      <strong className="block truncate text-[12px] font-medium leading-tight text-text-primary">{value}</strong>
+    </span>
   );
 }
 
@@ -798,8 +1406,29 @@ function formatAdminRating(value: number | null) {
   return typeof value === "number" ? value.toFixed(3) : "Pending";
 }
 
-function formatAdminCurrency(cents: number | null) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format((cents || 0) / 100);
+function formatAdminClaimStatus(status: string) {
+  return status.replace(/_/g, " ");
+}
+
+function getAdminInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return (parts[0]?.[0] || "P") + (parts[parts.length - 1]?.[0] || "");
+}
+
+function formatAdminTournamentStatus(status: string) {
+  return status.replace(/_/g, " ");
+}
+
+function formatAdminPaymentStatus(status: string) {
+  return status.replace(/_/g, " ");
+}
+
+function formatAdminPaymentType(entryType: string) {
+  return entryType.replace(/_/g, " ");
+}
+
+function formatAdminCurrency(cents: number | null, currency = "USD") {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: currency || "USD", maximumFractionDigits: 0 }).format((cents || 0) / 100);
 }
 
 function formatAdminDate(value: string | null) {

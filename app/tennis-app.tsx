@@ -1,10 +1,10 @@
 "use client";
 
-import { Bell, CheckCircle2, ChevronDown, Home, LogIn, LogOut, Mail, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, CheckCircle2, ChevronDown, Home, LogIn, LogOut, Mail, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChangeEvent, createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import { ChangeEvent, createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./lib/supabase";
 
@@ -96,6 +96,7 @@ type DbProfileRow = {
   auth_user_id?: string | null;
   full_name?: string | null;
   phone?: string | null;
+  age?: number | string | null;
   profile_photo_url?: string | null;
   jamaat_city?: string | null;
   self_assessment?: string | null;
@@ -223,6 +224,7 @@ function hasRequiredProfileFields(profile?: DbProfileRow | null) {
   return Boolean(
     profile?.full_name?.trim() &&
     profile.phone?.trim() &&
+    String(profile.age || "").trim() &&
     profile.jamaat_city?.trim() &&
     profile.self_assessment?.trim() &&
     profile.jersey_size?.trim()
@@ -252,7 +254,7 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
     const [{ data: player }, { data: rejectedClaim }, { data: isAdmin }] = await Promise.all([
       supabase
         .from("players")
-        .select("id, auth_user_id, full_name, phone, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tier, rating, tournaments_played, matches_played, claim_status, claim_requested_by")
+        .select("id, auth_user_id, full_name, phone, age, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tier, rating, tournaments_played, matches_played, claim_status, claim_requested_by")
         .or(`auth_user_id.eq.${user.id},claim_requested_by.eq.${user.id}`)
         .limit(1)
         .maybeSingle(),
@@ -881,7 +883,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
 
       const { data } = await supabase
         .from("players")
-        .select("id, auth_user_id, full_name, phone, profile_photo_url, jamaat_city, self_assessment, jersey_size, tennis_video_url, claim_status, claim_requested_by")
+        .select("id, auth_user_id, full_name, phone, age, profile_photo_url, jamaat_city, self_assessment, jersey_size, tennis_video_url, claim_status, claim_requested_by")
         .eq("id", claimPlayerId)
         .maybeSingle();
       if (data) {
@@ -921,6 +923,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
     const profilePayload = {
       full_name: String(form.get("fullName") || "").trim(),
       phone: String(form.get("phone") || "").trim(),
+      age: String(form.get("age") || "").trim(),
       jamaat_city: String(form.get("jamaatCity") || "").trim(),
       self_assessment: String(form.get("selfAssessment") || "").trim(),
       jersey_size: String(form.get("jerseySize") || "").trim(),
@@ -929,7 +932,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
 
     if (!hasRequiredProfileFields(profilePayload)) {
       setLoading(false);
-      setMessage("Please complete your name, phone number, shirt size, self evaluation, and Jamaat / City.");
+      setMessage("Please complete your name, phone number, age, shirt size, self evaluation, and Jamaat / City.");
       return;
     }
 
@@ -1005,6 +1008,10 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
               <label className="grid gap-2 text-[11px] text-text-secondary">
                 Phone number
                 <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="phone" type="tel" placeholder="9999999999" defaultValue={claimedProfile?.phone || ""} required />
+              </label>
+              <label className="grid gap-2 text-[11px] text-text-secondary">
+                Age
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="age" type="number" min="1" max="120" placeholder="Age" defaultValue={claimedProfile?.age || ""} required />
               </label>
               <label className="grid gap-2 text-[11px] text-text-secondary">
                 Jamaat / city
@@ -1219,6 +1226,7 @@ async function createNewPlayerProfile(
   profilePayload: {
     full_name: string;
     phone: string;
+    age: string;
     jamaat_city: string;
     self_assessment: string;
     jersey_size: string;
@@ -1405,10 +1413,15 @@ export function HomeScreen() {
               ))}
               {!topPlayers.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">{loading ? "Loading top performers..." : "No rankings found."}</div>}
             </div>
-            <Link className="tap-card mt-2 grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" href="/about">
-              <span className="text-[11px] text-text-secondary">What is MRSA?</span>
-              <strong className="text-lg font-medium leading-tight text-brand">Mumineen Racquet Sports Association</strong>
-              <em className="text-[13px] not-italic leading-relaxed text-text-secondary">MRSA brings Mumineen tennis players together through organized tournaments, rankings, match play, and community events.</em>
+            <Link className="tap-card mt-2 grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5" href="/about">
+              <span className="grid gap-2">
+                <span className="text-[11px] text-text-secondary">What is MRSA?</span>
+                <strong className="text-lg font-medium leading-tight text-brand">Mumineen Racquet Sports Association</strong>
+                <em className="text-[13px] not-italic leading-relaxed text-text-secondary">MRSA brings Mumineen tennis players together through organized tournaments, rankings, match play, and community events.</em>
+              </span>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white" aria-hidden="true">
+                <ArrowRight size={18} />
+              </span>
             </Link>
           </section>
         </main>
@@ -1951,19 +1964,63 @@ export function AboutScreen() {
 
   return (
     <AppFrame active="home">
-      <div className="screen">
-        <header className="page-head">
-          <span className="eyebrow">About MRSA</span>
-          <h1>What is<br />MRSA?</h1>
-          <p>Mumineen Racquet Sports Association brings players together through organized matches, rankings, and tournaments.</p>
+      <div className="min-h-dvh bg-page pb-28 font-sans text-text-primary">
+        <header className="sticky top-0 z-30 border-b-hairline border-surface bg-white/95 px-4 py-3 backdrop-blur">
+          <div className="mx-auto flex max-w-shell items-center justify-between">
+            <BrandMark />
+            <Link className="tap-card grid h-9 w-9 place-items-center rounded-full border-hairline border-line bg-card text-brand" href="/dashboard" aria-label="Back to dashboard">
+              <ArrowLeft size={16} />
+            </Link>
+          </div>
         </header>
-        <section className="light-section about-section">
-          <article className="tournament-card">
-            <span>Purpose</span>
-            <strong>Build a competitive but welcoming tennis community.</strong>
-            <em>MRSA helps players find events, track rankings, register for tournaments, and grow through match play.</em>
-          </article>
-        </section>
+
+        <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+          <section className="relative grid min-h-[260px] overflow-hidden rounded-[22px] bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] md:items-center md:gap-8 lg:p-6">
+            <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
+              <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            </div>
+            <div className="relative grid gap-3">
+              <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-[11px] text-white/75">About MRSA</span>
+              <h1 className="max-w-[680px] text-3xl font-medium leading-[1.08] tracking-[-0.4px] text-white md:text-[40px]">Mumineen Racquet Sports Association</h1>
+              <p className="max-w-[620px] text-sm leading-relaxed text-white/68">MRSA brings Mumineen racquet-sports players together through organized tournaments, ratings, registered events, and a stronger competitive community.</p>
+            </div>
+            <div className="relative mt-5 grid gap-3 rounded-[18px] border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
+              <span className="text-[11px] text-white/55">Established</span>
+              <strong className="text-[26px] font-medium leading-none text-white">2023</strong>
+              <em className="text-[12px] not-italic leading-relaxed text-white/62">Built for players across North America who want organized match play, fair ratings, and community-first tournaments.</em>
+            </div>
+          </section>
+
+          <section className="grid gap-3 md:grid-cols-3">
+            <article className="grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
+              <span className="text-[11px] text-text-secondary">Purpose</span>
+              <strong className="text-lg font-medium leading-tight text-text-primary">Build a competitive but welcoming tennis community.</strong>
+              <em className="text-[13px] not-italic leading-relaxed text-text-secondary">Players can discover events, register for tournaments, view ratings, and stay connected through one shared MRSA platform.</em>
+            </article>
+            <article className="grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
+              <span className="text-[11px] text-text-secondary">Ratings</span>
+              <strong className="text-lg font-medium leading-tight text-text-primary">Rankings make tournament play easier to organize.</strong>
+              <em className="text-[13px] not-italic leading-relaxed text-text-secondary">MRSA ratings help group players fairly, track progress over time, and create better matchups for future events.</em>
+            </article>
+            <article className="grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
+              <span className="text-[11px] text-text-secondary">Community</span>
+              <strong className="text-lg font-medium leading-tight text-text-primary">A place for players to meet, compete, and improve.</strong>
+              <em className="text-[13px] not-italic leading-relaxed text-text-secondary">The goal is simple: more organized play, better tournaments, and a stronger Mumineen racquet-sports network.</em>
+            </article>
+          </section>
+
+          <section className="grid gap-3 rounded-[20px] border-hairline border-line bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
+            <div className="grid gap-2">
+              <span className="text-[11px] text-text-secondary">Ready to play?</span>
+              <strong className="text-xl font-medium leading-tight tracking-[-0.4px] text-brand">View the latest tournament and registered players.</strong>
+              <em className="text-[13px] not-italic leading-relaxed text-text-secondary">Tournament details, registration timing, payment status, and player lists are updated directly in the app.</em>
+            </div>
+            <Link className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white" href="/tournaments">View tournaments →</Link>
+          </section>
+        </main>
       </div>
     </AppFrame>
   );
@@ -1976,10 +2033,34 @@ export function PlayerScreen() {
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const editSectionRef = useRef<HTMLDivElement | null>(null);
+  const firstEditableFieldRef = useRef<HTMLInputElement | null>(null);
 
   const updateProfile = (field: keyof ProfileData, value: string) => {
     setProfile((current) => ({ ...current, [field]: value }));
   };
+
+  const startProfileEdit = () => {
+    setMessage("");
+    setIsEditing(true);
+  };
+
+  const cancelProfileEdit = () => {
+    setIsEditing(false);
+    setMessage("");
+    if (appSession.player) {
+      setProfile(mapProfile(appSession.player));
+    }
+  };
+
+  useEffect(() => {
+    if (!isEditing) return;
+
+    window.setTimeout(() => {
+      editSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      firstEditableFieldRef.current?.focus({ preventScroll: true });
+    }, 80);
+  }, [isEditing]);
 
   useEffect(() => {
     if (!appSession.ready || !appSession.userId) return;
@@ -1990,7 +2071,7 @@ export function PlayerScreen() {
 
       const { data } = await supabase
         .from("players")
-        .select("id, full_name, phone, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tier, rating, tournaments_played, matches_played")
+        .select("id, full_name, phone, age, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tier, rating, tournaments_played, matches_played")
         .eq("auth_user_id", appSession.userId)
         .maybeSingle();
 
@@ -2039,6 +2120,7 @@ export function PlayerScreen() {
       .from("players")
       .update({
         full_name: profile.fullName,
+        age: profile.age ? Number(profile.age) : null,
         dominant_hand: profile.dominantHand,
         self_assessment: profile.selfEvaluation,
         jamaat_city: profile.jamaatCity,
@@ -2123,10 +2205,17 @@ export function PlayerScreen() {
 
           <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 pt-2">
             <h2 className="text-[13px] font-medium text-text-primary">Profile details</h2>
-            <button className={isEditing ? "tap-card inline-flex min-h-9 items-center gap-2 justify-self-end whitespace-nowrap rounded-full border-hairline border-line bg-card px-3 text-[12px] font-medium text-text-secondary" : "tap-card inline-flex min-h-9 items-center gap-2 justify-self-end whitespace-nowrap rounded-full bg-brand px-3 text-[12px] font-medium text-white"} type="button" onClick={() => setIsEditing((current) => !current)}>
-              {isEditing ? <X size={14} /> : <Pencil size={14} />}
-              {isEditing ? "Cancel" : "Edit profile"}
-            </button>
+            {isEditing ? (
+              <span className="inline-flex min-h-9 items-center gap-2 justify-self-end whitespace-nowrap rounded-full bg-brand-light px-3 text-[12px] font-medium text-[#3b6d11]">
+                <Pencil size={14} />
+                Editing now
+              </span>
+            ) : (
+              <button className="tap-card inline-flex min-h-9 items-center gap-2 justify-self-end whitespace-nowrap rounded-full bg-brand px-3 text-[12px] font-medium text-white" type="button" onClick={startProfileEdit}>
+                <Pencil size={14} />
+                Edit profile
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Player performance stats">
@@ -2154,39 +2243,57 @@ export function PlayerScreen() {
             {!paymentHistory.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">Completed tournament payments will appear here.</div>}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4">
-              <span className="text-[11px] text-text-secondary">Profile photo</span>
-              <input className="rounded-[12px] border-hairline border-line bg-white px-3 py-2 text-[13px] text-text-primary file:mr-3 file:rounded-full file:border-0 file:bg-brand-light file:px-3 file:py-1 file:text-[11px] file:font-medium file:text-[#3b6d11]" type="file" accept="image/*" onChange={updateProfilePhoto} />
-              <em className="text-[11px] not-italic text-text-secondary">Large photos are compressed before upload.</em>
-            </article>
-            <ProfileField label="Full Name" value={profile.fullName} editing={isEditing} onChange={(value) => updateProfile("fullName", value)} />
-            <ProfileField label="Age" value={profile.age} editing={isEditing} onChange={(value) => updateProfile("age", value)} />
-            <ProfileField label="Dominant Hand" value={profile.dominantHand} editing={isEditing} onChange={(value) => updateProfile("dominantHand", value)} />
-            <ProfileField label="Self Evaluation" value={profile.selfEvaluation} editing={isEditing} onChange={(value) => updateProfile("selfEvaluation", value)} />
-            <ProfileField label="Jamaat / City" value={profile.jamaatCity} editing={isEditing} onChange={(value) => updateProfile("jamaatCity", value)} />
-            <ProfileField
-              label="Jersey Size"
-              value={profile.jerseySize}
-              editing={isEditing}
-              onChange={(value) => updateProfile("jerseySize", value)}
-              helper={<a href="https://www.nike.com/size-fit/mens-tops-alpha" target="_blank" rel="noreferrer">Size guide</a>}
-            />
-            <ProfileField
-              label="Tennis playing video optional"
-              value={profile.tennisVideo}
-              editing={isEditing}
-              onChange={(value) => updateProfile("tennisVideo", value)}
-              helper={<a href="https://drive.google.com/" target="_blank" rel="noreferrer">Open video</a>}
-            />
-          </div>
+          <div ref={editSectionRef} className={isEditing ? "grid gap-3 rounded-[20px] border-hairline border-[#bdd7aa] bg-[#f8fbf4] p-3 shadow-[0_18px_42px_rgba(12,59,32,0.10)] ring-2 ring-brand-light md:p-4" : "grid gap-3"}>
+            {isEditing && (
+              <div className="grid gap-1 rounded-[16px] border-hairline border-[#dbe8cd] bg-white p-4">
+                <span className="inline-flex w-max items-center gap-2 rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">
+                  <Pencil size={13} />
+                  Edit mode is on
+                </span>
+                <strong className="text-[17px] font-medium tracking-[-0.4px] text-text-primary">Update your profile fields below.</strong>
+                <em className="text-[12px] not-italic leading-relaxed text-text-secondary">The boxes are now active. Review your details, then save or cancel at the bottom of this section.</em>
+              </div>
+            )}
+            <div className="grid gap-3 md:grid-cols-2">
+              <article className={isEditing ? "grid gap-2 rounded-[14px] border-hairline border-[#bdd7aa] bg-white p-4" : "grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"}>
+                <span className="text-[11px] text-text-secondary">Profile photo</span>
+                <input className="rounded-[12px] border-hairline border-line bg-white px-3 py-2 text-[13px] text-text-primary file:mr-3 file:rounded-full file:border-0 file:bg-brand-light file:px-3 file:py-1 file:text-[11px] file:font-medium file:text-[#3b6d11]" type="file" accept="image/*" onChange={updateProfilePhoto} />
+                <em className="text-[11px] not-italic text-text-secondary">Large photos are compressed before upload.</em>
+              </article>
+              <ProfileField label="Full Name" value={profile.fullName} editing={isEditing} onChange={(value) => updateProfile("fullName", value)} inputRef={firstEditableFieldRef} />
+              <ProfileField label="Age" value={profile.age} editing={isEditing} onChange={(value) => updateProfile("age", value)} />
+              <ProfileField label="Dominant Hand" value={profile.dominantHand} editing={isEditing} onChange={(value) => updateProfile("dominantHand", value)} />
+              <ProfileField label="Self Evaluation" value={profile.selfEvaluation} editing={isEditing} onChange={(value) => updateProfile("selfEvaluation", value)} />
+              <ProfileField label="Jamaat / City" value={profile.jamaatCity} editing={isEditing} onChange={(value) => updateProfile("jamaatCity", value)} />
+              <ProfileField
+                label="Jersey Size"
+                value={profile.jerseySize}
+                editing={isEditing}
+                onChange={(value) => updateProfile("jerseySize", value)}
+                helper={<a href="https://www.nike.com/size-fit/mens-tops-alpha" target="_blank" rel="noreferrer">Size guide</a>}
+              />
+              <ProfileField
+                label="Tennis playing video optional"
+                value={profile.tennisVideo}
+                editing={isEditing}
+                onChange={(value) => updateProfile("tennisVideo", value)}
+                helper={<a href="https://drive.google.com/" target="_blank" rel="noreferrer">Open video</a>}
+              />
+            </div>
 
-          {isEditing && (
-            <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="button" onClick={saveProfile} disabled={saving}>
-              <CheckCircle2 size={16} />
-              {saving ? "Saving..." : "Save profile"}
-            </button>
-          )}
+            {isEditing && (
+              <div className="grid gap-2 sm:grid-cols-[auto_auto]">
+                <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-sm font-medium text-white disabled:opacity-60" type="button" onClick={saveProfile} disabled={saving}>
+                  <CheckCircle2 size={16} />
+                  {saving ? "Saving..." : "Save profile"}
+                </button>
+                <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-sm font-medium text-text-secondary" type="button" onClick={cancelProfileEdit} disabled={saving}>
+                  <X size={16} />
+                  Cancel changes
+                </button>
+              </div>
+            )}
+          </div>
           {message && (
             <p className={message === "Profile saved." ? "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-brand" : "rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary"}>
               {message === "Profile saved." && <CheckCircle2 size={16} />}
@@ -2205,7 +2312,7 @@ function mapProfile(row: DbProfileRow): ProfileData {
     id: row.id,
     profilePhotoUrl: row.profile_photo_url || "",
     fullName: row.full_name || "Player",
-    age: initialProfile.age,
+    age: row.age ? String(row.age) : "",
     dominantHand: row.dominant_hand || initialProfile.dominantHand,
     selfEvaluation: normalizeSkillLevel(row.self_assessment) || initialProfile.selfEvaluation,
     jamaatCity: row.jamaat_city || initialProfile.jamaatCity,
@@ -2483,19 +2590,21 @@ function ProfileField({
   value,
   helper,
   editing = false,
-  onChange
+  onChange,
+  inputRef
 }: {
   label: string;
   value: string;
   helper?: ReactNode;
   editing?: boolean;
   onChange?: (value: string) => void;
+  inputRef?: React.Ref<HTMLInputElement>;
 }) {
   return (
-    <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4">
+    <article className={editing ? "grid gap-2 rounded-[14px] border-hairline border-[#bdd7aa] bg-white p-4 shadow-[0_8px_20px_rgba(12,59,32,0.04)]" : "grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"}>
       <span className="text-[11px] text-text-secondary">{label}</span>
       {editing ? (
-        <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[13px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" value={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} />
+        <input ref={inputRef} className="min-h-11 rounded-[12px] border-hairline border-brand bg-white px-3 text-[14px] text-text-primary outline-none transition ring-2 ring-brand-light placeholder:text-text-muted focus:border-brand focus:ring-4 focus:ring-brand-light" value={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} />
       ) : (
         <strong className="break-words text-[15px] font-medium text-text-primary">{value}</strong>
       )}
