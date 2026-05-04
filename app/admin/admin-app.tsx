@@ -41,6 +41,7 @@ type AdminTournament = {
   ends_on: string | null;
   registration_closes_at: string | null;
   registration_fee_cents: number;
+  max_players: number | null;
 };
 type AdminRegisteredPlayer = {
   id: string;
@@ -75,6 +76,7 @@ type AdminClaim = {
   requested_by: string;
   status: string;
   requester_note: string | null;
+  admin_note?: string | null;
   requester_email: string | null;
   created_at: string;
   player_full_name: string | null;
@@ -86,6 +88,7 @@ type LegacyAdminClaim = {
   requested_by: string;
   status: string;
   requester_note: string | null;
+  admin_note?: string | null;
   created_at: string;
   players: { full_name: string | null; jamaat_city: string | null } | { full_name: string | null; jamaat_city: string | null }[] | null;
 };
@@ -93,8 +96,8 @@ type LegacyAdminClaim = {
 function AdminBrandMark({ light = false }: { light?: boolean }) {
   return (
     <span className="inline-flex items-center gap-2">
-      <span className="relative h-10 w-10 shrink-0 overflow-hidden">
-        <Image src="/brand/logo-v3.png" alt="" fill sizes="40px" className="object-contain" priority />
+      <span className="relative h-10 w-10 shrink-0 overflow-hidden" aria-hidden="true">
+        <Image src="/brand/logo-v3.png" alt="" aria-hidden="true" fill sizes="40px" className="object-contain" priority />
       </span>
       <strong className={light ? "text-[22px] font-medium leading-none tracking-[-0.4px] text-white" : "text-[22px] font-medium leading-none tracking-[-0.4px] text-brand"}>MRSA</strong>
     </span>
@@ -238,28 +241,35 @@ function AdminNavItem({
 export function AdminOverviewScreen() {
   const [counts, setCounts] = useState<CountMap>({ players: 0, tournaments: 0, payments: 0, claims: 0 });
 
-  useEffect(() => {
-    const loadCounts = async () => {
-      const supabase = getSupabaseClient();
-      if (!supabase) return;
+  const loadCounts = useCallback(async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
 
-      const [players, tournaments, payments, claims] = await Promise.all([
-        supabase.from("players").select("id", { count: "exact", head: true }),
-        supabase.from("tournaments").select("id", { count: "exact", head: true }),
-        supabase.from("payment_ledger").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("player_claims").select("id", { count: "exact", head: true }).eq("status", "pending")
-      ]);
+    const [players, tournaments, payments, claims] = await Promise.all([
+      supabase.from("players").select("id", { count: "exact", head: true }),
+      supabase.from("tournaments").select("id", { count: "exact", head: true }),
+      supabase.from("payment_ledger").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      supabase.from("player_claims").select("id", { count: "exact", head: true }).eq("status", "pending")
+    ]);
 
-      setCounts({
-        players: players.count || 0,
-        tournaments: tournaments.count || 0,
-        payments: payments.count || 0,
-        claims: claims.count || 0
-      });
-    };
-
-    loadCounts();
+    setCounts({
+      players: players.count || 0,
+      tournaments: tournaments.count || 0,
+      payments: payments.count || 0,
+      claims: claims.count || 0
+    });
   }, []);
+
+  useEffect(() => {
+    loadCounts();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadCounts();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [loadCounts]);
 
   return (
     <AdminFrame active="overview">
@@ -278,7 +288,7 @@ export function AdminOverviewScreen() {
         <div className="relative mt-5 grid gap-2 rounded-[18px] border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
           <span className="text-[11px] text-white/55">Admin status</span>
           <strong className="text-[22px] font-medium text-white">Live dashboard</strong>
-          <em className="text-[12px] not-italic leading-relaxed text-white/62">Counts update when the admin overview loads.</em>
+          <em className="text-[12px] not-italic leading-relaxed text-white/62">Counts refresh when this tab becomes active.</em>
         </div>
       </section>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -498,7 +508,7 @@ export function AdminTournamentsScreen() {
     if (!supabase) return;
     const { data, error } = await supabase
       .from("tournaments")
-      .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents")
+      .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
       .order("starts_on", { ascending: false })
       .limit(30);
 
@@ -547,7 +557,7 @@ export function AdminTournamentsScreen() {
       registration_closes_at: localDateTimeInputToIso(String(form.get("registrationClosesAt") || "")),
       registration_fee_cents: Math.round(feeDollars * 100),
       currency: "USD",
-      max_players: 64
+      max_players: Math.max(1, Math.round(Number(form.get("maxPlayers")) || 0)) || 64
     };
     const { error } = await supabase.from("tournaments").insert({
       sport_id: sportId,
@@ -676,10 +686,16 @@ export function AdminTournamentsScreen() {
             Venue Google Maps URL
             <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" placeholder="https://maps.google.com/..." required />
           </label>
-          <label className="grid gap-2 text-[11px] text-text-secondary">
-            Tournament fees
-            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="1" placeholder="110" required />
-          </label>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="grid gap-2 text-[11px] text-text-secondary">
+              Tournament fees
+              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" placeholder="121.00" required />
+            </label>
+            <label className="grid gap-2 text-[11px] text-text-secondary">
+              Max players
+              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="maxPlayers" type="number" min="1" step="1" defaultValue="64" placeholder="64" required />
+            </label>
+          </div>
           <div className="grid gap-2 sm:grid-cols-[auto_auto]">
             <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={creating}>{creating ? "Saving..." : "Create tournament"}</button>
             <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] border-hairline border-line bg-white px-5 text-sm font-medium text-brand" type="button" onClick={cancelTournamentForm} disabled={creating}>Cancel</button>
@@ -698,6 +714,7 @@ export function AdminTournamentsScreen() {
               </div>
               <div className="grid gap-2 md:justify-items-end">
                 <strong className="text-[18px] font-medium text-brand">{formatAdminCurrency(tournament.registration_fee_cents)}</strong>
+                <em className="text-[11px] not-italic text-text-secondary">{tournament.max_players || 64} max players</em>
                 <div className="flex flex-wrap gap-2">
                   <Link className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white" href={`/admin/tournaments/${tournament.id}`}>Manage</Link>
                   <button className="tap-card min-h-9 rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d]" type="button" onClick={() => deleteTournament(tournament)}>Delete</button>
@@ -725,7 +742,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     const [{ data, error }, { data: registrations, error: registrationError }] = await Promise.all([
       supabase
         .from("tournaments")
-        .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents")
+        .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
         .eq("id", tournamentId)
         .maybeSingle(),
       supabase
@@ -783,7 +800,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       starts_on: String(form.get("startsOn") || "") || null,
       ends_on: String(form.get("endsOn") || "") || null,
       registration_closes_at: localDateTimeInputToIso(String(form.get("registrationClosesAt") || "")),
-      registration_fee_cents: Math.round(feeDollars * 100)
+      registration_fee_cents: Math.round(feeDollars * 100),
+      max_players: Math.max(1, Math.round(Number(form.get("maxPlayers")) || tournament.max_players || 64))
     }).eq("id", tournament.id);
     setSaving(false);
 
@@ -882,10 +900,16 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                 Venue Google Maps URL
                 <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" defaultValue={tournament.venue_maps_url || ""} required />
               </label>
-              <label className="grid gap-2 text-[11px] text-text-secondary">
-                Tournament fees
-                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="1" defaultValue={tournament.registration_fee_cents / 100} required />
-              </label>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-2 text-[11px] text-text-secondary">
+                  Tournament fees
+                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" defaultValue={tournament.registration_fee_cents / 100} required />
+                </label>
+                <label className="grid gap-2 text-[11px] text-text-secondary">
+                  Max players
+                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="maxPlayers" type="number" min="1" step="1" defaultValue={tournament.max_players || 64} required />
+                </label>
+              </div>
               <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save details"}</button>
             </form>
           </section>
@@ -1073,6 +1097,7 @@ export function AdminPaymentsScreen() {
   const [paymentNotice, setPaymentNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
   const [confirmRefundId, setConfirmRefundId] = useState<string | null>(null);
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid" | "refunded" | "failed">("all");
 
   const loadPayments = useCallback(async () => {
     const supabase = getSupabaseClient();
@@ -1141,6 +1166,15 @@ export function AdminPaymentsScreen() {
     await loadPayments();
   };
 
+  const visiblePayments = paymentFilter === "all" ? payments : payments.filter((payment) => payment.status === paymentFilter);
+  const paymentFilters = [
+    { id: "all" as const, label: "All" },
+    { id: "pending" as const, label: "Pending" },
+    { id: "paid" as const, label: "Paid" },
+    { id: "refunded" as const, label: "Refunded" },
+    { id: "failed" as const, label: "Failed" }
+  ];
+
   return (
     <AdminFrame active="payments">
       <div className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
@@ -1149,11 +1183,18 @@ export function AdminPaymentsScreen() {
           <h1 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Payment ledger</h1>
           <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Who paid, why, Jamaat / city, amount, status, and paid date.</p>
         </div>
-        <span className="rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">{payments.length} entries</span>
+        <span className="rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">{visiblePayments.length} entries</span>
       </div>
       {paymentNotice && <p className={paymentNotice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[13px] text-[#a32d2d]" : "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[13px] text-[#3b6d11]"}>{paymentNotice.type === "success" && <CheckCircle2 size={16} />}{paymentNotice.text}</p>}
+      <div className="flex gap-2 overflow-x-auto rounded-[14px] border-hairline border-line bg-card p-2" aria-label="Payment filters">
+        {paymentFilters.map((filter) => (
+          <button className={paymentFilter === filter.id ? "tap-card inline-flex min-h-9 !w-auto shrink-0 items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white" : "tap-card inline-flex min-h-9 !w-auto shrink-0 items-center justify-center rounded-[12px] bg-surface px-4 text-xs font-medium text-text-secondary"} type="button" key={filter.id} onClick={() => setPaymentFilter(filter.id)}>
+            {filter.label}
+          </button>
+        ))}
+      </div>
       <div className="grid gap-2">
-        {payments.map((payment) => {
+        {visiblePayments.map((payment) => {
           const player = Array.isArray(payment.players) ? payment.players[0] : payment.players;
           const tournament = Array.isArray(payment.tournaments) ? payment.tournaments[0] : payment.tournaments;
           return (
@@ -1208,7 +1249,7 @@ export function AdminPaymentsScreen() {
             </article>
           );
         })}
-        {!payments.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">No payment entries found.</div>}
+        {!visiblePayments.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">No {paymentFilter === "all" ? "" : `${paymentFilter} `}payment entries found.</div>}
       </div>
     </AdminFrame>
   );
@@ -1219,6 +1260,7 @@ export function AdminClaimsScreen() {
   const [claimsNotice, setClaimsNotice] = useState("");
   const [rejectConfirmId, setRejectConfirmId] = useState<string | null>(null);
   const [reviewingClaimId, setReviewingClaimId] = useState<string | null>(null);
+  const [rejectNotes, setRejectNotes] = useState<Record<string, string>>({});
 
   const loadClaims = async () => {
     const supabase = getSupabaseClient();
@@ -1246,7 +1288,7 @@ export function AdminClaimsScreen() {
 
     const fallback = await supabase
       .from("player_claims")
-      .select("id, player_id, requested_by, status, requester_note, created_at, players(full_name, jamaat_city)")
+      .select("id, player_id, requested_by, status, requester_note, admin_note, created_at, players(full_name, jamaat_city)")
       .eq("status", "pending")
       .order("created_at", { ascending: true })
       .limit(40);
@@ -1265,6 +1307,7 @@ export function AdminClaimsScreen() {
         requested_by: claim.requested_by,
         status: claim.status,
         requester_note: claim.requester_note,
+        admin_note: claim.admin_note || null,
         requester_email: null,
         created_at: claim.created_at,
         player_full_name: player?.full_name || null,
@@ -1278,7 +1321,7 @@ export function AdminClaimsScreen() {
     loadClaims();
   }, []);
 
-  const reviewClaim = async (claim: AdminClaim, approved: boolean) => {
+  const reviewClaim = async (claim: AdminClaim, approved: boolean, adminNote = "") => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
     setReviewingClaimId(claim.id);
@@ -1289,6 +1332,7 @@ export function AdminClaimsScreen() {
         .from("player_claims")
         .update({
           status: approved ? "approved" : "rejected",
+          admin_note: approved ? null : adminNote.trim() || "This profile claim could not be verified. Please search again or create a new profile.",
           reviewed_by: user?.id,
           reviewed_at: new Date().toISOString()
         })
@@ -1315,10 +1359,11 @@ export function AdminClaimsScreen() {
   const rejectClaim = async (claim: AdminClaim) => {
     if (rejectConfirmId !== claim.id) {
       setRejectConfirmId(claim.id);
+      setRejectNotes((current) => ({ ...current, [claim.id]: current[claim.id] || "" }));
       return;
     }
 
-    await reviewClaim(claim, false);
+    await reviewClaim(claim, false, rejectNotes[claim.id]);
   };
 
   return (
@@ -1359,6 +1404,12 @@ export function AdminClaimsScreen() {
                   <PaymentMeta label="Requested" value={formatAdminDateTime(claim.created_at)} tone="neutral" />
                 </div>
                 <p className="truncate text-[11px] font-medium text-text-secondary">{claim.requester_note || "No note provided."}</p>
+                {isConfirmingReject && (
+                  <label className="grid gap-2 text-[11px] text-text-secondary">
+                    Rejection note to player
+                    <textarea className="min-h-20 rounded-[12px] border-hairline border-line bg-white px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" value={rejectNotes[claim.id] || ""} onChange={(event) => setRejectNotes((current) => ({ ...current, [claim.id]: event.target.value }))} placeholder="Example: This profile appears to belong to another player. Please search again or create a new profile." />
+                  </label>
+                )}
               </div>
 
               <div className="grid gap-2 md:min-w-[150px]">

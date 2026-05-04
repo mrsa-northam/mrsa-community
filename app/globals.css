@@ -993,6 +993,13 @@ h1 {
   transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
+.tap-card:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+}
+
 .tap-card:active,
 .live-pill:active,
 .chip:active,

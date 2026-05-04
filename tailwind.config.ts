@@ -26,13 +26,28 @@ const config: Config = {
         "rank-bronze": "var(--color-rank-bronze)"
       },
       fontFamily: {
-        sans: ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"]
+        sans: ["DM Sans", "system-ui", "sans-serif"],
+        display: ["DM Serif Display", "Georgia", "serif"]
+      },
+      fontSize: {
+        display: ["32px", { lineHeight: "1.05", letterSpacing: "0", fontWeight: "500" }],
+        h1: ["22px", { lineHeight: "1.15", letterSpacing: "0", fontWeight: "500" }],
+        h2: ["16px", { lineHeight: "1.3", letterSpacing: "0", fontWeight: "500" }],
+        body: ["14px", { lineHeight: "1.5", letterSpacing: "0" }],
+        caption: ["11px", { lineHeight: "1.4", letterSpacing: "0", fontWeight: "500" }]
       },
       borderWidth: {
         hairline: "0.5px"
       },
+      borderRadius: {
+        card: "14px",
+        surface: "18px",
+        hero: "24px"
+      },
       boxShadow: {
-        nav: "0 -8px 24px rgba(24, 24, 26, 0.06)"
+        nav: "0 -8px 24px rgba(24, 24, 26, 0.06)",
+        card: "0 8px 20px rgba(24, 24, 26, 0.04)",
+        hero: "0 24px 70px rgba(12, 59, 32, 0.22)"
       },
       maxWidth: {
         shell: "1152px"

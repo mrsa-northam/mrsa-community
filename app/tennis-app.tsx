@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Bell, CheckCircle2, ChevronDown, Home, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Home, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -8,7 +8,7 @@ import { ChangeEvent, createContext, FormEvent, ReactNode, useCallback, useConte
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./lib/supabase";
 
-type Tab = "home" | "tournament" | "profile" | "admin" | "logout";
+type Tab = "home" | "tournament" | "profile" | "admin";
 type ProfileData = {
   id?: string;
   profilePhotoUrl?: string;
@@ -90,7 +90,16 @@ const jamaatCityOptions = [
   "Plano",
   "Vancouver"
 ];
-const videoDescription = "Optional: add a Google Drive link to a short video of you playing. Include your serve, forehand, backhand, volleys, and a few rally points so captains and organizers can evaluate your level for drafts.";
+const videoDescription = "Recommended for draft placement: add a Google Drive link to a short video of you playing. Include your serve, forehand, backhand, volleys, and a few rally points so captains and organizers can evaluate your level for drafts.";
+const aboutAlbumUrl = "https://photos.app.goo.gl/oL2hzcfCT1BYXsiD8";
+const aboutGalleryImages = [
+  { src: "/images/about-gallery/mrsa-gallery-01.webp", alt: "MRSA tournament players gathered on court.", caption: "Tournament community" },
+  { src: "/images/about-gallery/mrsa-gallery-02.webp", alt: "MRSA tennis player competing during a match.", caption: "Match play" },
+  { src: "/images/about-gallery/mrsa-gallery-03.webp", alt: "MRSA players meeting between tournament matches.", caption: "Player network" },
+  { src: "/images/about-gallery/mrsa-gallery-04.webp", alt: "MRSA tournament participant at the event.", caption: "Event day" },
+  { src: "/images/about-gallery/mrsa-gallery-05.webp", alt: "MRSA players during organized tennis play.", caption: "Organized play" },
+  { src: "/images/about-gallery/mrsa-gallery-06.webp", alt: "MRSA community members at a tournament venue.", caption: "Community moments" }
+];
 type DbProfileRow = {
   id?: string;
   auth_user_id?: string | null;
@@ -114,6 +123,7 @@ type RecentClaimRow = {
   id: string;
   player_id: string;
   status: string;
+  admin_note?: string | null;
   created_at: string | null;
   reviewed_at?: string | null;
   players?: { full_name: string | null } | { full_name: string | null }[] | null;
@@ -191,20 +201,79 @@ function Avatar({ className, name, photoUrl, ariaLabel }: AvatarProps) {
 
 function BrandMark({ light = false }: { light?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-2.5">
-      <span className="relative h-12 w-12 shrink-0 overflow-hidden">
-        <NextImage src="/brand/logo-v3.png" alt="" fill sizes="48px" className="object-contain" priority />
+    <span className="inline-flex items-center" aria-label="MRSA">
+      <span className="relative h-20 w-20 shrink-0 overflow-hidden md:h-24 md:w-24">
+        <NextImage src="/brand/logo-v3.png" alt="MRSA" fill sizes="(max-width: 768px) 80px, 96px" className={light ? "object-contain brightness-0 invert" : "object-contain"} priority />
       </span>
-      <strong className={light ? "text-[26px] font-medium leading-none tracking-[-0.4px] text-white" : "text-[26px] font-medium leading-none tracking-[-0.4px] text-brand"}>MRSA</strong>
+    </span>
+  );
+}
+
+function StatusMessage({ tone = "info", children }: { tone?: "info" | "success" | "error" | "warning"; children: ReactNode }) {
+  const toneClass = {
+    info: "border-line bg-card text-text-secondary",
+    success: "border-[#dbe8cd] bg-brand-light text-[#3b6d11]",
+    error: "border-[#f2c8c8] bg-[#fff5f5] text-[#a32d2d]",
+    warning: "border-[#f2dccb] bg-[#fff8f1] text-[#8a4a22]"
+  }[tone];
+  const Icon = tone === "success" ? CheckCircle2 : tone === "error" ? AlertCircle : Info;
+
+  return (
+    <p className={`inline-flex items-start gap-2 rounded-card border-hairline p-4 text-[13px] leading-relaxed ${toneClass}`}>
+      <Icon className="mt-0.5 shrink-0" size={16} />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+function SkeletonHero() {
+  return (
+    <section className="grid min-h-[220px] animate-pulse rounded-hero border-hairline border-line bg-card p-5 shadow-card md:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] md:items-center md:gap-6">
+      <div className="grid gap-3">
+        <span className="h-4 w-28 rounded-full bg-surface" />
+        <span className="h-8 w-4/5 rounded-full bg-surface" />
+        <span className="h-4 w-2/3 rounded-full bg-surface" />
+      </div>
+      <div className="mt-4 grid gap-3 rounded-surface bg-surface p-4 md:mt-0">
+        <span className="h-5 w-32 rounded-full bg-white/80" />
+        <span className="h-10 rounded-card bg-white/80" />
+      </div>
+    </section>
+  );
+}
+
+function SkeletonCard() {
+  return <div className="min-h-[92px] animate-pulse rounded-card border-hairline border-line bg-card p-4 shadow-card"><div className="h-full rounded-card bg-surface" /></div>;
+}
+
+function SkeletonRow() {
+  return (
+    <div className="grid min-h-[60px] animate-pulse grid-cols-[34px_minmax(0,1fr)_56px] items-center gap-3 rounded-card border-hairline border-line bg-card px-3 py-3">
+      <span className="h-[34px] w-[34px] rounded-full bg-surface" />
+      <span className="grid gap-2">
+        <span className="h-3 w-3/4 rounded-full bg-surface" />
+        <span className="h-3 w-1/2 rounded-full bg-surface" />
+      </span>
+      <span className="h-4 rounded-full bg-surface" />
+    </div>
+  );
+}
+
+function OnboardingStep({ step, total, label }: { step: number; total: number; label: string }) {
+  return (
+    <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-[11px] text-white/75">
+      Step {step} of {total}
+      <span className="h-1 w-1 rounded-full bg-white/45" />
+      {label}
     </span>
   );
 }
 
 function normalizeNextPath(nextPath?: string | null) {
-  if (!nextPath) return "/dashboard";
+  if (!nextPath) return "/tournaments";
   if (nextPath.startsWith("/tournaments")) return "/tournaments";
   if (nextPath.startsWith("/dashboard")) return "/dashboard";
-  return "/dashboard";
+  return "/tournaments";
 }
 
 function buildProfileCompletionPath(playerId: string | undefined, nextPath?: string | null) {
@@ -213,10 +282,11 @@ function buildProfileCompletionPath(playerId: string | undefined, nextPath?: str
   return `/profile/new?${params.toString()}`;
 }
 
-function buildPlayerCheckPath(nextPath?: string | null, reason?: "rejected", playerName?: string | null) {
+function buildPlayerCheckPath(nextPath?: string | null, reason?: "rejected", playerName?: string | null, adminNote?: string | null) {
   const params = new URLSearchParams({ next: normalizeNextPath(nextPath) });
   if (reason) params.set("claim", reason);
   if (playerName) params.set("player", playerName);
+  if (adminNote) params.set("note", adminNote);
   return `/player-check?${params.toString()}`;
 }
 
@@ -260,7 +330,7 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
         .maybeSingle(),
       supabase
         .from("player_claims")
-        .select("id, player_id, status, created_at, reviewed_at, players(full_name)")
+        .select("id, player_id, status, admin_note, created_at, reviewed_at, players(full_name)")
         .eq("requested_by", user.id)
         .eq("status", "rejected")
         .order("reviewed_at", { ascending: false, nullsFirst: false })
@@ -340,7 +410,7 @@ function useProtectedRoute(nextPath = "/dashboard", requireCompleteProfile = fal
         const claimedPlayer = Array.isArray(appSession.recentRejectedClaim?.players)
           ? appSession.recentRejectedClaim?.players[0]
           : appSession.recentRejectedClaim?.players;
-        router.replace(buildPlayerCheckPath(nextPath, appSession.recentRejectedClaim ? "rejected" : undefined, claimedPlayer?.full_name));
+        router.replace(buildPlayerCheckPath(nextPath, appSession.recentRejectedClaim ? "rejected" : undefined, claimedPlayer?.full_name, appSession.recentRejectedClaim?.admin_note));
         return;
       }
 
@@ -405,54 +475,52 @@ export function LoginScreen({ nextPath }: { nextPath?: string }) {
 
   return (
     <AppFrame withNav={false}>
-      <div className="min-h-dvh bg-page font-sans text-text-primary">
-        <header className="border-b-hairline border-surface bg-white/95 px-4 py-3">
-          <div className="mx-auto flex max-w-shell items-center justify-between">
-            <BrandMark />
-            <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-brand text-[11px] font-medium text-white">MR</span>
-          </div>
-        </header>
-
-        <main className="mx-auto grid min-h-[calc(100dvh-59px)] w-full max-w-[980px] content-center px-4 py-5 md:px-6 md:py-8">
-          <section className="grid min-w-0 overflow-hidden rounded-[24px] border-hairline border-line bg-card shadow-[0_24px_80px_rgba(24,24,26,0.10)] md:min-h-[560px] md:grid-cols-[1fr_1fr]">
-            <div className="relative min-h-[260px] min-w-0 overflow-hidden bg-brand p-5 text-white md:min-h-0 md:p-10">
-              <div className="pointer-events-none absolute inset-0 text-white opacity-[0.08]" aria-hidden="true">
-                <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
-                  <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
+      <div className="min-h-dvh bg-[#f4f1ea] font-sans text-text-primary">
+        <main className="mx-auto grid min-h-dvh w-full max-w-[440px] content-center px-4 py-6 md:max-w-[470px]">
+          <section className="overflow-hidden rounded-hero border-hairline border-line bg-white shadow-[0_24px_80px_rgba(24,24,26,0.11)]">
+            <div className="relative overflow-hidden bg-brand px-6 pb-8 pt-7 text-white">
+              <div className="pointer-events-none absolute inset-0 text-white opacity-[0.07]" aria-hidden="true">
+                <svg className="h-full w-full scale-125" viewBox="0 0 340 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="22" y="18" width="296" height="184" stroke="currentColor" strokeWidth="1.1" />
+                  <path d="M22 110H318M170 18V202M88 18V202M252 18V202M88 65H252M88 155H252" stroke="currentColor" strokeWidth="1.1" />
                 </svg>
               </div>
-              <div className="absolute inset-x-0 bottom-0 h-44 bg-[radial-gradient(circle_at_66%_58%,rgba(214,242,65,0.86)_0,rgba(214,242,65,0.86)_36px,transparent_37px),linear-gradient(18deg,transparent_0_42%,rgba(255,255,255,0.35)_43%,rgba(255,255,255,0.35)_45%,transparent_46%),radial-gradient(ellipse_at_55%_70%,rgba(255,255,255,0.28)_0,rgba(255,255,255,0.13)_34%,transparent_58%)] opacity-80" aria-hidden="true" />
-              <div className="relative z-10 grid h-full content-center gap-4">
-                <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-[11px] text-white/75">MRSA access</span>
-                <h1 className="max-w-[420px] text-[32px] font-medium leading-[1.08] tracking-[-0.4px] text-white md:text-[38px]">Mumineen Racquet Sports Association</h1>
-                <p className="max-w-[360px] text-sm leading-relaxed text-white/70">Request a one-time access code to enter your tournament dashboard.</p>
-                <p className="text-xs text-white/55">Uniting players. Competitive community.</p>
+              <div className="relative z-10 grid justify-items-center gap-4 text-center">
+                <span className="grid h-40 w-40 place-items-center rounded-full bg-white shadow-[0_18px_45px_rgba(0,0,0,0.18)] ring-1 ring-white/75 md:h-44 md:w-44">
+                  <span className="relative h-32 w-32 shrink-0 overflow-hidden md:h-36 md:w-36">
+                    <NextImage src="/brand/logo-v3.png" alt="MRSA" fill sizes="(max-width: 768px) 128px, 144px" className="object-contain" priority />
+                  </span>
+                </span>
+                <div className="grid gap-2">
+                  <span className="mx-auto inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-caption text-white/72">MRSA player access</span>
+                  <h1 className="max-w-[320px] text-[30px] font-medium leading-[1.05] text-white md:text-[34px]">Sign in to your tournament profile.</h1>
+                  <p className="mx-auto max-w-[300px] text-[13px] leading-relaxed text-white/68">Request a one-time code to access tournaments, ratings, and your MRSA player record.</p>
+                </div>
               </div>
             </div>
 
-            <div className="grid content-center gap-6 bg-white p-7 md:p-10">
-              <div className="grid gap-2">
-                <h2 className="text-[28px] font-medium leading-tight tracking-[-0.4px] text-text-primary">Welcome, player</h2>
-                <p className="text-sm text-text-secondary">Login to your dashboard.</p>
+            <div className="relative z-10 grid gap-5 bg-white px-6 py-6 md:px-8 md:py-7">
+              <div className="grid gap-1 text-center">
+                <h2 className="text-h1 text-text-primary">Welcome, player</h2>
+                <p className="text-body text-text-secondary">Use the email connected to your MRSA profile.</p>
               </div>
               <form className="grid gap-4" onSubmit={sendOtp}>
-                <label className="grid gap-2 text-[11px] text-text-secondary" htmlFor="email">
+                <label className="grid gap-2 text-caption text-text-secondary" htmlFor="email">
                   Email address
-                  <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center border-b-hairline border-line pb-1 focus-within:border-brand">
-                    <input className="min-h-10 bg-transparent text-[14px] text-text-primary outline-none placeholder:text-text-muted" id="email" name="email" type="email" placeholder="player@mrsa.com" value={email} onChange={(event) => setEmail(event.target.value)} required />
+                  <span className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center rounded-card border-hairline border-line bg-surface px-3 transition focus-within:border-brand focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-light">
+                    <input className="min-h-11 bg-transparent text-body text-text-primary outline-none placeholder:text-text-muted" id="email" name="email" type="email" placeholder="player@mrsa.com" value={email} onChange={(event) => setEmail(event.target.value)} required />
                     <Mail size={16} className="text-brand" />
                   </span>
                 </label>
-                <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-center text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={loading}>
+                <button className="tap-card inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-card bg-brand px-4 text-center text-sm font-medium text-white shadow-[0_14px_28px_rgba(12,59,32,0.18)] disabled:opacity-60" type="submit" disabled={loading}>
                   <LogIn size={16} />
-                  {loading ? "Sending..." : "Login (request access code)"}
+                  {loading ? "Sending code..." : "Send one-time code"}
                 </button>
-                {message && <p className="rounded-[14px] border-hairline border-line bg-card p-3 text-center text-[12px] text-text-secondary">{message}</p>}
+                {message && <StatusMessage tone={message.includes("sent") ? "success" : "error"}>{message}</StatusMessage>}
               </form>
-              <div className="grid gap-2 text-center text-[12px] text-text-secondary">
-                <Link className="tap-card text-brand" href="/about">About MRSA</Link>
-                <span>FAQs · Contact support</span>
+              <div className="grid gap-2 border-t-hairline border-line pt-4 text-center text-[12px] text-text-secondary">
+                <Link className="tap-card font-medium text-brand" href="/about">About MRSA</Link>
+                <span>One account for tournaments, ratings, and player history.</span>
               </div>
             </div>
           </section>
@@ -562,7 +630,7 @@ export function OtpScreen({ email = "player@mrsa.com", nextPath }: { email?: str
               </div>
               <div className="absolute inset-x-0 bottom-0 h-44 bg-[radial-gradient(circle_at_66%_58%,rgba(214,242,65,0.86)_0,rgba(214,242,65,0.86)_36px,transparent_37px),linear-gradient(18deg,transparent_0_42%,rgba(255,255,255,0.35)_43%,rgba(255,255,255,0.35)_45%,transparent_46%),radial-gradient(ellipse_at_55%_70%,rgba(255,255,255,0.28)_0,rgba(255,255,255,0.13)_34%,transparent_58%)] opacity-80" aria-hidden="true" />
               <div className="relative z-10 grid h-full min-w-0 content-center gap-3 md:gap-4">
-                <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-[11px] text-white/75">Verification</span>
+                <OnboardingStep step={1} total={3} label="Verify email" />
                 <h1 className="max-w-[420px] text-[30px] font-medium leading-[1.08] tracking-[-0.4px] text-white md:text-[38px]">Check your inbox.</h1>
                 <p className="max-w-[300px] text-sm leading-relaxed text-white/70 md:max-w-[360px]">Enter the one-time access code we sent to your email.</p>
                 <p className="max-w-full truncate text-xs text-white/55">{email}</p>
@@ -591,7 +659,7 @@ export function OtpScreen({ email = "player@mrsa.com", nextPath }: { email?: str
                   </button>
                 )}
                 <Link className="tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[14px] border-hairline border-line bg-card px-4 text-sm font-medium text-brand" href="/">Change email</Link>
-                {message && <p className="rounded-[14px] border-hairline border-line bg-card p-3 text-center text-[12px] text-text-secondary">{message}</p>}
+                {message && <StatusMessage tone={message.includes("sent") ? "success" : "error"}>{message}</StatusMessage>}
               </form>
             </div>
           </section>
@@ -604,10 +672,12 @@ export function OtpScreen({ email = "player@mrsa.com", nextPath }: { email?: str
 export function PlayerCheckScreen({
   claimStatus,
   rejectedPlayerName,
+  rejectionNote,
   nextPath
 }: {
   claimStatus?: string;
   rejectedPlayerName?: string;
+  rejectionNote?: string;
   nextPath?: string;
 }) {
   const router = useRouter();
@@ -661,6 +731,12 @@ export function PlayerCheckScreen({
     loadPlayers();
   }, [appSession.ready, appSession.userId]);
 
+  const openClaimConfirmation = (player: ReturningPlayer) => {
+    setSelectedPlayer(player);
+    setConfirmClaimId(player.id);
+    setMessage("");
+  };
+
   const claimProfile = async (player: ReturningPlayer) => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
@@ -668,12 +744,6 @@ export function PlayerCheckScreen({
     const user = appSession.user;
     if (!user) {
       router.push("/");
-      return;
-    }
-
-    if (confirmClaimId !== player.id) {
-      setConfirmClaimId(player.id);
-      setMessage("Please confirm one more time that this is your profile.");
       return;
     }
 
@@ -722,7 +792,7 @@ export function PlayerCheckScreen({
         player_id: player.id,
         requested_by: user.id,
         requester_email: user.email || null,
-        requester_note: "Player confirmed twice that this is their profile from onboarding."
+        requester_note: "Player confirmed from onboarding profile claim modal."
       });
       claimInsertError = claimInsert.error;
 
@@ -730,7 +800,7 @@ export function PlayerCheckScreen({
         const fallbackInsert = await supabase.from("player_claims").insert({
           player_id: player.id,
           requested_by: user.id,
-          requester_note: "Player confirmed twice that this is their profile from onboarding."
+          requester_note: "Player confirmed from onboarding profile claim modal."
         });
         claimInsertError = fallbackInsert.error;
       }
@@ -769,7 +839,7 @@ export function PlayerCheckScreen({
               </div>
               <div className="absolute inset-x-0 bottom-0 h-44 bg-[radial-gradient(circle_at_66%_58%,rgba(214,242,65,0.86)_0,rgba(214,242,65,0.86)_36px,transparent_37px),linear-gradient(18deg,transparent_0_42%,rgba(255,255,255,0.35)_43%,rgba(255,255,255,0.35)_45%,transparent_46%),radial-gradient(ellipse_at_55%_70%,rgba(255,255,255,0.28)_0,rgba(255,255,255,0.13)_34%,transparent_58%)] opacity-80" aria-hidden="true" />
               <div className="relative z-10 grid h-full min-w-0 content-center gap-3 md:gap-4">
-                <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-[11px] text-white/75">Player setup</span>
+                <OnboardingStep step={2} total={3} label="Find profile" />
                 <h1 className="max-w-[420px] text-[30px] font-medium leading-[1.08] tracking-[-0.4px] text-white md:text-[38px]">Returning player?</h1>
                 <p className="max-w-[340px] text-sm leading-relaxed text-white/70">Search past MRSA player profiles and continue with your existing tournament history.</p>
               </div>
@@ -834,8 +904,8 @@ export function PlayerCheckScreen({
                   <strong className="text-[15px] font-medium text-text-primary">Only continue if this is your player profile.</strong>
                   <em className="text-[12px] not-italic leading-relaxed text-[#8a4a22]">You are about to claim {selectedPlayer.name}. This links the historical rating, city, and tournament record to your login. If this is not you, choose a different profile or create a first-time player profile.</em>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <button className={confirmClaimId === selectedPlayer.id ? "tap-card min-h-10 rounded-[14px] bg-accent-clay px-4 text-xs font-medium text-white" : "tap-card min-h-10 rounded-[14px] bg-brand px-4 text-xs font-medium text-white"} type="button" onClick={() => claimProfile(selectedPlayer)}>
-                      {confirmClaimId === selectedPlayer.id ? "Confirm: this is my profile" : "Yes, this is me"}
+                    <button className="tap-card min-h-10 rounded-[14px] bg-brand px-4 text-xs font-medium text-white" type="button" onClick={() => openClaimConfirmation(selectedPlayer)}>
+                      Yes, this is me
                     </button>
                     <button className="tap-card min-h-10 rounded-[14px] border-hairline border-line bg-card px-4 text-xs font-medium text-brand" type="button" onClick={() => setSelectedPlayer(null)}>Cancel</button>
                   </div>
@@ -846,10 +916,33 @@ export function PlayerCheckScreen({
                 <p className="text-[13px] text-text-secondary">New or first time players can create a new MRSA profile.</p>
                 <Link className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-4 text-sm font-medium text-white" href={`/profile/new?next=${encodeURIComponent(destinationPath)}`}>First time player</Link>
               </div>
-              {message && <p className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">{message}</p>}
+              {claimStatus === "rejected" && rejectionNote && (
+                <StatusMessage tone="warning">Admin note: {rejectionNote}</StatusMessage>
+              )}
+              {message && <StatusMessage tone={claimStatus === "rejected" ? "warning" : "info"}>{message}</StatusMessage>}
             </div>
           </section>
         </main>
+        {confirmClaimId && selectedPlayer && (
+          <div className="fixed inset-0 z-50 grid place-items-end bg-black/35 px-3 pb-3 pt-16 backdrop-blur-sm sm:place-items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="claim-confirm-title">
+            <section className="grid w-full max-w-[520px] gap-4 rounded-hero border-hairline border-white/80 bg-white/95 p-5 shadow-hero backdrop-blur-xl">
+              <div className="grid gap-2">
+                <span className="inline-flex w-max items-center rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">Confirm profile claim</span>
+                <h2 className="text-2xl font-medium leading-tight text-text-primary" id="claim-confirm-title">You are claiming {selectedPlayer.name}.</h2>
+                <p className="text-[13px] leading-relaxed text-text-secondary">This links your sign-in to this MRSA player record permanently after admin review. Confirm only if the city, tier, and rating below match you.</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <article className="rounded-card border-hairline border-line bg-card p-3"><span className="text-[10px] text-text-secondary">City</span><strong className="block truncate text-[13px] text-text-primary">{selectedPlayer.city}</strong></article>
+                <article className="rounded-card border-hairline border-line bg-card p-3"><span className="text-[10px] text-text-secondary">Tier</span><strong className="block text-[13px] text-text-primary">Tier {selectedPlayer.tier}</strong></article>
+                <article className="rounded-card border-hairline border-line bg-card p-3"><span className="text-[10px] text-text-secondary">Rating</span><strong className="block text-[13px] text-text-primary">{selectedPlayer.rating}</strong></article>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-card bg-brand px-4 text-sm font-medium text-white" type="button" onClick={() => claimProfile(selectedPlayer)}>Confirm claim</button>
+                <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-card border-hairline border-line bg-white px-4 text-sm font-medium text-text-secondary" type="button" onClick={() => setConfirmClaimId(null)}>Cancel</button>
+              </div>
+            </section>
+          </div>
+        )}
       </div>
     </AppFrame>
   );
@@ -988,7 +1081,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
               </svg>
             </div>
             <div className="relative grid gap-3">
-              <span className="text-[11px] text-white/60">{claimPlayerId ? "Claim profile" : "Create profile"}</span>
+              <OnboardingStep step={3} total={3} label={claimPlayerId ? "Complete claim" : "Create profile"} />
               <h1 className="max-w-[640px] text-3xl font-medium leading-[1.08] tracking-[-0.4px] text-white">{claimPlayerId ? "Complete your profile." : "New MRSA player."}</h1>
               <p className="max-w-[560px] text-sm leading-relaxed text-white/65">{claimPlayerId ? "Add the required details so admin can review your profile claim and connect your history." : `Create your profile once. New players start at Tier ${startingTennisTier} with a ${startingTennisRating.toFixed(3)} rating.`}</p>
             </div>
@@ -1042,14 +1135,14 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
                 <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 py-2 text-[13px] text-text-primary file:mr-3 file:rounded-full file:border-0 file:bg-brand-light file:px-3 file:py-1 file:text-[11px] file:font-medium file:text-[#3b6d11]" name="profilePhoto" type="file" accept="image/*" />
               </label>
               <label className="grid gap-2 text-[11px] text-text-secondary md:col-span-2">
-                Google Drive playing video optional
+                Google Drive playing video recommended for draft placement
                 <em className="text-[11px] not-italic leading-relaxed text-text-secondary">{videoDescription}</em>
                 <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="tennisVideo" type="text" inputMode="url" placeholder="https://drive.google.com/..." defaultValue={claimedProfile?.tennis_video_url || ""} />
               </label>
             </section>
 
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-              {message && <p className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">{message}</p>}
+              {message && <StatusMessage tone={message.startsWith("Please") ? "warning" : "error"}>{message}</StatusMessage>}
               <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={loading}>
                 <CheckCircle2 size={16} />
                 {loading ? "Saving..." : "Continue"}
@@ -1257,7 +1350,6 @@ async function createNewPlayerProfile(
 
 export function HomeScreen() {
   const appSession = useProtectedRoute("/dashboard", true);
-  const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
   const [upcomingTournament, setUpcomingTournament] = useState<Tournament | null>(null);
   const [profileBadge, setProfileBadge] = useState<ProfileBadge>({ name: "Profile", initials: "P" });
   const [hasRegisteredTournament, setHasRegisteredTournament] = useState(false);
@@ -1265,26 +1357,16 @@ export function HomeScreen() {
   const [dashboardVideoLink, setDashboardVideoLink] = useState("");
   const [dashboardVideoMessage, setDashboardVideoMessage] = useState("");
   const [savingDashboardVideo, setSavingDashboardVideo] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!appSession.ready || !appSession.userId) return;
 
     const supabase = getSupabaseClient();
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
+    if (!supabase) return;
 
     const loadDashboard = async () => {
       const today = new Date().toISOString().slice(0, 10);
-      const [{ data: rankingData }, { data: tournamentData }, { data: profileData }] = await Promise.all([
-        supabase
-          .from("rankings")
-          .select("rank, mrsa_rating, players(full_name, jamaat_city)")
-          .eq("ranking_scope", "overall")
-          .order("rank")
-          .limit(5),
+      const [{ data: tournamentData }, { data: profileData }] = await Promise.all([
         supabase
           .from("tournaments")
           .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
@@ -1302,15 +1384,6 @@ export function HomeScreen() {
           : Promise.resolve({ data: null })
       ]);
 
-      setTopPlayers((rankingData || []).map((row) => {
-        const player = Array.isArray(row.players) ? row.players[0] : row.players;
-        return {
-          rank: String(row.rank).padStart(2, "0"),
-          name: player?.full_name || "Player",
-          rating: formatRating(row.mrsa_rating),
-          form: player?.jamaat_city || "City not added"
-        };
-      }));
       setUpcomingTournament(tournamentData ? mapTournament(tournamentData) : null);
       setHasRegisteredTournament(false);
       if (profileData) {
@@ -1333,14 +1406,12 @@ export function HomeScreen() {
 
         setHasRegisteredTournament(Boolean(registration));
       }
-      setLoading(false);
     };
 
     loadDashboard();
 
     const channel = supabase
       .channel("dashboard-live-data")
-      .on("postgres_changes", { event: "*", schema: "public", table: "rankings" }, loadDashboard)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournaments" }, loadDashboard)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_registrations" }, loadDashboard)
       .subscribe();
@@ -1385,10 +1456,6 @@ export function HomeScreen() {
           <div className="mx-auto flex max-w-shell items-center justify-between">
             <BrandMark />
             <div className="flex items-center gap-2">
-              <button className="relative grid h-8 w-8 place-items-center rounded-full border-hairline border-white/80 bg-white/65 text-text-primary shadow-[0_8px_22px_rgba(24,24,26,0.06)] backdrop-blur" type="button" aria-label="Notifications">
-                <Bell size={16} />
-                <span className="absolute right-[6px] top-[5px] h-1.5 w-1.5 rounded-full border-[1.5px] border-white bg-accent-clay" />
-              </button>
               <Link className="tap-card grid h-[34px] w-[34px] place-items-center" href="/profile" aria-label={`${profileBadge.name} profile`}>
                 <Avatar className="relative grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-full bg-brand text-[11px] font-medium text-white" name={profileBadge.name || profileBadge.initials} photoUrl={profileBadge.photoUrl} />
               </Link>
@@ -1442,27 +1509,15 @@ export function HomeScreen() {
           </section>
 
           <section className="grid gap-3">
-            <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 pt-2">
-              <h2 className="text-[13px] font-medium text-text-primary">Top performers</h2>
-              <Link className="tap-card justify-self-end whitespace-nowrap text-[12px] font-medium text-brand" href="/players">View all →</Link>
-            </div>
-            <div className="grid grid-cols-1 gap-2" aria-label="Top player ratings leaderboard">
-              {topPlayers.map((player, index) => (
-                <Link className="tap-card grid min-h-[64px] grid-cols-[24px_36px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3 shadow-[0_8px_20px_rgba(24,24,26,0.03)] md:px-4" href="/profile" key={player.name}>
-                  <span className={index === 0 ? "text-[13px] font-medium text-rank-gold" : index === 1 ? "text-[13px] font-medium text-rank-silver" : index === 2 ? "text-[13px] font-medium text-rank-bronze" : "text-[13px] font-medium text-text-secondary"}>{index + 1}</span>
-                  <span className={index === 0 ? "grid h-9 w-9 place-items-center rounded-full bg-[#fde9dc] text-[11px] font-medium text-[#a94d24]" : index === 1 ? "grid h-9 w-9 place-items-center rounded-full bg-[#e5f1ff] text-[11px] font-medium text-[#185fa5]" : index === 2 ? "grid h-9 w-9 place-items-center rounded-full bg-[#eaf3de] text-[11px] font-medium text-[#3b6d11]" : index === 3 ? "grid h-9 w-9 place-items-center rounded-full bg-[#fbe7ef] text-[11px] font-medium text-[#aa3f6b]" : "grid h-9 w-9 place-items-center rounded-full bg-[#f1efe8] text-[11px] font-medium text-[#5f5e5a]"} aria-hidden="true">{getInitials(player.name)}</span>
-                  <span className="grid min-w-0 gap-1">
-                    <strong className="truncate text-[13px] font-medium leading-tight text-text-primary">{player.name}</strong>
-                    <em className="truncate text-[11px] not-italic leading-tight text-text-secondary">{player.form}</em>
-                  </span>
-                  <span className="grid justify-items-end gap-1">
-                    <strong className="text-[13px] font-medium leading-none text-text-primary">{player.rating}</strong>
-                    <em className={index === 1 ? "rounded-full bg-[#f1efe8] px-2 py-1 text-[10px] not-italic leading-none text-[#5f5e5a]" : "rounded-full bg-brand-light px-2 py-1 text-[10px] not-italic leading-none text-[#3b6d11]"}>{index === 0 ? "+120" : index === 1 ? "−" : index === 2 ? "+80" : index === 3 ? "+210" : "+40"}</em>
-                  </span>
-                </Link>
-              ))}
-              {!topPlayers.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">{loading ? "Loading top performers..." : "No rankings found."}</div>}
-            </div>
+            <Link className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-card p-4 md:p-5" href="/players">
+              <span className="grid gap-1">
+                <strong className="text-[14px] font-medium leading-tight text-text-primary">Top performers</strong>
+                <em className="text-[12px] not-italic leading-relaxed text-text-secondary">See the full MRSA leaderboard.</em>
+              </span>
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-light text-[#3b6d11]" aria-hidden="true">
+                <ArrowRight size={16} />
+              </span>
+            </Link>
             <Link className="tap-card mt-2 grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5" href="/about">
               <span className="grid gap-2">
                 <span className="text-[11px] text-text-secondary">What is MRSA?</span>
@@ -1630,7 +1685,7 @@ export function DrawScreen() {
       }
 
       setPaymentState("pending");
-      setMessage("Payment is still pending. You can retry if it does not complete.");
+      setMessage("Payment is still pending. Please wait while Stripe confirms it.");
     };
 
     reconcileReturnedPayment();
@@ -1742,6 +1797,8 @@ export function DrawScreen() {
   };
 
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  const spotsLeft = tournament?.maxPlayers ? Math.max(0, tournament.maxPlayers - registeredPlayers.length) : null;
+  const paymentPending = paymentState === "pending";
 
   return (
     <AppFrame active="tournament">
@@ -1749,19 +1806,16 @@ export function DrawScreen() {
         <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-3 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-shell items-center justify-between">
             <BrandMark />
-            <div className="flex items-center gap-2">
-              <button className="relative grid h-8 w-8 place-items-center rounded-full border-hairline border-white/80 bg-white/65 text-text-primary shadow-[0_8px_22px_rgba(24,24,26,0.06)] backdrop-blur" type="button" aria-label="Notifications">
-                <Bell size={16} />
-                <span className="absolute right-[6px] top-[5px] h-1.5 w-1.5 rounded-full border-[1.5px] border-white bg-accent-clay" />
-              </button>
-              <Link className="tap-card grid h-[34px] w-[34px] place-items-center" href="/profile" aria-label={`${appSession.player?.full_name || "Profile"} profile`}>
-                <Avatar className="relative grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-full bg-brand text-[11px] font-medium text-white" name={appSession.player?.full_name || "Profile"} photoUrl={appSession.player?.profile_photo_url || undefined} />
-              </Link>
-            </div>
+            <Link className="tap-card grid h-[34px] w-[34px] place-items-center" href="/profile" aria-label={`${appSession.player?.full_name || "Profile"} profile`}>
+              <Avatar className="relative grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-full bg-brand text-[11px] font-medium text-white" name={appSession.player?.full_name || "Profile"} photoUrl={appSession.player?.profile_photo_url || undefined} />
+            </Link>
           </div>
         </header>
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
-          <header className="relative grid min-h-[220px] overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] md:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] md:items-center md:gap-x-8 lg:p-6">
+          {loading && !tournament ? (
+            <SkeletonHero />
+          ) : (
+          <header className="relative grid min-h-[220px] overflow-hidden rounded-hero border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-hero md:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] md:items-center md:gap-x-8 lg:p-6">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -1769,25 +1823,34 @@ export function DrawScreen() {
               </svg>
             </div>
             <div className="relative grid gap-3 md:self-center">
-              <span className="text-[11px] text-white/60">Live tournament</span>
+              <span className="text-[11px] text-white/60">{tournament ? "Primary tournament" : "Tournament"}</span>
               <h1 className="max-w-[680px] text-2xl font-medium leading-[1.12] tracking-[-0.4px] text-white">{tournament ? tournament.name : "No live tournament"}</h1>
-              <p className="max-w-[680px] text-xs text-white/55">{tournament ? `${formatTournamentDates(tournament)} at ${tournament.venueName || "venue TBD"}.` : "No live tournament is open right now."}</p>
+              <p className="max-w-[680px] text-xs text-white/60">{tournament ? `${formatTournamentDates(tournament)} · ${tournament.venueName || "Venue TBD"} · ${formatCurrency(tournament.registrationFeeCents)}` : "No live tournament is open right now."}</p>
+              {tournament && (
+                <div className="grid grid-cols-3 gap-2 pt-2">
+                  <span className="rounded-card bg-white/10 p-3"><b className="block text-[10px] font-normal text-white/55">Venue</b><strong className="block truncate text-[12px] font-medium text-white">{tournament.venueName || "TBD"}</strong></span>
+                  <span className="rounded-card bg-white/10 p-3"><b className="block text-[10px] font-normal text-white/55">Fee</b><strong className="block text-[12px] font-medium text-white">{formatCurrency(tournament.registrationFeeCents)}</strong></span>
+                  <span className="rounded-card bg-white/10 p-3"><b className="block text-[10px] font-normal text-white/55">Spots</b><strong className="block text-[12px] font-medium text-white">{spotsLeft === null ? `${registeredPlayers.length} in` : `${spotsLeft} left`}</strong></span>
+                </div>
+              )}
             </div>
             {tournament && (
               <div className="relative mt-5 grid gap-4 rounded-[20px] border-hairline border-white/20 bg-white/[0.13] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-xl md:mt-0">
                 <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/12 px-2.5 py-1 text-[11px] text-white/85"><span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />Registration live</span>
                 <p className="text-[12px] leading-relaxed text-white/70">
-                  Registration is live. Pay {formatCurrency(tournament.registrationFeeCents)} and confirm your spot.
+                  {registered ? "You are registered for this tournament." : paymentPending ? "Stripe is confirming this payment. Please do not retry yet." : `Registration is live. Pay ${formatCurrency(tournament.registrationFeeCents)} and confirm your spot.`}
                 </p>
                 <RegistrationCountdown closesAt={tournament.registrationClosesAt} />
-                <button className={registered ? "tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-100" : "tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-70"} type="button" onClick={registerForTournament} disabled={paying || registered}>
+                <button className={registered ? "tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-100" : "tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-70"} type="button" onClick={registerForTournament} disabled={paying || registered || paymentPending}>
                   {registered && <CheckCircle2 size={16} />}
                   {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState })}
-                  {!registered && " →"}
+                  {!registered && !paymentPending && " →"}
                 </button>
+                {paymentPending && <p className="text-[11px] leading-relaxed text-white/58">Checking payment. Do not start another payment until this updates.</p>}
               </div>
             )}
           </header>
+          )}
 
         <section className="grid gap-4">
           {tournament ? (
@@ -1809,7 +1872,7 @@ export function DrawScreen() {
               </div>
             </>
           ) : (
-            <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">{loading ? "Loading tournament..." : "No live tournament found."}</div>
+            <StatusMessage tone="info">No live tournament found.</StatusMessage>
           )}
 
           <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 pt-2">
@@ -1834,7 +1897,8 @@ export function DrawScreen() {
                 </span>
               </article>
             ))}
-            {!registeredPlayers.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">No players registered yet.</div>}
+            {loading && !registeredPlayers.length && Array.from({ length: 4 }).map((_, index) => <SkeletonRow key={index} />)}
+            {!loading && !registeredPlayers.length && <StatusMessage tone="info">No players registered yet.</StatusMessage>}
           </div>
 
           <div className="flex items-center justify-between pt-2">
@@ -1849,10 +1913,11 @@ export function DrawScreen() {
                 <em className="text-[11px] not-italic text-text-secondary">{pastTournament.matches} matches · {pastTournament.singles} singles · {pastTournament.doubles} doubles</em>
               </article>
             ))}
-            {!pastTournaments.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">{loading ? "Loading past tournaments..." : "No historical tournament data found."}</div>}
+            {loading && !pastTournaments.length && Array.from({ length: 3 }).map((_, index) => <SkeletonCard key={index} />)}
+            {!loading && !pastTournaments.length && <StatusMessage tone="info">No historical tournament data found.</StatusMessage>}
           </div>
 
-          {message && <p className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">{message}</p>}
+          {message && <StatusMessage tone={paymentState === "failed" ? "error" : paymentState === "pending" ? "warning" : "success"}>{message}</StatusMessage>}
         </section>
         </main>
         {showVideoPrompt && (
@@ -1893,6 +1958,8 @@ export function RegisteredPlayersScreen() {
   const [registeredPlayers, setRegisteredPlayers] = useState<RegisteredPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [playerQuery, setPlayerQuery] = useState("");
+  const [playerSort, setPlayerSort] = useState<"registered" | "rating" | "name">("registered");
 
   const loadRegisteredPlayers = useCallback(async () => {
     if (!appSession.ready || !appSession.userId) return;
@@ -1966,6 +2033,13 @@ export function RegisteredPlayersScreen() {
   }, [appSession.ready, appSession.userId, loadRegisteredPlayers]);
 
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  const visibleRegisteredPlayers = [...registeredPlayers]
+    .filter((player) => `${player.name} ${player.city}`.toLowerCase().includes(playerQuery.trim().toLowerCase()))
+    .sort((a, b) => {
+      if (playerSort === "name") return a.name.localeCompare(b.name);
+      if (playerSort === "rating") return (Number.parseFloat(b.rating) || 0) - (Number.parseFloat(a.rating) || 0);
+      return 0;
+    });
 
   return (
     <AppFrame active="tournament">
@@ -1993,12 +2067,26 @@ export function RegisteredPlayersScreen() {
           </section>
 
           <section className="grid gap-3">
+            <div className="grid gap-3 rounded-surface border-hairline border-line bg-card p-3 md:grid-cols-[minmax(0,1fr)_180px] md:items-end">
+              <label className="grid gap-2 text-[11px] text-text-secondary">
+                Search registered players
+                <input className="min-h-10 rounded-card border-hairline border-line bg-white px-3 text-[13px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" type="search" value={playerQuery} onChange={(event) => setPlayerQuery(event.target.value)} placeholder="Name or city" />
+              </label>
+              <label className="grid gap-2 text-[11px] text-text-secondary">
+                Sort by
+                <select className="min-h-10 rounded-card border-hairline border-line bg-white px-3 text-[13px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" value={playerSort} onChange={(event) => setPlayerSort(event.target.value as "registered" | "rating" | "name")}>
+                  <option value="registered">Registration time</option>
+                  <option value="rating">Rating</option>
+                  <option value="name">Name</option>
+                </select>
+              </label>
+            </div>
             <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 pt-2">
               <h2 className="text-[13px] font-medium text-text-primary">All registered players</h2>
-              <span className="text-[11px] text-text-secondary">{registeredPlayers.length} players</span>
+              <span className="text-[11px] text-text-secondary">{visibleRegisteredPlayers.length} players</span>
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {registeredPlayers.map((player, index) => (
+              {visibleRegisteredPlayers.map((player, index) => (
                 <article className="grid min-h-[60px] grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3" key={player.id}>
                   <span className={index % 5 === 0 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fde9dc] text-[11px] font-medium text-[#a94d24]" : index % 5 === 1 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#e5f1ff] text-[11px] font-medium text-[#185fa5]" : index % 5 === 2 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#eaf3de] text-[11px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fbe7ef] text-[11px] font-medium text-[#aa3f6b]" : "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#f1efe8] text-[11px] font-medium text-[#5f5e5a]"}>{getInitials(player.name)}</span>
                   <div className="grid min-w-0 gap-1">
@@ -2011,9 +2099,10 @@ export function RegisteredPlayersScreen() {
                   </span>
                 </article>
               ))}
-              {!registeredPlayers.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">{loading ? "Loading registered players..." : "No players registered yet."}</div>}
+              {loading && !visibleRegisteredPlayers.length && Array.from({ length: 4 }).map((_, index) => <SkeletonRow key={index} />)}
+              {!loading && !visibleRegisteredPlayers.length && <StatusMessage tone="info">{registeredPlayers.length ? "No players match that search." : "No players registered yet."}</StatusMessage>}
             </div>
-            {message && <p className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">{message}</p>}
+            {message && <StatusMessage tone="error">{message}</StatusMessage>}
           </section>
         </main>
       </div>
@@ -2103,7 +2192,7 @@ export function AboutScreen() {
         </header>
 
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
-          <section className="relative grid min-h-[260px] overflow-hidden rounded-[22px] bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] md:items-center md:gap-8 lg:p-6">
+          <section className="relative grid min-h-[220px] overflow-hidden rounded-hero bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(250px,320px)] md:items-center md:gap-8 lg:p-6">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -2111,40 +2200,67 @@ export function AboutScreen() {
               </svg>
             </div>
             <div className="relative grid gap-3">
-              <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-[11px] text-white/75">About MRSA</span>
-              <h1 className="max-w-[680px] text-3xl font-medium leading-[1.08] tracking-[-0.4px] text-white md:text-[40px]">Mumineen Racquet Sports Association</h1>
-              <p className="max-w-[620px] text-sm leading-relaxed text-white/68">MRSA brings Mumineen racquet-sports players together through organized tournaments, ratings, registered events, and a stronger competitive community.</p>
+              <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-caption text-white/75">About MRSA</span>
+              <h1 className="max-w-[680px] text-display text-white md:text-[38px]">Mumineen Racquet Sports Association</h1>
+              <p className="max-w-[620px] text-body text-white/72">MRSA brings Mumineen racquet-sports players together through organized tournaments, ratings, registered events, and a stronger competitive community.</p>
             </div>
-            <div className="relative mt-5 grid gap-3 rounded-[18px] border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
-              <span className="text-[11px] text-white/55">Established</span>
-              <strong className="text-[26px] font-medium leading-none text-white">2023</strong>
-              <em className="text-[12px] not-italic leading-relaxed text-white/62">Built for players across North America who want organized match play, fair ratings, and community-first tournaments.</em>
+            <div className="relative mt-5 grid gap-3 rounded-surface border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
+              <span className="text-caption text-white/55">Established</span>
+              <strong className="text-h1 text-white">2023</strong>
+              <p className="text-caption text-white/68">Built for players across North America who want organized match play, fair ratings, and community-first tournaments.</p>
             </div>
           </section>
 
           <section className="grid gap-3 md:grid-cols-3">
-            <article className="grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-              <span className="text-[11px] text-text-secondary">Purpose</span>
-              <strong className="text-lg font-medium leading-tight text-text-primary">Build a competitive but welcoming tennis community.</strong>
-              <em className="text-[13px] not-italic leading-relaxed text-text-secondary">Players can discover events, register for tournaments, view ratings, and stay connected through one shared MRSA platform.</em>
+            <article className="grid gap-2 rounded-surface border-hairline border-line bg-card p-4 md:p-5">
+              <span className="text-caption text-text-secondary">Purpose</span>
+              <h2 className="text-h2 text-text-primary">Build a competitive but welcoming tennis community.</h2>
+              <p className="text-body text-text-secondary">Players can discover events, register for tournaments, view ratings, and stay connected through one shared MRSA platform.</p>
             </article>
-            <article className="grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-              <span className="text-[11px] text-text-secondary">Ratings</span>
-              <strong className="text-lg font-medium leading-tight text-text-primary">Rankings make tournament play easier to organize.</strong>
-              <em className="text-[13px] not-italic leading-relaxed text-text-secondary">MRSA ratings help group players fairly, track progress over time, and create better matchups for future events.</em>
+            <article className="grid gap-2 rounded-surface border-hairline border-line bg-card p-4 md:p-5">
+              <span className="text-caption text-text-secondary">Ratings</span>
+              <h2 className="text-h2 text-text-primary">Rankings make tournament play easier to organize.</h2>
+              <p className="text-body text-text-secondary">MRSA ratings help group players fairly, track progress over time, and create better matchups for future events.</p>
             </article>
-            <article className="grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-              <span className="text-[11px] text-text-secondary">Community</span>
-              <strong className="text-lg font-medium leading-tight text-text-primary">A place for players to meet, compete, and improve.</strong>
-              <em className="text-[13px] not-italic leading-relaxed text-text-secondary">The goal is simple: more organized play, better tournaments, and a stronger Mumineen racquet-sports network.</em>
+            <article className="grid gap-2 rounded-surface border-hairline border-line bg-card p-4 md:p-5">
+              <span className="text-caption text-text-secondary">Community</span>
+              <h2 className="text-h2 text-text-primary">A place for players to meet, compete, and improve.</h2>
+              <p className="text-body text-text-secondary">The goal is simple: more organized play, better tournaments, and a stronger Mumineen racquet-sports network.</p>
             </article>
           </section>
 
-          <section className="grid gap-3 rounded-[20px] border-hairline border-line bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
+          <section className="grid gap-3 rounded-surface border-hairline border-line bg-card p-4 md:p-5" aria-labelledby="about-album-title">
+            <div className="grid gap-1">
+              <span className="text-caption text-text-secondary">Photo album</span>
+              <h2 id="about-album-title" className="text-h2 text-text-primary">A look inside MRSA events.</h2>
+              <p className="text-body text-text-secondary">Swipe through a few moments from recent tournament play, then open the full album for the complete set.</p>
+            </div>
+            <div className="-mx-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-5 md:px-5">
+              <div className="flex snap-x snap-mandatory gap-3">
+                {aboutGalleryImages.map((image) => (
+                  <figure className="w-[72vw] max-w-[280px] shrink-0 snap-start overflow-hidden rounded-card border-hairline border-line bg-surface shadow-card" key={image.src}>
+                    <span className="relative block aspect-[4/3] bg-surface">
+                      <NextImage src={image.src} alt={image.alt} fill sizes="(max-width: 768px) 72vw, 280px" className="object-cover" loading="lazy" />
+                    </span>
+                    <figcaption className="px-3 py-2 text-caption text-text-secondary">{image.caption}</figcaption>
+                  </figure>
+                ))}
+                <a className="tap-card grid w-[72vw] max-w-[280px] shrink-0 snap-start content-between rounded-card border-hairline border-line bg-brand p-4 text-white shadow-card" href={aboutAlbumUrl} target="_blank" rel="noreferrer">
+                  <span className="grid gap-2">
+                    <span className="text-caption text-white/65">Full album</span>
+                    <strong className="text-h2 text-white">Open the complete Google Photos album.</strong>
+                  </span>
+                  <span className="mt-8 inline-flex items-center gap-2 text-sm font-medium text-white">View album <ArrowRight size={16} /></span>
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-3 rounded-surface border-hairline border-line bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
             <div className="grid gap-2">
-              <span className="text-[11px] text-text-secondary">Ready to play?</span>
-              <strong className="text-xl font-medium leading-tight tracking-[-0.4px] text-brand">View the latest tournament and registered players.</strong>
-              <em className="text-[13px] not-italic leading-relaxed text-text-secondary">Tournament details, registration timing, payment status, and player lists are updated directly in the app.</em>
+              <span className="text-caption text-text-secondary">Ready to play?</span>
+              <h2 className="text-h2 text-brand">View the latest tournament and registered players.</h2>
+              <p className="text-body text-text-secondary">Tournament details, registration timing, payment status, and player lists are updated directly in the app.</p>
             </div>
             <Link className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white" href="/tournaments">View tournaments →</Link>
           </section>
@@ -2155,14 +2271,24 @@ export function AboutScreen() {
 }
 
 export function PlayerScreen() {
+  const router = useRouter();
   const appSession = useProtectedRoute("/profile", true);
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState(initialProfile);
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const editSectionRef = useRef<HTMLDivElement | null>(null);
   const firstEditableFieldRef = useRef<HTMLInputElement | null>(null);
+
+  const signOut = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    router.replace("/");
+  };
 
   const updateProfile = (field: keyof ProfileData, value: string) => {
     setProfile((current) => ({ ...current, [field]: value }));
@@ -2388,22 +2514,24 @@ export function PlayerScreen() {
                 <input className="rounded-[12px] border-hairline border-line bg-white px-3 py-2 text-[13px] text-text-primary file:mr-3 file:rounded-full file:border-0 file:bg-brand-light file:px-3 file:py-1 file:text-[11px] file:font-medium file:text-[#3b6d11]" type="file" accept="image/*" onChange={updateProfilePhoto} />
                 <em className="text-[11px] not-italic text-text-secondary">Large photos are compressed before upload.</em>
               </article>
-              <ProfileField label="Full Name" value={profile.fullName} editing={isEditing} onChange={(value) => updateProfile("fullName", value)} inputRef={firstEditableFieldRef} />
-              <ProfileField label="Age" value={profile.age} editing={isEditing} onChange={(value) => updateProfile("age", value)} />
-              <ProfileField label="Dominant Hand" value={profile.dominantHand} editing={isEditing} onChange={(value) => updateProfile("dominantHand", value)} />
-              <ProfileField label="Self Evaluation" value={profile.selfEvaluation} editing={isEditing} onChange={(value) => updateProfile("selfEvaluation", value)} />
-              <ProfileField label="Jamaat / City" value={profile.jamaatCity} editing={isEditing} onChange={(value) => updateProfile("jamaatCity", value)} />
+              <ProfileField label="Full Name" value={profile.fullName} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("fullName", value)} inputRef={firstEditableFieldRef} />
+              <ProfileField label="Age" value={profile.age} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("age", value)} />
+              <ProfileField label="Dominant Hand" value={profile.dominantHand} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("dominantHand", value)} />
+              <ProfileField label="Self Evaluation" value={profile.selfEvaluation} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("selfEvaluation", value)} />
+              <ProfileField label="Jamaat / City" value={profile.jamaatCity} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("jamaatCity", value)} />
               <ProfileField
                 label="Jersey Size"
                 value={profile.jerseySize}
                 editing={isEditing}
+                onEdit={startProfileEdit}
                 onChange={(value) => updateProfile("jerseySize", value)}
                 helper={<a href="https://www.nike.com/size-fit/mens-tops-alpha" target="_blank" rel="noreferrer">Size guide</a>}
               />
               <ProfileField
-                label="Tennis video Google Drive link optional"
+                label="Tennis video Google Drive link recommended"
                 value={profile.tennisVideo}
                 editing={isEditing}
+                onEdit={startProfileEdit}
                 onChange={(value) => updateProfile("tennisVideo", value)}
                 helper={<span>{videoDescription} Captains and organizers use this for tournament drafts.</span>}
               />
@@ -2422,12 +2550,19 @@ export function PlayerScreen() {
               </div>
             )}
           </div>
-          {message && (
-            <p className={message === "Profile saved." ? "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-brand" : "rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary"}>
-              {message === "Profile saved." && <CheckCircle2 size={16} />}
-              {message}
-            </p>
-          )}
+          {message && <StatusMessage tone={message === "Profile saved." || message === "Photo updated." ? "success" : message.includes("upload") || message.includes("Compressing") ? "info" : "error"}>{message}</StatusMessage>}
+
+          <div className="grid pt-6">
+            <button
+              className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-sm font-medium text-text-secondary disabled:opacity-60"
+              type="button"
+              onClick={signOut}
+              disabled={signingOut}
+            >
+              <LogOut size={16} />
+              {signingOut ? "Signing out..." : "Sign out"}
+            </button>
+          </div>
         </section>
         </main>
       </div>
@@ -2551,42 +2686,19 @@ function getRegistrationButtonLabel({
   if (registered || paymentState === "paid") return "Registered";
   if (paying) return "Opening payment...";
   if (paymentState === "failed") return "Retry payment";
-  if (paymentState === "pending") return "Retry payment";
+  if (paymentState === "pending") return "Checking payment...";
   return "Pay and register";
 }
 
 function RegistrationCountdown({ closesAt }: { closesAt: string | null }) {
-  const [remaining, setRemaining] = useState(() => getTimeRemaining(closesAt));
-
-  useEffect(() => {
-    setRemaining(getTimeRemaining(closesAt));
-    const timer = window.setInterval(() => {
-      setRemaining(getTimeRemaining(closesAt));
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [closesAt]);
-
   if (!closesAt) return null;
-
-  const units = [
-    { label: "days", value: remaining.days },
-    { label: "hours", value: remaining.hours },
-    { label: "mins", value: remaining.minutes },
-    { label: "secs", value: remaining.seconds }
-  ];
+  const remaining = getTimeRemaining(closesAt);
 
   return (
-    <article className="grid gap-2" aria-label="Registration countdown">
-      <span className="text-[11px] text-current opacity-60">{remaining.expired ? "Registration closed" : "Registration closes in"}</span>
-      <div className="grid grid-cols-4 gap-2">
-        {units.map((unit) => (
-          <strong key={unit.label} className="grid min-h-[58px] justify-items-center gap-1 rounded-[12px] border-hairline border-white/10 bg-white/10 px-2 py-2">
-            <b className="font-sans text-[22px] font-medium leading-none text-current tabular-nums">{String(unit.value).padStart(2, "0")}</b>
-            <em className="text-[10px] not-italic leading-none text-current opacity-55">{unit.label}</em>
-          </strong>
-        ))}
-      </div>
+    <article className="rounded-card border-hairline border-white/10 bg-white/10 px-3 py-2" aria-label="Registration close date">
+      <span className="text-[11px] text-current opacity-60">{remaining.expired ? "Registration closed" : "Registration closes"}</span>
+      <strong className="block text-[13px] font-medium text-current">{formatRegistrationClose(closesAt)}</strong>
+      {!remaining.expired && <em className="text-[11px] not-italic text-current opacity-55">{remaining.days > 0 ? `${remaining.days} days left` : `${remaining.hours} hours left`}</em>}
     </article>
   );
 }
@@ -2724,6 +2836,7 @@ function ProfileField({
   value,
   helper,
   editing = false,
+  onEdit,
   onChange,
   inputRef
 }: {
@@ -2731,6 +2844,7 @@ function ProfileField({
   value: string;
   helper?: ReactNode;
   editing?: boolean;
+  onEdit?: () => void;
   onChange?: (value: string) => void;
   inputRef?: React.Ref<HTMLInputElement>;
 }) {
@@ -2740,44 +2854,13 @@ function ProfileField({
       {editing ? (
         <input ref={inputRef} className="min-h-11 rounded-[12px] border-hairline border-brand bg-white px-3 text-[14px] text-text-primary outline-none transition ring-2 ring-brand-light placeholder:text-text-muted focus:border-brand focus:ring-4 focus:ring-brand-light" value={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} />
       ) : (
-        <strong className="break-words text-[15px] font-medium text-text-primary">{value}</strong>
+        <button className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-left" type="button" onClick={onEdit}>
+          <strong className="break-words text-[15px] font-medium text-text-primary">{value || "Not set"}</strong>
+          <Pencil className="text-text-muted" size={14} aria-hidden="true" />
+        </button>
       )}
       {helper && <em className="text-[11px] not-italic text-brand">{helper}</em>}
     </article>
-  );
-}
-
-export function SavedScreen() {
-  const appSession = useProtectedRoute("/dashboard", true);
-
-  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
-
-  return (
-    <AppFrame active="logout">
-      <div className="screen">
-        <header className="page-head">
-          <span className="eyebrow">Saved</span>
-          <h1>Tracked matches</h1>
-          <p>Your saved courts, players, and match reminders.</p>
-        </header>
-        <section className="light-section saved-list">
-          <Link className="saved-card tap-card" href="/tournaments">
-            <LogOut size={18} />
-            <span>
-              <strong>Alcaraz vs Zverev</strong>
-              <em>Court Philippe-Chatrier · Live now</em>
-            </span>
-          </Link>
-          <Link className="saved-card tap-card" href="/tournaments">
-            <Trophy size={18} />
-            <span>
-              <strong>Final bracket</strong>
-              <em>Men&apos;s Singles · Updated today</em>
-            </span>
-          </Link>
-        </section>
-      </div>
-    </AppFrame>
   );
 }
 
@@ -2786,12 +2869,45 @@ function BottomNav({ active, showAdmin }: { active: Tab; showAdmin: boolean }) {
     { id: "home" as const, href: "/dashboard", label: "Home", icon: Home },
     { id: "tournament" as const, href: "/tournaments", label: "Tournament", icon: Trophy },
     { id: "profile" as const, href: "/profile", label: "Profile", icon: UsersRound },
-    ...(showAdmin ? [{ id: "admin" as const, href: "/admin", label: "Admin", icon: Shield }] : []),
-    { id: "logout" as const, href: "/", label: "Logout", icon: LogOut }
+    ...(showAdmin ? [{ id: "admin" as const, href: "/admin", label: "Admin", icon: Shield }] : [])
   ];
 
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let ticking = false;
+
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const currentY = window.scrollY;
+        const delta = currentY - lastY;
+
+        if (currentY < 80) {
+          setHidden(false);
+        } else if (Math.abs(delta) > 6) {
+          setHidden(delta > 0);
+        }
+
+        lastY = currentY;
+        ticking = false;
+      });
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 grid border-t-hairline border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,255,255,0.72))] px-4 py-3 shadow-[0_-18px_44px_rgba(24,24,26,0.08)] backdrop-blur-2xl md:inset-x-6 md:bottom-4 md:mx-auto md:max-w-shell md:rounded-[24px] md:border-hairline md:shadow-[0_18px_50px_rgba(24,24,26,0.12)] lg:left-1/2 lg:right-auto lg:w-[min(760px,calc(100vw-64px))] lg:-translate-x-1/2" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }} aria-label="Primary mobile navigation">
+    <nav
+      className={`fixed inset-x-0 bottom-0 z-50 grid border-t-hairline border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,255,255,0.72))] px-4 py-3 shadow-[0_-18px_44px_rgba(24,24,26,0.08)] backdrop-blur-2xl transition-transform duration-300 ease-out motion-reduce:transition-none md:inset-x-6 md:bottom-4 md:mx-auto md:max-w-shell md:rounded-[24px] md:border-hairline md:shadow-[0_18px_50px_rgba(24,24,26,0.12)] lg:left-1/2 lg:right-auto lg:w-[min(760px,calc(100vw-64px))] lg:-translate-x-1/2 ${hidden ? "translate-y-[140%]" : "translate-y-0"}`}
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
+      aria-label="Primary mobile navigation"
+      aria-hidden={hidden || undefined}
+      inert={hidden}
+    >
       {tabs.map(({ id, href, label, icon: Icon }) => (
         <Link className={active === id ? "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] bg-white/45 text-brand" : "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#b6b1a8]"} href={href} key={id}>
           <Icon size={20} strokeWidth={active === id ? 2.2 : 1.7} />

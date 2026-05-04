@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
   const { data: claims, error: claimsError } = await admin
     .from("player_claims")
-    .select("id, player_id, requested_by, status, requester_note, created_at, players(full_name, jamaat_city)")
+    .select("id, player_id, requested_by, status, requester_note, admin_note, created_at, players(full_name, jamaat_city)")
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .limit(40);
@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
       requested_by: claim.requested_by,
       status: claim.status,
       requester_note: claim.requester_note,
+      admin_note: claim.admin_note,
       requester_email: requesterEmails.get(claim.requested_by) || null,
       created_at: claim.created_at,
       player_full_name: player?.full_name || null,
