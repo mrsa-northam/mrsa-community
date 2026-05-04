@@ -26,7 +26,6 @@ type ProfileData = {
 };
 
 type TopPlayer = { rank: string; name: string; rating: string; form: string };
-type ProfileBadge = { name: string; initials: string; photoUrl?: string };
 type AvatarProps = {
   className: string;
   name: string;
@@ -203,7 +202,8 @@ function BrandMark({ light = false }: { light?: boolean }) {
   return (
     <span className="inline-flex items-center" aria-label="MRSA">
       <span className="relative h-20 w-20 shrink-0 overflow-hidden md:h-24 md:w-24">
-        <NextImage src="/brand/logo-v3.png" alt="MRSA" fill sizes="(max-width: 768px) 80px, 96px" className={light ? "object-contain brightness-0 invert" : "object-contain"} priority />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/mrsa-logo.svg" alt="" aria-hidden="true" className={light ? "h-full w-full object-contain brightness-0 invert" : "h-full w-full object-contain"} />
       </span>
     </span>
   );
@@ -488,7 +488,8 @@ export function LoginScreen({ nextPath }: { nextPath?: string }) {
               <div className="relative z-10 grid justify-items-center gap-4 text-center">
                 <span className="grid h-40 w-40 place-items-center rounded-full bg-white shadow-[0_18px_45px_rgba(0,0,0,0.18)] ring-1 ring-white/75 md:h-44 md:w-44">
                   <span className="relative h-32 w-32 shrink-0 overflow-hidden md:h-36 md:w-36">
-                    <NextImage src="/brand/logo-v3.png" alt="MRSA" fill sizes="(max-width: 768px) 128px, 144px" className="object-contain" priority />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/brand/mrsa-logo.svg" alt="MRSA" className="h-full w-full object-contain" />
                   </span>
                 </span>
                 <div className="grid gap-2">
@@ -519,7 +520,7 @@ export function LoginScreen({ nextPath }: { nextPath?: string }) {
                 {message && <StatusMessage tone={message.includes("sent") ? "success" : "error"}>{message}</StatusMessage>}
               </form>
               <div className="grid gap-2 border-t-hairline border-line pt-4 text-center text-[12px] text-text-secondary">
-                <Link className="tap-card font-medium text-brand" href="/about">About MRSA</Link>
+                <Link className="inline-block w-auto font-medium text-brand" href="/about">About MRSA</Link>
                 <span>One account for tournaments, ratings, and player history.</span>
               </div>
             </div>
@@ -613,9 +614,10 @@ export function OtpScreen({ email = "player@mrsa.com", nextPath }: { email?: str
     <AppFrame withNav={false}>
       <div className="min-h-dvh bg-page font-sans text-text-primary">
         <header className="border-b-hairline border-surface bg-white/95 px-4 py-3">
-          <div className="mx-auto flex max-w-shell items-center justify-between">
-            <BrandMark />
-            <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-brand text-[11px] font-medium text-white">OTP</span>
+          <div className="mx-auto flex w-full max-w-shell items-center justify-center">
+            <Link className="inline-flex" href="/" aria-label="MRSA home">
+              <BrandMark />
+            </Link>
           </div>
         </header>
 
@@ -822,9 +824,10 @@ export function PlayerCheckScreen({
     <AppFrame withNav={false}>
       <div className="min-h-dvh bg-page font-sans text-text-primary">
         <header className="border-b-hairline border-surface bg-white/95 px-4 py-3">
-          <div className="mx-auto flex max-w-shell items-center justify-between">
-            <BrandMark />
-            <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-brand text-[11px] font-medium text-white">ID</span>
+          <div className="mx-auto flex w-full max-w-shell items-center justify-center">
+            <Link className="inline-flex" href="/" aria-label="MRSA home">
+              <BrandMark />
+            </Link>
           </div>
         </header>
 
@@ -1066,9 +1069,10 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
     <AppFrame withNav={false}>
       <div className="min-h-dvh bg-page font-sans text-text-primary">
         <header className="border-b-hairline border-surface bg-white/95 px-4 py-3">
-          <div className="mx-auto flex max-w-shell items-center justify-between">
-            <BrandMark />
-            <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-brand text-[11px] font-medium text-white">{claimPlayerId ? "CLM" : "NEW"}</span>
+          <div className="mx-auto flex w-full max-w-shell items-center justify-center">
+            <Link className="inline-flex" href="/" aria-label="MRSA home">
+              <BrandMark />
+            </Link>
           </div>
         </header>
 
@@ -1351,7 +1355,6 @@ async function createNewPlayerProfile(
 export function HomeScreen() {
   const appSession = useProtectedRoute("/dashboard", true);
   const [upcomingTournament, setUpcomingTournament] = useState<Tournament | null>(null);
-  const [profileBadge, setProfileBadge] = useState<ProfileBadge>({ name: "Profile", initials: "P" });
   const [hasRegisteredTournament, setHasRegisteredTournament] = useState(false);
   const [needsVideoLink, setNeedsVideoLink] = useState(false);
   const [dashboardVideoLink, setDashboardVideoLink] = useState("");
@@ -1387,11 +1390,6 @@ export function HomeScreen() {
       setUpcomingTournament(tournamentData ? mapTournament(tournamentData) : null);
       setHasRegisteredTournament(false);
       if (profileData) {
-        setProfileBadge({
-          name: profileData.full_name || "Profile",
-          initials: getInitials(profileData.full_name || "Profile"),
-          photoUrl: profileData.profile_photo_url || undefined
-        });
         setNeedsVideoLink(!hasPlayerVideoLink(profileData.tennis_video_url));
         setDashboardVideoLink(hasPlayerVideoLink(profileData.tennis_video_url) ? profileData.tennis_video_url || "" : "");
       }
@@ -1453,13 +1451,10 @@ export function HomeScreen() {
     <AppFrame active="home">
       <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
         <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-3 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
-          <div className="mx-auto flex max-w-shell items-center justify-between">
-            <BrandMark />
-            <div className="flex items-center gap-2">
-              <Link className="tap-card grid h-[34px] w-[34px] place-items-center" href="/profile" aria-label={`${profileBadge.name} profile`}>
-                <Avatar className="relative grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-full bg-brand text-[11px] font-medium text-white" name={profileBadge.name || profileBadge.initials} photoUrl={profileBadge.photoUrl} />
-              </Link>
-            </div>
+          <div className="mx-auto flex w-full max-w-shell items-center justify-center">
+            <Link className="inline-flex" href="/dashboard" aria-label="MRSA home">
+              <BrandMark />
+            </Link>
           </div>
         </header>
 
@@ -1804,10 +1799,9 @@ export function DrawScreen() {
     <AppFrame active="tournament">
       <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
         <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-3 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
-          <div className="mx-auto flex max-w-shell items-center justify-between">
-            <BrandMark />
-            <Link className="tap-card grid h-[34px] w-[34px] place-items-center" href="/profile" aria-label={`${appSession.player?.full_name || "Profile"} profile`}>
-              <Avatar className="relative grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-full bg-brand text-[11px] font-medium text-white" name={appSession.player?.full_name || "Profile"} photoUrl={appSession.player?.profile_photo_url || undefined} />
+          <div className="mx-auto flex w-full max-w-shell items-center justify-center">
+            <Link className="inline-flex" href="/dashboard" aria-label="MRSA home">
+              <BrandMark />
             </Link>
           </div>
         </header>
@@ -1854,23 +1848,10 @@ export function DrawScreen() {
 
         <section className="grid gap-4">
           {tournament ? (
-            <>
-              <div className="grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-                <span className="text-[11px] text-text-secondary">Venue</span>
-                <strong className="text-lg font-medium leading-tight text-text-primary">{tournament.venueName || "Venue TBD"}</strong>
-                <a className="tap-card inline-flex w-max items-center gap-1.5 text-xs font-medium text-brand" href={tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueAddress || tournament.venueName || "")}`} target="_blank" rel="noreferrer">
-                  <MapPin size={14} />
-                  Open venue address in Maps →
-                </a>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"><span className="text-[11px] text-text-secondary">Tournament days</span><strong className="text-[18px] font-medium text-text-primary">{formatTournamentDates(tournament)}</strong></article>
-                <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"><span className="text-[11px] text-text-secondary">Registration ends</span><strong className="text-[18px] font-medium text-text-primary">{formatRegistrationClose(tournament.registrationClosesAt)}</strong></article>
-                <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"><span className="text-[11px] text-text-secondary">Registration fee</span><strong className="text-[18px] font-medium text-text-primary">{formatCurrency(tournament.registrationFeeCents)}</strong></article>
-                <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"><span className="text-[11px] text-text-secondary">Registered players</span><strong className="text-[18px] font-medium text-text-primary">{registeredPlayers.length}</strong></article>
-              </div>
-            </>
+            <a className="tap-card inline-flex w-max items-center gap-1.5 text-xs font-medium text-brand" href={tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueAddress || tournament.venueName || "")}`} target="_blank" rel="noreferrer">
+              <MapPin size={14} />
+              Open venue address in Maps →
+            </a>
           ) : (
             <StatusMessage tone="info">No live tournament found.</StatusMessage>
           )}
@@ -2175,17 +2156,16 @@ export function PlayersScreen() {
 }
 
 export function AboutScreen() {
-  const appSession = useProtectedRoute("/dashboard", true);
-
-  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  const appSession = useAppSession();
+  const isAuthenticated = Boolean(appSession.ready && appSession.userId && appSession.profileComplete);
 
   return (
-    <AppFrame active="home">
+    <AppFrame active={isAuthenticated ? "home" : undefined} withNav={isAuthenticated}>
       <div className="min-h-dvh bg-page pb-28 font-sans text-text-primary">
         <header className="sticky top-0 z-30 border-b-hairline border-surface bg-white/95 px-4 py-3 backdrop-blur">
           <div className="mx-auto flex max-w-shell items-center justify-between">
             <BrandMark />
-            <Link className="tap-card grid h-9 w-9 place-items-center rounded-full border-hairline border-line bg-card text-brand" href="/dashboard" aria-label="Back to dashboard">
+            <Link className="grid h-9 w-9 place-items-center rounded-full border-hairline border-line bg-card text-brand" href={isAuthenticated ? "/dashboard" : "/"} aria-label={isAuthenticated ? "Back to dashboard" : "Back to sign in"}>
               <ArrowLeft size={16} />
             </Link>
           </div>
@@ -2424,9 +2404,10 @@ export function PlayerScreen() {
     <AppFrame active="profile">
       <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
         <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-3 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
-          <div className="mx-auto flex max-w-shell items-center justify-between">
-            <BrandMark />
-            <Avatar className="relative grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-full bg-brand text-[11px] font-medium text-white" name={profile.fullName} photoUrl={profile.profilePhotoUrl} ariaLabel={`${profile.fullName} profile photo`} />
+          <div className="mx-auto flex w-full max-w-shell items-center justify-center">
+            <Link className="inline-flex" href="/dashboard" aria-label="MRSA home">
+              <BrandMark />
+            </Link>
           </div>
         </header>
 
@@ -2865,6 +2846,7 @@ function ProfileField({
 }
 
 function BottomNav({ active, showAdmin }: { active: Tab; showAdmin: boolean }) {
+  const appSession = useAppSession();
   const tabs = [
     { id: "home" as const, href: "/dashboard", label: "Home", icon: Home },
     { id: "tournament" as const, href: "/tournaments", label: "Tournament", icon: Trophy },
@@ -2910,7 +2892,15 @@ function BottomNav({ active, showAdmin }: { active: Tab; showAdmin: boolean }) {
     >
       {tabs.map(({ id, href, label, icon: Icon }) => (
         <Link className={active === id ? "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] bg-white/45 text-brand" : "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#b6b1a8]"} href={href} key={id}>
-          <Icon size={20} strokeWidth={active === id ? 2.2 : 1.7} />
+          {id === "profile" ? (
+            <Avatar
+              className="relative grid h-5 w-5 place-items-center overflow-hidden rounded-full bg-brand text-[8px] font-medium text-white"
+              name={appSession.player?.full_name || "Profile"}
+              photoUrl={appSession.player?.profile_photo_url || undefined}
+            />
+          ) : (
+            <Icon size={20} strokeWidth={active === id ? 2.2 : 1.7} />
+          )}
           <span className={active === id ? "text-[10px] font-medium leading-none" : "text-[10px] font-normal leading-none"}>{label}</span>
           <span className={active === id ? "h-1 w-1 rounded-full bg-brand" : "h-1 w-1 rounded-full bg-transparent"} />
         </Link>
