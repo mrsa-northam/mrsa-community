@@ -13,6 +13,7 @@ type ProfileData = {
   id?: string;
   profilePhotoUrl?: string;
   fullName: string;
+  phone: string;
   dateOfBirth: string;
   dominantHand: string;
   selfEvaluation: string;
@@ -169,6 +170,7 @@ type DbTournamentRow = {
 
 const initialProfile: ProfileData = {
   fullName: "Mohammed Segval",
+  phone: "",
   dateOfBirth: "",
   dominantHand: "Right",
   selfEvaluation: "Advanced",
@@ -2434,7 +2436,7 @@ export function PlayerScreen() {
 
       const { data } = await supabase
         .from("players")
-	        .select("id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played")
+        .select("id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played")
         .eq("auth_user_id", appSession.userId)
         .maybeSingle();
 
@@ -2482,9 +2484,10 @@ export function PlayerScreen() {
     const { error } = await supabase
       .from("players")
       .update({
-	        full_name: profile.fullName,
-	        date_of_birth: profile.dateOfBirth || null,
-	        dominant_hand: profile.dominantHand,
+        full_name: profile.fullName,
+        phone: profile.phone,
+        date_of_birth: profile.dateOfBirth || null,
+        dominant_hand: profile.dominantHand,
         self_assessment: profile.selfEvaluation,
         jamaat_city: profile.jamaatCity,
         jersey_size: profile.jerseySize,
@@ -2611,7 +2614,8 @@ export function PlayerScreen() {
             )}
             <div className="grid gap-3 md:grid-cols-2">
               <ProfileField label="Full Name" value={profile.fullName} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("fullName", value)} inputRef={firstEditableFieldRef} />
-	              <ProfileField label="Date of birth" value={profile.dateOfBirth} displayValue={profile.dateOfBirth ? `${formatDateOfBirth(profile.dateOfBirth)} · Age ${calculateAge(profile.dateOfBirth)}` : "Not set"} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("dateOfBirth", value)} inputType="date" max={getTodayDateInputValue()} />
+              <ProfileField label="Phone number" value={profile.phone} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("phone", value)} inputType="tel" />
+              <ProfileField label="Date of birth" value={profile.dateOfBirth} displayValue={profile.dateOfBirth ? `${formatDateOfBirth(profile.dateOfBirth)} · Age ${calculateAge(profile.dateOfBirth)}` : "Not set"} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("dateOfBirth", value)} inputType="date" max={getTodayDateInputValue()} />
               <ProfileField label="Dominant Hand" value={profile.dominantHand} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("dominantHand", value)} />
               <ProfileField label="Self Evaluation" value={profile.selfEvaluation} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("selfEvaluation", value)} />
               <article className={isEditing ? "grid gap-2 rounded-[14px] border-hairline border-[#bdd7aa] bg-white p-4" : "grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"}>
@@ -2711,7 +2715,8 @@ function mapProfile(row: DbProfileRow): ProfileData {
     id: row.id,
     profilePhotoUrl: row.profile_photo_url || "",
     fullName: row.full_name || "Player",
-	    dateOfBirth: row.date_of_birth || "",
+    phone: row.phone || "",
+    dateOfBirth: row.date_of_birth || "",
     dominantHand: row.dominant_hand || initialProfile.dominantHand,
     selfEvaluation: normalizeSkillLevel(row.self_assessment) || initialProfile.selfEvaluation,
     jamaatCity: row.jamaat_city || initialProfile.jamaatCity,
