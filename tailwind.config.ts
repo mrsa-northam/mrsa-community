@@ -30,11 +30,11 @@ const config: Config = {
         display: ["DM Serif Display", "Georgia", "serif"]
       },
       fontSize: {
-        display: ["32px", { lineHeight: "1.05", letterSpacing: "0", fontWeight: "500" }],
-        h1: ["22px", { lineHeight: "1.15", letterSpacing: "0", fontWeight: "500" }],
-        h2: ["16px", { lineHeight: "1.3", letterSpacing: "0", fontWeight: "500" }],
-        body: ["14px", { lineHeight: "1.5", letterSpacing: "0" }],
-        caption: ["11px", { lineHeight: "1.4", letterSpacing: "0", fontWeight: "500" }]
+        display: ["34px", { lineHeight: "1.05", letterSpacing: "0", fontWeight: "500" }],
+        h1: ["24px", { lineHeight: "1.15", letterSpacing: "0", fontWeight: "500" }],
+        h2: ["18px", { lineHeight: "1.3", letterSpacing: "0", fontWeight: "500" }],
+        body: ["16px", { lineHeight: "1.5", letterSpacing: "0" }],
+        caption: ["13px", { lineHeight: "1.4", letterSpacing: "0", fontWeight: "500" }]
       },
       borderWidth: {
         hairline: "0.5px"

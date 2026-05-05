@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BadgeDollarSign, CheckCircle2, ClipboardCheck, Home, Pencil, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Home, Pencil, Shield, Trophy, UsersRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -50,9 +50,27 @@ type AdminRegisteredPlayer = {
   jamaatCity: string;
   profilePhotoUrl: string;
   tennisVideoUrl: string;
+  tennisVideoStatus: string | null;
   age: string;
   tier: number;
   rating: number | null;
+};
+type AdminInterestedPlayer = {
+  id: string;
+  playerId: string;
+  fullName: string;
+  jamaatCity: string;
+  phone: string;
+  email: string;
+  checkoutPhone: string;
+  checkoutEmail: string;
+  profilePhotoUrl: string;
+  status: string;
+  amountCents: number;
+  currency: string;
+  occurredAt: string;
+  failureMessage: string;
+  checkoutCount: number;
 };
 
 type AdminPayment = {
@@ -99,7 +117,7 @@ function AdminBrandMark({ light = false }: { light?: boolean }) {
       <span className="relative h-10 w-10 shrink-0 overflow-hidden" aria-hidden="true">
         <Image src="/brand/logo-v3.png" alt="" aria-hidden="true" fill sizes="40px" className="object-contain" priority />
       </span>
-      <strong className={light ? "text-[22px] font-medium leading-none tracking-[-0.4px] text-white" : "text-[22px] font-medium leading-none tracking-[-0.4px] text-brand"}>MRSA</strong>
+      <strong className={light ? "text-[24px] font-medium leading-none tracking-[-0.4px] text-white" : "text-[24px] font-medium leading-none tracking-[-0.4px] text-brand"}>MRSA</strong>
     </span>
   );
 }
@@ -150,8 +168,8 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/12 text-white">
                 <Shield size={18} />
               </span>
-              <h1 className="text-[24px] font-medium leading-tight tracking-[-0.4px] text-white">Checking admin access.</h1>
-              <p className="text-[13px] leading-relaxed text-white/65">Verifying whether this MRSA account has permission to open the admin console.</p>
+              <h1 className="text-[26px] font-medium leading-tight tracking-[-0.4px] text-white">Checking admin access.</h1>
+              <p className="text-[15px] leading-relaxed text-white/65">Verifying whether this MRSA account has permission to open the admin console.</p>
             </div>
           </div>
         </section>
@@ -176,22 +194,22 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
                 <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/12 text-white">
                   <Shield size={20} />
                 </span>
-                <h1 className="text-[30px] font-medium leading-[1.05] tracking-[-0.4px] text-white">Admin access required.</h1>
-                <p className="max-w-[320px] text-[13px] leading-relaxed text-white/65">The admin console is limited to approved MRSA administrators.</p>
+                <h1 className="text-[32px] font-medium leading-[1.05] tracking-[-0.4px] text-white">Admin access required.</h1>
+                <p className="max-w-[320px] text-[15px] leading-relaxed text-white/65">The admin console is limited to approved MRSA administrators.</p>
               </div>
             </div>
           </div>
 
           <div className="grid content-center gap-5 p-5 md:p-8">
             <div className="grid gap-2">
-              <span className="inline-flex w-max rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">Protected area</span>
-              <h2 className="text-[24px] font-medium leading-tight tracking-[-0.4px] text-text-primary">You do not have admin permission.</h2>
-              <p className="text-[13px] leading-relaxed text-text-secondary">Your account is signed in, but it is not marked as an MRSA admin. If this seems wrong, ask an existing admin to update your role.</p>
+              <span className="inline-flex w-max rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">Protected area</span>
+              <h2 className="text-[26px] font-medium leading-tight tracking-[-0.4px] text-text-primary">You do not have admin permission.</h2>
+              <p className="text-[15px] leading-relaxed text-text-secondary">Your account is signed in, but it is not marked as an MRSA admin. If this seems wrong, ask an existing admin to update your role.</p>
             </div>
 
             <div className="grid gap-2 rounded-[16px] border-hairline border-line bg-surface/60 p-4">
-              <span className="text-[11px] text-text-secondary">What you can do</span>
-              <p className="text-[13px] leading-relaxed text-text-primary">Return to the player app and continue viewing tournaments, profile details, and registered players.</p>
+              <span className="text-[13px] text-text-secondary">What you can do</span>
+              <p className="text-[15px] leading-relaxed text-text-primary">Return to the player app and continue viewing tournaments, profile details, and registered players.</p>
             </div>
 
             <Link className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white md:w-max" href="/dashboard">Back to app →</Link>
@@ -231,7 +249,7 @@ function AdminNavItem({
   label: string;
 }) {
   return (
-    <Link className={active ? "tap-card grid min-h-11 place-items-center gap-1 rounded-[14px] bg-white px-3 py-2 text-center text-[11px] font-medium text-brand lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:text-left" : "tap-card grid min-h-11 place-items-center gap-1 rounded-[14px] px-3 py-2 text-center text-[11px] font-medium text-white/68 hover:bg-white/10 hover:text-white lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:text-left"} href={href}>
+    <Link className={active ? "tap-card grid min-h-11 place-items-center gap-1 rounded-[14px] bg-white px-3 py-2 text-center text-[13px] font-medium text-brand lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:text-left" : "tap-card grid min-h-11 place-items-center gap-1 rounded-[14px] px-3 py-2 text-center text-[13px] font-medium text-white/68 hover:bg-white/10 hover:text-white lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:text-left"} href={href}>
       {icon}
       <span>{label}</span>
     </Link>
@@ -281,14 +299,14 @@ export function AdminOverviewScreen() {
           </svg>
         </div>
         <div className="relative grid gap-3">
-          <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-[11px] text-white/75">Admin</span>
-          <h1 className="max-w-[680px] text-3xl font-medium leading-[1.08] tracking-[-0.4px] text-white md:text-[40px]">Control room</h1>
+          <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-[13px] text-white/75">Admin</span>
+          <h1 className="max-w-[680px] text-3xl font-medium leading-[1.08] tracking-[-0.4px] text-white md:text-[42px]">Control room</h1>
           <p className="max-w-[620px] text-sm leading-relaxed text-white/68">Manage MRSA tournaments, players, claims, and payment ledger without loading this data for regular players.</p>
         </div>
         <div className="relative mt-5 grid gap-2 rounded-[18px] border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
-          <span className="text-[11px] text-white/55">Admin status</span>
-          <strong className="text-[22px] font-medium text-white">Live dashboard</strong>
-          <em className="text-[12px] not-italic leading-relaxed text-white/62">Counts refresh when this tab becomes active.</em>
+          <span className="text-[13px] text-white/55">Admin status</span>
+          <strong className="text-[24px] font-medium text-white">Live dashboard</strong>
+          <em className="text-[14px] not-italic leading-relaxed text-white/62">Counts refresh when this tab becomes active.</em>
         </div>
       </section>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -417,27 +435,27 @@ export function AdminPlayersScreen() {
     <AdminFrame active="players">
       <div className="grid gap-3 rounded-[22px] border-hairline border-line bg-card p-5 md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:items-center md:p-6">
         <div className="grid gap-2">
-          <span className="text-[11px] text-text-secondary">Players</span>
+          <span className="text-[13px] text-text-secondary">Players</span>
           <h1 className="text-3xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Player management</h1>
-          <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Search player records and review city, phone, age, tier, rating, claim status, and tournament history. Details can only be changed after opening a player for update.</p>
+          <p className="max-w-[720px] text-[15px] leading-relaxed text-text-secondary">Search player records and review city, phone, age, tier, rating, claim status, and tournament history. Details can only be changed after opening a player for update.</p>
         </div>
-        <label className="grid gap-2 text-[11px] text-text-secondary">
+        <label className="grid gap-2 text-[13px] text-text-secondary">
           Search player name
-          <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" placeholder="Search player name" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" placeholder="Search player name" value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
       </div>
-      {playerNotice && <p className={playerNotice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[13px] text-[#a32d2d]" : "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[13px] text-[#3b6d11]"}>{playerNotice.type === "success" && <CheckCircle2 size={16} />}{playerNotice.text}</p>}
+      {playerNotice && <p className={playerNotice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[15px] text-[#a32d2d]" : "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[15px] text-[#3b6d11]"}>{playerNotice.type === "success" && <CheckCircle2 size={16} />}{playerNotice.text}</p>}
       <div className="grid gap-3">
         {players.map((player) => (
           <article className="grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" key={player.id}>
             <div className="grid gap-3 md:grid-cols-[44px_minmax(0,1fr)_auto] md:items-center">
-              <span className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[12px] font-medium text-[#3b6d11]" style={player.profile_photo_url ? { backgroundImage: `url(${player.profile_photo_url})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+              <span className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[14px] font-medium text-[#3b6d11]" style={player.profile_photo_url ? { backgroundImage: `url(${player.profile_photo_url})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
                 {!player.profile_photo_url && getAdminInitials(player.full_name)}
               </span>
               <div className="grid min-w-0 gap-2">
                 <div className="grid gap-1">
-                  <strong className="truncate text-[16px] font-medium text-text-primary">{player.full_name}</strong>
-                  <em className="truncate text-[12px] not-italic text-text-secondary">{player.jamaat_city || "City missing"} · {formatAdminClaimStatus(player.claim_status)}</em>
+                  <strong className="truncate text-[18px] font-medium text-text-primary">{player.full_name}</strong>
+                  <em className="truncate text-[14px] not-italic text-text-secondary">{player.jamaat_city || "City missing"} · {formatAdminClaimStatus(player.claim_status)}</em>
                 </div>
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
                   <AdminPlayerMeta label="Phone" value={player.phone || "Missing"} />
@@ -467,17 +485,17 @@ export function AdminPlayersScreen() {
 
             {editingPlayerId === player.id && (
               <form className="grid gap-3 rounded-[16px] border-hairline border-line bg-surface/50 p-3 md:grid-cols-[repeat(3,minmax(0,1fr))_auto] md:items-end" onSubmit={(event) => updatePlayerDetails(event, player)}>
-                <label className="grid gap-2 text-[11px] text-text-secondary">
+                <label className="grid gap-2 text-[13px] text-text-secondary">
                   Phone number
-                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[13px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="phone" type="tel" defaultValue={player.phone || ""} placeholder="9999999999" />
+                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="phone" type="tel" defaultValue={player.phone || ""} placeholder="9999999999" />
                 </label>
-                <label className="grid gap-2 text-[11px] text-text-secondary">
+                <label className="grid gap-2 text-[13px] text-text-secondary">
                   Age
-                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[13px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="age" type="number" min="1" max="120" defaultValue={player.age || ""} placeholder="Age" />
+                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="age" type="number" min="1" max="120" defaultValue={player.age || ""} placeholder="Age" />
                 </label>
-                <label className="grid gap-2 text-[11px] text-text-secondary">
+                <label className="grid gap-2 text-[13px] text-text-secondary">
                   Tier
-                  <select className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[13px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="tier" defaultValue={player.tier || 4}>
+                  <select className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="tier" defaultValue={player.tier || 4}>
                     {[1, 2, 3, 4].map((tier) => (
                       <option value={tier} key={tier}>Tier {tier}</option>
                     ))}
@@ -491,7 +509,7 @@ export function AdminPlayersScreen() {
             )}
           </article>
         ))}
-        {!players.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">No players found.</div>}
+        {!players.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[15px] text-text-secondary">No players found.</div>}
       </div>
     </AdminFrame>
   );
@@ -632,43 +650,43 @@ export function AdminTournamentsScreen() {
     <AdminFrame active="tournaments">
       <div className="grid gap-3 rounded-[22px] border-hairline border-line bg-card p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-6">
         <div className="grid gap-2">
-          <span className="text-[11px] text-text-secondary">Tournaments</span>
+          <span className="text-[13px] text-text-secondary">Tournaments</span>
           <h1 className="text-3xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Tournament management</h1>
-          <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Create tournaments here, then open a tournament workspace to manage details, registrations, tiers, matches, drafts, and captains.</p>
+          <p className="max-w-[720px] text-[15px] leading-relaxed text-text-secondary">Create tournaments here, then open a tournament workspace to manage details, registrations, tiers, matches, drafts, and captains.</p>
         </div>
         <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white" type="button" onClick={startCreatingTournament}>Create new tournament</button>
       </div>
 
-      {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[13px] text-[#a32d2d]" : "rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[13px] text-[#3b6d11]"}>{notice.text}</p>}
+      {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[15px] text-[#a32d2d]" : "rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[15px] text-[#3b6d11]"}>{notice.text}</p>}
 
       {formOpen && (
         <form className="grid gap-4 rounded-[22px] border-hairline border-line bg-card p-4 md:p-5" onSubmit={createTournament} key="new-tournament-form">
           <div className="grid gap-1">
-            <span className="text-[11px] text-text-secondary">Create tournament</span>
+            <span className="text-[13px] text-text-secondary">Create tournament</span>
             <strong className="text-xl font-medium tracking-[-0.4px] text-text-primary">New tournament</strong>
           </div>
-          <label className="grid gap-2 text-[11px] text-text-secondary">
+          <label className="grid gap-2 text-[13px] text-text-secondary">
             Name
-            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="name" placeholder="MRSA 2026" required />
+            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="name" placeholder="MRSA 2026" required />
           </label>
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="grid gap-2 text-[11px] text-text-secondary">
+            <label className="grid gap-2 text-[13px] text-text-secondary">
               Start date
-              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="startsOn" type="date" required />
+              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="startsOn" type="date" required />
             </label>
-            <label className="grid gap-2 text-[11px] text-text-secondary">
+            <label className="grid gap-2 text-[13px] text-text-secondary">
               End date
-              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="endsOn" type="date" required />
+              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="endsOn" type="date" required />
             </label>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="grid gap-2 text-[11px] text-text-secondary">
+            <label className="grid gap-2 text-[13px] text-text-secondary">
               Registration ends
-              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" required />
+              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" required />
             </label>
-            <label className="grid gap-2 text-[11px] text-text-secondary">
+            <label className="grid gap-2 text-[13px] text-text-secondary">
               Status
-              <select className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="status" defaultValue="registration_open" required>
+              <select className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="status" defaultValue="registration_open" required>
                 <option value="draft">Draft</option>
                 <option value="registration_open">Registration open</option>
                 <option value="registration_closed">Registration closed</option>
@@ -678,22 +696,22 @@ export function AdminTournamentsScreen() {
               </select>
             </label>
           </div>
-          <label className="grid gap-2 text-[11px] text-text-secondary">
+          <label className="grid gap-2 text-[13px] text-text-secondary">
             Venue name
-            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="venueName" placeholder="Forest Sports Club" required />
+            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="venueName" placeholder="Forest Sports Club" required />
           </label>
-          <label className="grid gap-2 text-[11px] text-text-secondary">
+          <label className="grid gap-2 text-[13px] text-text-secondary">
             Venue Google Maps URL
-            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" placeholder="https://maps.google.com/..." required />
+            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" placeholder="https://maps.google.com/..." required />
           </label>
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="grid gap-2 text-[11px] text-text-secondary">
+            <label className="grid gap-2 text-[13px] text-text-secondary">
               Tournament fees
-              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" placeholder="121.00" required />
+              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" placeholder="121.00" required />
             </label>
-            <label className="grid gap-2 text-[11px] text-text-secondary">
+            <label className="grid gap-2 text-[13px] text-text-secondary">
               Max players
-              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="maxPlayers" type="number" min="1" step="1" defaultValue="64" placeholder="64" required />
+              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="maxPlayers" type="number" min="1" step="1" defaultValue="64" placeholder="64" required />
             </label>
           </div>
           <div className="grid gap-2 sm:grid-cols-[auto_auto]">
@@ -708,13 +726,13 @@ export function AdminTournamentsScreen() {
           <article className="grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" key={tournament.id}>
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="grid gap-2">
-                <span className="inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[10px] font-medium text-[#3b6d11]">{formatAdminTournamentStatus(tournament.status)}</span>
+                <span className="inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">{formatAdminTournamentStatus(tournament.status)}</span>
                 <strong className="text-xl font-medium leading-tight tracking-[-0.4px] text-text-primary">{tournament.name}</strong>
-                <em className="text-[12px] not-italic leading-relaxed text-text-secondary">{tournament.venue_name || "Venue TBD"} · {formatAdminDate(tournament.starts_on)} - {formatAdminDate(tournament.ends_on)} · closes {formatAdminDateTime(tournament.registration_closes_at)}</em>
+                <em className="text-[14px] not-italic leading-relaxed text-text-secondary">{tournament.venue_name || "Venue TBD"} · {formatAdminDate(tournament.starts_on)} - {formatAdminDate(tournament.ends_on)} · closes {formatAdminDateTime(tournament.registration_closes_at)}</em>
               </div>
               <div className="grid gap-2 md:justify-items-end">
-                <strong className="text-[18px] font-medium text-brand">{formatAdminCurrency(tournament.registration_fee_cents)}</strong>
-                <em className="text-[11px] not-italic text-text-secondary">{tournament.max_players || 64} max players</em>
+                <strong className="text-[20px] font-medium text-brand">{formatAdminCurrency(tournament.registration_fee_cents)}</strong>
+                <em className="text-[13px] not-italic text-text-secondary">{tournament.max_players || 64} max players</em>
                 <div className="flex flex-wrap gap-2">
                   <Link className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white" href={`/admin/tournaments/${tournament.id}`}>Manage</Link>
                   <button className="tap-card min-h-9 rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d]" type="button" onClick={() => deleteTournament(tournament)}>Delete</button>
@@ -723,7 +741,7 @@ export function AdminTournamentsScreen() {
             </div>
           </article>
         ))}
-        {!tournaments.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">No tournaments found.</div>}
+        {!tournaments.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[15px] text-text-secondary">No tournaments found.</div>}
       </div>
     </AdminFrame>
   );
@@ -732,14 +750,16 @@ export function AdminTournamentsScreen() {
 export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: string }) {
   const [tournament, setTournament] = useState<AdminTournament | null>(null);
   const [registeredPlayers, setRegisteredPlayers] = useState<AdminRegisteredPlayer[]>([]);
+  const [interestedPlayers, setInterestedPlayers] = useState<AdminInterestedPlayer[]>([]);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reviewingVideoPlayerId, setReviewingVideoPlayerId] = useState<string | null>(null);
 
   const loadTournamentWorkspace = useCallback(async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    const [{ data, error }, { data: registrations, error: registrationError }] = await Promise.all([
+    const [{ data, error }, { data: registrations, error: registrationError }, { data: checkoutPayments, error: checkoutPaymentError }] = await Promise.all([
       supabase
         .from("tournaments")
         .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
@@ -747,20 +767,32 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .maybeSingle(),
       supabase
         .from("tournament_registrations")
-        .select("tournament_id, players(id, full_name, jamaat_city, age, profile_photo_url, tennis_video_url, tier, rating)")
+        .select("tournament_id, players(id, full_name, jamaat_city, age, profile_photo_url, tennis_video_url, tennis_video_status, tier, rating)")
         .eq("tournament_id", tournamentId)
         .neq("status", "cancelled")
         .in("payment_status", ["paid", "waived"])
         .order("registered_at", { ascending: true })
-        .limit(500)
+        .limit(500),
+      supabase
+        .from("payment_ledger")
+        .select("id, player_id, status, amount_cents, currency, occurred_at, stripe_failure_message, checkout_email, checkout_phone, players(id, full_name, jamaat_city, phone, email, profile_photo_url)")
+        .eq("tournament_id", tournamentId)
+        .eq("entry_type", "charge")
+        .in("status", ["pending", "failed"])
+        .order("occurred_at", { ascending: false })
+        .limit(120)
     ]);
 
-    if (error || registrationError) {
-      setNotice({ type: "error", text: (error || registrationError)?.message || "Could not load tournament workspace." });
+    if (error || registrationError || checkoutPaymentError) {
+      setNotice({ type: "error", text: (error || registrationError || checkoutPaymentError)?.message || "Could not load tournament workspace." });
       return;
     }
 
     setTournament((data || null) as AdminTournament | null);
+    const registeredPlayerIds = new Set((registrations || []).flatMap((row) => {
+      const player = Array.isArray(row.players) ? row.players[0] : row.players;
+      return player?.id ? [player.id] : [];
+    }));
     setRegisteredPlayers((registrations || []).flatMap((row) => {
       const player = Array.isArray(row.players) ? row.players[0] : row.players;
       if (!player || !row.tournament_id) return [];
@@ -771,11 +803,43 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         jamaatCity: player.jamaat_city || "City missing",
         profilePhotoUrl: player.profile_photo_url || "",
         tennisVideoUrl: player.tennis_video_url || "",
+        tennisVideoStatus: player.tennis_video_status || null,
         age: player.age ? `Age ${player.age}` : "Age not set",
         tier: Number(player.tier || 4),
         rating: player.rating
       }];
     }));
+    const interestedByPlayer = new Map<string, AdminInterestedPlayer>();
+    (checkoutPayments || []).forEach((payment) => {
+      const player = Array.isArray(payment.players) ? payment.players[0] : payment.players;
+      if (!player || registeredPlayerIds.has(player.id)) return;
+      const existing = interestedByPlayer.get(player.id);
+      if (existing) {
+        interestedByPlayer.set(player.id, {
+          ...existing,
+          checkoutCount: existing.checkoutCount + 1
+        });
+        return;
+      }
+      interestedByPlayer.set(player.id, {
+        id: payment.id,
+        playerId: player.id,
+        fullName: player.full_name || "Unknown player",
+        jamaatCity: player.jamaat_city || "City missing",
+        phone: player.phone || "No phone",
+        email: player.email || "No email",
+        checkoutPhone: payment.checkout_phone || player.phone || "No phone",
+        checkoutEmail: payment.checkout_email || player.email || "No email",
+        profilePhotoUrl: player.profile_photo_url || "",
+        status: payment.status,
+        amountCents: payment.amount_cents || 0,
+        currency: payment.currency || "USD",
+        occurredAt: payment.occurred_at,
+        failureMessage: payment.stripe_failure_message || "",
+        checkoutCount: 1
+      });
+    });
+    setInterestedPlayers(Array.from(interestedByPlayer.values()));
   }, [tournamentId]);
 
   useEffect(() => {
@@ -839,50 +903,80 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     return true;
   };
 
+  const reviewRegisteredPlayerVideo = async (player: AdminRegisteredPlayer, status: "approved" | "rejected") => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setNotice({ type: "error", text: "Supabase is not configured. Check your environment variables." });
+      return;
+    }
+
+    setReviewingVideoPlayerId(player.id);
+    setNotice(null);
+    const { data: userData } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("players")
+      .update({
+        tennis_video_status: status,
+        tennis_video_reviewed_at: new Date().toISOString(),
+        tennis_video_reviewed_by: userData.user?.id || null,
+        tennis_video_rejection_note: status === "rejected" ? "Please upload a clearer Google Drive playing video for draft review." : null
+      })
+      .eq("id", player.id);
+    setReviewingVideoPlayerId(null);
+
+    if (error) {
+      setNotice({ type: "error", text: error.message });
+      return;
+    }
+
+    setRegisteredPlayers((current) => current.map((registeredPlayer) => registeredPlayer.id === player.id ? { ...registeredPlayer, tennisVideoStatus: status } : registeredPlayer));
+    setNotice({ type: "success", text: `${player.fullName}'s video ${status}.` });
+  };
+
   return (
     <AdminFrame active="tournaments">
       <div className="grid gap-3 rounded-[22px] border-hairline border-line bg-card p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-6">
         <div className="grid gap-2">
-          <Link className="tap-card w-max text-[12px] font-medium text-brand" href="/admin/tournaments">← Tournaments</Link>
-          <span className="text-[11px] text-text-secondary">Tournament workspace</span>
+          <Link className="tap-card w-max text-[14px] font-medium text-brand" href="/admin/tournaments">← Tournaments</Link>
+          <span className="text-[13px] text-text-secondary">Tournament workspace</span>
           <h1 className="text-3xl font-medium leading-tight tracking-[-0.4px] text-text-primary">{tournament?.name || "Tournament"}</h1>
-          <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Manage this tournament’s setup, registrations, tiers, and future operational workflows.</p>
+          <p className="max-w-[720px] text-[15px] leading-relaxed text-text-secondary">Manage this tournament’s setup, registrations, tiers, and future operational workflows.</p>
         </div>
-        <span className="rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">{registeredPlayers.length} registered</span>
+        <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{registeredPlayers.length} registered</span>
       </div>
 
-      {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[13px] text-[#a32d2d]" : "rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[13px] text-[#3b6d11]"}>{notice.text}</p>}
+      {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[15px] text-[#a32d2d]" : "rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[15px] text-[#3b6d11]"}>{notice.text}</p>}
 
       {tournament ? (
         <>
           <section className="grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
             <div className="grid gap-1">
-              <span className="text-[11px] text-text-secondary">Details</span>
+              <span className="text-[13px] text-text-secondary">Details</span>
               <strong className="text-xl font-medium tracking-[-0.4px] text-text-primary">Tournament setup</strong>
             </div>
             <form className="grid gap-3" onSubmit={saveTournamentDetails}>
-              <label className="grid gap-2 text-[11px] text-text-secondary">
+              <label className="grid gap-2 text-[13px] text-text-secondary">
                 Name
-                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="name" defaultValue={tournament.name} required />
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="name" defaultValue={tournament.name} required />
               </label>
               <div className="grid gap-3 md:grid-cols-2">
-                <label className="grid gap-2 text-[11px] text-text-secondary">
+                <label className="grid gap-2 text-[13px] text-text-secondary">
                   Start date
-                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="startsOn" type="date" defaultValue={tournament.starts_on || ""} required />
+                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="startsOn" type="date" defaultValue={tournament.starts_on || ""} required />
                 </label>
-                <label className="grid gap-2 text-[11px] text-text-secondary">
+                <label className="grid gap-2 text-[13px] text-text-secondary">
                   End date
-                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="endsOn" type="date" defaultValue={tournament.ends_on || ""} required />
+                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="endsOn" type="date" defaultValue={tournament.ends_on || ""} required />
                 </label>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                <label className="grid gap-2 text-[11px] text-text-secondary">
+                <label className="grid gap-2 text-[13px] text-text-secondary">
                   Registration ends
-                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" defaultValue={formatAdminDateTimeInput(tournament.registration_closes_at)} required />
+                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" defaultValue={formatAdminDateTimeInput(tournament.registration_closes_at)} required />
                 </label>
-                <label className="grid gap-2 text-[11px] text-text-secondary">
+                <label className="grid gap-2 text-[13px] text-text-secondary">
                   Status
-                  <select className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="status" defaultValue={tournament.status} required>
+                  <select className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="status" defaultValue={tournament.status} required>
                     <option value="draft">Draft</option>
                     <option value="registration_open">Registration open</option>
                     <option value="registration_closed">Registration closed</option>
@@ -892,22 +986,22 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                   </select>
                 </label>
               </div>
-              <label className="grid gap-2 text-[11px] text-text-secondary">
+              <label className="grid gap-2 text-[13px] text-text-secondary">
                 Venue name
-                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="venueName" defaultValue={tournament.venue_name || ""} required />
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="venueName" defaultValue={tournament.venue_name || ""} required />
               </label>
-              <label className="grid gap-2 text-[11px] text-text-secondary">
+              <label className="grid gap-2 text-[13px] text-text-secondary">
                 Venue Google Maps URL
-                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" defaultValue={tournament.venue_maps_url || ""} required />
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" defaultValue={tournament.venue_maps_url || ""} required />
               </label>
               <div className="grid gap-3 md:grid-cols-2">
-                <label className="grid gap-2 text-[11px] text-text-secondary">
+                <label className="grid gap-2 text-[13px] text-text-secondary">
                   Tournament fees
-                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" defaultValue={tournament.registration_fee_cents / 100} required />
+                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" defaultValue={tournament.registration_fee_cents / 100} required />
                 </label>
-                <label className="grid gap-2 text-[11px] text-text-secondary">
+                <label className="grid gap-2 text-[13px] text-text-secondary">
                   Max players
-                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="maxPlayers" type="number" min="1" step="1" defaultValue={tournament.max_players || 64} required />
+                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="maxPlayers" type="number" min="1" step="1" defaultValue={tournament.max_players || 64} required />
                 </label>
               </div>
               <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save details"}</button>
@@ -921,11 +1015,15 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
           </section>
 
           <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-            <TieredRegisteredPlayers players={registeredPlayers} onTierChange={updateRegisteredPlayerTier} />
+            <TieredRegisteredPlayers players={registeredPlayers} onTierChange={updateRegisteredPlayerTier} onVideoReview={reviewRegisteredPlayerVideo} reviewingVideoPlayerId={reviewingVideoPlayerId} />
+          </section>
+
+          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
+            <InterestedPlayersList players={interestedPlayers} />
           </section>
         </>
       ) : (
-        <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">Loading tournament workspace...</div>
+        <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[15px] text-text-secondary">Loading tournament workspace...</div>
       )}
     </AdminFrame>
   );
@@ -934,25 +1032,73 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
 function AdminFutureCard({ title, copy }: { title: string; copy: string }) {
   return (
     <article className="grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4">
-      <span className="inline-flex w-max rounded-full bg-surface px-2.5 py-1 text-[10px] font-medium text-text-secondary">Coming soon</span>
+      <span className="inline-flex w-max rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-text-secondary">Coming soon</span>
       <strong className="text-lg font-medium leading-tight text-text-primary">{title}</strong>
-      <em className="text-[13px] not-italic leading-relaxed text-text-secondary">{copy}</em>
+      <em className="text-[15px] not-italic leading-relaxed text-text-secondary">{copy}</em>
     </article>
+  );
+}
+
+function InterestedPlayersList({ players }: { players: AdminInterestedPlayer[] }) {
+  return (
+    <div className="grid gap-3" aria-label="Interested players">
+      <div className="grid gap-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+        <span className="grid gap-1">
+          <h3 className="text-[15px] font-medium text-text-primary">Interested players</h3>
+          <p className="max-w-[680px] text-[13px] leading-relaxed text-text-secondary">Went until checkout page but did not register. These players may have closed checkout, left before paying, or had a card declined.</p>
+        </span>
+        <span className="rounded-full bg-[#fff4d8] px-3 py-1 text-[13px] font-medium text-[#8a5a00]">{players.length} players</span>
+      </div>
+
+      {players.length ? (
+        <ul className="grid gap-2">
+          {players.map((player) => (
+            <li className="grid gap-3 rounded-[14px] border-hairline border-[#f0e2bd] bg-[#fffdf7] p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center" key={player.id}>
+              <span className="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-full bg-[#fff4d8] text-[13px] font-medium text-[#8a5a00]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+                {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
+              </span>
+              <span className="grid min-w-0 gap-2">
+                <span className="grid min-w-0 gap-1">
+                  <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
+                  <em className="truncate text-[13px] not-italic text-text-secondary">{player.jamaatCity} · {formatAdminCurrency(player.amountCents, player.currency)} checkout · {player.checkoutCount} {player.checkoutCount === 1 ? "occurrence" : "occurrences"}</em>
+                </span>
+                <span className="grid gap-1 text-[13px] text-text-secondary sm:grid-cols-2">
+                  <a className="truncate font-medium text-brand" href={`tel:${player.checkoutPhone}`}>{player.checkoutPhone}</a>
+                  <a className="truncate font-medium text-brand" href={`mailto:${player.checkoutEmail}`}>{player.checkoutEmail}</a>
+                </span>
+                {player.failureMessage && <em className="text-[12px] not-italic leading-relaxed text-[#a32d2d]">{player.failureMessage}</em>}
+              </span>
+              <span className="grid gap-1 md:justify-items-end">
+                <b className={player.status === "failed" ? "rounded-full bg-[#fcebeb] px-2.5 py-1 text-[12px] font-medium text-[#a32d2d]" : "rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]"}>{formatAdminPaymentStatus(player.status)}</b>
+                <em className="text-[12px] not-italic text-text-secondary">Latest: {formatAdminDateTime(player.occurredAt)}</em>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">No checkout-only players yet.</div>
+      )}
+    </div>
   );
 }
 
 function TieredRegisteredPlayers({
   players,
-  onTierChange
+  onTierChange,
+  onVideoReview,
+  reviewingVideoPlayerId
 }: {
   players: AdminRegisteredPlayer[];
   onTierChange: (playerId: string, tournamentId: string, tier: number) => Promise<boolean>;
+  onVideoReview: (player: AdminRegisteredPlayer, status: "approved" | "rejected") => Promise<void>;
+  reviewingVideoPlayerId: string | null;
 }) {
   const [pendingTiers, setPendingTiers] = useState<Record<string, number>>({});
   const [savingTierKey, setSavingTierKey] = useState<string | null>(null);
+  const [collapsedTiers, setCollapsedTiers] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: true, 4: true });
 
   if (!players.length) {
-    return <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[13px] text-text-secondary">No paid or waived registrations yet.</div>;
+    return <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">No paid or waived registrations yet.</div>;
   }
 
   const grouped = [1, 2, 3, 4].map((tier) => ({
@@ -963,23 +1109,42 @@ function TieredRegisteredPlayers({
   return (
     <div className="grid gap-3" aria-label="Registered players grouped by tier">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-[13px] font-medium text-text-primary">Registered players</h3>
-        <span className="text-[11px] text-text-secondary">{players.length} players</span>
+        <h3 className="text-[15px] font-medium text-text-primary">Registered players</h3>
+        <span className="text-[13px] text-text-secondary">{players.length} players</span>
       </div>
-      {grouped.map((group) => (
+      {grouped.map((group) => {
+        const collapsed = Boolean(collapsedTiers[group.tier]);
+
+        return (
         <section className={`grid gap-2 rounded-[14px] border-hairline p-3 ${getAdminTierSectionClass(group.tier)}`} key={group.tier}>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-            <strong className={`text-[13px] font-medium ${getAdminTierTextClass(group.tier)}`}>Tier {group.tier}</strong>
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${getAdminTierBadgeClass(group.tier)}`}>{group.players.length} players</span>
-          </div>
-          {group.players.length ? (
-            <ul className="grid gap-2">
-              {group.players.map((player) => (
-                <TieredRegisteredPlayerRow
+	          <button
+	            className="grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-[12px] px-2 text-left transition hover:bg-white/45"
+	            type="button"
+	            onClick={() => setCollapsedTiers((current) => ({ ...current, [group.tier]: !current[group.tier] }))}
+	            aria-expanded={!collapsed}
+	            aria-controls={`tier-${group.tier}-registered-players`}
+	          >
+	            <strong className={`text-[15px] font-medium ${getAdminTierTextClass(group.tier)}`}>Tier {group.tier}</strong>
+	            <span className={`rounded-full px-2.5 py-1 text-[12px] font-medium ${getAdminTierBadgeClass(group.tier)}`}>{group.players.length} players</span>
+	            <ChevronDown className={`transition ${collapsed ? "" : "rotate-180"} ${getAdminTierTextClass(group.tier)}`} size={18} />
+	          </button>
+	          {!collapsed && group.players.length ? (
+		            <ul className="grid gap-2" id={`tier-${group.tier}-registered-players`}>
+		              <li className="hidden rounded-[12px] border-hairline border-line/60 bg-white/55 px-3 py-2 text-[12px] font-medium text-text-secondary lg:grid lg:grid-cols-[minmax(180px,1.2fr)_minmax(130px,0.85fr)_minmax(150px,0.9fr)_90px_minmax(210px,1fr)] lg:items-center lg:gap-3">
+	                <span>Name</span>
+	                <span>City, age</span>
+	                <span>Tier</span>
+	                <span>Rating</span>
+	                <span>Video</span>
+	              </li>
+	              {group.players.map((player) => (
+	                <TieredRegisteredPlayerRow
                   key={player.id}
                   player={player}
                   pendingTier={pendingTiers[`${player.tournamentId}:${player.id}`] ?? player.tier}
                   saving={savingTierKey === `${player.tournamentId}:${player.id}`}
+                  reviewingVideo={reviewingVideoPlayerId === player.id}
+                  onVideoReview={onVideoReview}
                   onPendingTierChange={(tier) => setPendingTiers((current) => ({ ...current, [`${player.tournamentId}:${player.id}`]: tier }))}
                   onSaveTier={async () => {
                     const playerKey = `${player.tournamentId}:${player.id}`;
@@ -997,12 +1162,13 @@ function TieredRegisteredPlayers({
                   }}
                 />
               ))}
-            </ul>
-          ) : (
-            <small className="text-[12px] text-text-secondary">No Tier {group.tier} registrations.</small>
-          )}
-        </section>
-      ))}
+	            </ul>
+	          ) : !collapsed ? (
+	            <small className="text-[14px] text-text-secondary">No Tier {group.tier} registrations.</small>
+	          ) : null}
+	        </section>
+        );
+      })}
     </div>
   );
 }
@@ -1011,43 +1177,42 @@ function TieredRegisteredPlayerRow({
   player,
   pendingTier,
   saving,
+  reviewingVideo,
+  onVideoReview,
   onPendingTierChange,
   onSaveTier
 }: {
   player: AdminRegisteredPlayer;
   pendingTier: number;
   saving: boolean;
+  reviewingVideo: boolean;
+  onVideoReview: (player: AdminRegisteredPlayer, status: "approved" | "rejected") => Promise<void>;
   onPendingTierChange: (tier: number) => void;
   onSaveTier: () => Promise<void>;
 }) {
   const hasTierChange = pendingTier !== player.tier;
 
   return (
-    <li className="grid min-h-[64px] gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3 lg:grid-cols-[minmax(220px,1fr)_auto_auto] lg:items-center" key={player.id}>
+    <li className="grid min-h-[64px] gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3 lg:grid-cols-[minmax(180px,1.2fr)_minmax(130px,0.85fr)_minmax(150px,0.9fr)_90px_minmax(210px,1fr)] lg:items-center" key={player.id}>
       <div className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-3">
-        <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[11px] font-medium text-[#3b6d11]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+        <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
           {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
         </span>
         <span className="grid min-w-0 gap-1">
-          <strong className="truncate text-[13px] font-medium text-text-primary">{player.fullName}</strong>
-          <em className="truncate text-[11px] not-italic text-text-secondary">{player.jamaatCity} · {player.age}</em>
+          <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
+          <em className="text-[12px] not-italic text-text-secondary lg:hidden">Player</em>
         </span>
       </div>
-      <div className="grid grid-cols-[auto_auto] items-center gap-2 lg:grid-cols-1 lg:justify-items-end">
-        <strong className="text-[13px] font-medium leading-none text-brand">{formatAdminRating(player.rating)}</strong>
-        {player.tennisVideoUrl ? (
-          <a className="tap-card inline-flex h-7 w-max items-center justify-center rounded-full bg-[#e5f1ff] px-2.5 text-[10px] font-medium text-[#185fa5]" href={player.tennisVideoUrl} target="_blank" rel="noreferrer">
-            View video
-          </a>
-        ) : (
-          <span className="inline-flex h-7 w-max items-center justify-center rounded-full bg-[#f1efe8] px-2.5 text-[10px] font-medium text-text-secondary">No video</span>
-        )}
+      <div className="grid gap-1">
+        <span className="text-[12px] font-medium text-text-secondary lg:hidden">City, age</span>
+        <strong className="truncate text-[14px] font-medium text-text-primary">{player.jamaatCity}</strong>
+        <em className="text-[13px] not-italic text-text-secondary">{player.age}</em>
       </div>
-      <div className="grid grid-cols-[minmax(120px,1fr)_auto] items-end gap-2 lg:grid-cols-[112px_auto]">
-        <label className="grid gap-1 text-[10px] text-text-secondary">
+      <div className="grid grid-cols-[minmax(120px,1fr)_auto] items-end gap-2 lg:grid-cols-[96px_auto]">
+        <label className="grid gap-1 text-[12px] text-text-secondary">
           Tier
           <select
-            className="h-9 rounded-[10px] border-hairline border-line bg-white px-2 text-[12px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
+            className="h-9 rounded-[10px] border-hairline border-line bg-white px-2 text-[14px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
             value={pendingTier}
             onChange={(event) => onPendingTierChange(Number(event.target.value))}
             aria-label={`Select tier for ${player.fullName}`}
@@ -1059,13 +1224,42 @@ function TieredRegisteredPlayerRow({
           </select>
         </label>
         <button
-          className={hasTierChange ? "tap-card inline-flex h-9 items-center justify-center rounded-[10px] bg-brand px-3 text-[11px] font-medium text-white disabled:opacity-60" : "tap-card inline-flex h-9 items-center justify-center rounded-[10px] border-hairline border-line bg-white px-3 text-[11px] font-medium text-text-muted disabled:opacity-50"}
+          className={hasTierChange ? "inline-flex h-9 w-auto items-center justify-center rounded-[10px] bg-brand px-3 text-[13px] font-medium text-white disabled:opacity-60" : "inline-flex h-9 w-auto items-center justify-center rounded-[10px] border-hairline border-line bg-white px-3 text-[13px] font-medium text-text-muted disabled:opacity-50"}
           type="button"
           onClick={onSaveTier}
           disabled={!hasTierChange || saving}
         >
           {saving ? "Saving" : "Save"}
         </button>
+      </div>
+      <div className="grid gap-1 lg:justify-items-start">
+        <span className="text-[12px] font-medium text-text-secondary lg:hidden">Rating</span>
+        <strong className="text-[15px] font-medium leading-none text-brand">{formatAdminRating(player.rating)}</strong>
+      </div>
+      <div className="grid gap-1 lg:justify-items-start">
+        <span className="text-[12px] font-medium text-text-secondary lg:hidden">Video</span>
+        {player.tennisVideoUrl ? (
+          <span className="grid gap-1">
+            <span className="flex flex-wrap items-center gap-1.5">
+              <a className="inline-flex h-7 w-auto items-center justify-center rounded-full bg-[#e5f1ff] px-2.5 text-[12px] font-medium text-[#185fa5]" href={player.tennisVideoUrl} target="_blank" rel="noreferrer">
+                View video
+              </a>
+              <span className={getAdminVideoStatusClass(player.tennisVideoStatus)}>{formatAdminVideoStatus(player.tennisVideoStatus)}</span>
+            </span>
+            {player.tennisVideoStatus !== "approved" && (
+              <span className="flex flex-wrap items-center gap-1.5">
+                <button className="inline-flex h-7 w-auto items-center rounded-full bg-brand-light px-2.5 text-[12px] font-medium text-[#3b6d11] disabled:opacity-60" type="button" onClick={() => onVideoReview(player, "approved")} disabled={reviewingVideo}>
+                  Approve
+                </button>
+                <button className="inline-flex h-7 w-auto items-center rounded-full bg-[#fcebeb] px-2.5 text-[12px] font-medium text-[#a32d2d] disabled:opacity-60" type="button" onClick={() => onVideoReview(player, "rejected")} disabled={reviewingVideo}>
+                  Reject
+                </button>
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="inline-flex h-7 w-max items-center justify-center rounded-full bg-[#f1efe8] px-2.5 text-[12px] font-medium text-text-secondary">No video</span>
+        )}
       </div>
     </li>
   );
@@ -1090,6 +1284,18 @@ function getAdminTierBadgeClass(tier: number) {
   if (tier === 2) return "bg-[#e5f1ff] text-[#185fa5]";
   if (tier === 3) return "bg-brand-light text-[#3b6d11]";
   return "bg-[#fbe7ef] text-[#aa3f6b]";
+}
+
+function formatAdminVideoStatus(status: string | null) {
+  if (status === "approved") return "Approved";
+  if (status === "rejected") return "Rejected";
+  return "Pending";
+}
+
+function getAdminVideoStatusClass(status: string | null) {
+  if (status === "approved") return "inline-flex h-7 w-max items-center rounded-full bg-brand-light px-2.5 text-[12px] font-medium text-[#3b6d11]";
+  if (status === "rejected") return "inline-flex h-7 w-max items-center rounded-full bg-[#fcebeb] px-2.5 text-[12px] font-medium text-[#a32d2d]";
+  return "inline-flex h-7 w-max items-center rounded-full bg-[#fff4d8] px-2.5 text-[12px] font-medium text-[#8a5a00]";
 }
 
 export function AdminPaymentsScreen() {
@@ -1179,13 +1385,13 @@ export function AdminPaymentsScreen() {
     <AdminFrame active="payments">
       <div className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
         <div className="grid gap-1">
-          <span className="text-[11px] text-text-secondary">Payments</span>
+          <span className="text-[13px] text-text-secondary">Payments</span>
           <h1 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Payment ledger</h1>
-          <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Who paid, why, Jamaat / city, amount, status, and paid date.</p>
+          <p className="max-w-[720px] text-[15px] leading-relaxed text-text-secondary">Who paid, why, Jamaat / city, amount, status, and paid date.</p>
         </div>
-        <span className="rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">{visiblePayments.length} entries</span>
+        <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{visiblePayments.length} entries</span>
       </div>
-      {paymentNotice && <p className={paymentNotice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[13px] text-[#a32d2d]" : "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[13px] text-[#3b6d11]"}>{paymentNotice.type === "success" && <CheckCircle2 size={16} />}{paymentNotice.text}</p>}
+      {paymentNotice && <p className={paymentNotice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[15px] text-[#a32d2d]" : "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[15px] text-[#3b6d11]"}>{paymentNotice.type === "success" && <CheckCircle2 size={16} />}{paymentNotice.text}</p>}
       <div className="flex gap-2 overflow-x-auto rounded-[14px] border-hairline border-line bg-card p-2" aria-label="Payment filters">
         {paymentFilters.map((filter) => (
           <button className={paymentFilter === filter.id ? "tap-card inline-flex min-h-9 !w-auto shrink-0 items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white" : "tap-card inline-flex min-h-9 !w-auto shrink-0 items-center justify-center rounded-[12px] bg-surface px-4 text-xs font-medium text-text-secondary"} type="button" key={filter.id} onClick={() => setPaymentFilter(filter.id)}>
@@ -1199,17 +1405,17 @@ export function AdminPaymentsScreen() {
           const tournament = Array.isArray(payment.tournaments) ? payment.tournaments[0] : payment.tournaments;
           return (
             <article className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center md:p-4" key={payment.id}>
-              <span className={payment.status === "paid" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#eaf3de] text-[11px] font-medium text-[#3b6d11]" : payment.status === "refunded" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fcebeb] text-[11px] font-medium text-[#a32d2d]" : payment.status === "pending" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fff4d8] text-[11px] font-medium text-[#8a5a00]" : "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#f1efe8] text-[11px] font-medium text-[#5f5e5a]"}>
+              <span className={payment.status === "paid" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" : payment.status === "refunded" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fcebeb] text-[13px] font-medium text-[#a32d2d]" : payment.status === "pending" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fff4d8] text-[13px] font-medium text-[#8a5a00]" : "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#f1efe8] text-[13px] font-medium text-[#5f5e5a]"}>
                 {getAdminInitials(player?.full_name || "Player")}
               </span>
 
               <div className="grid min-w-0 gap-2">
                 <div className="grid gap-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
                   <span className="grid min-w-0 gap-1">
-                    <strong className="truncate text-[15px] font-medium leading-tight text-text-primary">{player?.full_name || "Unknown player"}</strong>
-                    <em className="truncate text-[11px] not-italic leading-tight text-text-secondary">{player?.jamaat_city || "City missing"} · {tournament?.name || payment.notes || "General payment"}</em>
+                    <strong className="truncate text-[17px] font-medium leading-tight text-text-primary">{player?.full_name || "Unknown player"}</strong>
+                    <em className="truncate text-[13px] not-italic leading-tight text-text-secondary">{player?.jamaat_city || "City missing"} · {tournament?.name || payment.notes || "General payment"}</em>
                   </span>
-                  <span className={payment.status === "paid" ? "inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[10px] font-medium text-[#3b6d11]" : payment.status === "refunded" ? "inline-flex w-max rounded-full bg-[#fcebeb] px-2.5 py-1 text-[10px] font-medium text-[#a32d2d]" : payment.status === "pending" ? "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[10px] font-medium text-[#8a5a00]" : "inline-flex w-max rounded-full bg-[#f1efe8] px-2.5 py-1 text-[10px] font-medium text-[#5f5e5a]"}>
+                  <span className={payment.status === "paid" ? "inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]" : payment.status === "refunded" ? "inline-flex w-max rounded-full bg-[#fcebeb] px-2.5 py-1 text-[12px] font-medium text-[#a32d2d]" : payment.status === "pending" ? "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]" : "inline-flex w-max rounded-full bg-[#f1efe8] px-2.5 py-1 text-[12px] font-medium text-[#5f5e5a]"}>
                     {formatAdminPaymentStatus(payment.status)}
                   </span>
                 </div>
@@ -1220,13 +1426,13 @@ export function AdminPaymentsScreen() {
                   <PaymentMeta label={payment.status === "paid" ? "Paid" : payment.status === "refunded" ? "Refunded" : "Recorded"} value={formatAdminDateTime(payment.occurred_at)} tone="neutral" />
                   <PaymentMeta label="Amount" value={formatAdminCurrency(payment.amount_cents, payment.currency)} tone="clay" />
                 </div>
-                {payment.notes && <p className="truncate text-[11px] font-medium text-text-secondary">{payment.notes}</p>}
+                {payment.notes && <p className="truncate text-[13px] font-medium text-text-secondary">{payment.notes}</p>}
               </div>
 
               <div className={payment.status === "refunded" ? "grid gap-2 rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff7f7] p-3 md:min-w-[150px] md:justify-items-end" : "grid gap-2 rounded-[14px] border-hairline border-[#dbe8cd] bg-[#f8fbf4] p-3 md:min-w-[150px] md:justify-items-end"}>
                 <span className="grid gap-1 md:justify-items-end">
-                  <em className="text-[10px] not-italic leading-none text-text-secondary">{payment.status === "refunded" ? "Refunded amount" : "Payment amount"}</em>
-                  <strong className={payment.status === "refunded" ? "text-[20px] font-medium leading-none text-[#a32d2d]" : "text-[20px] font-medium leading-none text-brand"}>{formatAdminCurrency(payment.amount_cents, payment.currency)}</strong>
+                  <em className="text-[12px] not-italic leading-none text-text-secondary">{payment.status === "refunded" ? "Refunded amount" : "Payment amount"}</em>
+                  <strong className={payment.status === "refunded" ? "text-[22px] font-medium leading-none text-[#a32d2d]" : "text-[22px] font-medium leading-none text-brand"}>{formatAdminCurrency(payment.amount_cents, payment.currency)}</strong>
                 </span>
                 <div className="grid gap-2 md:justify-items-end">
                   {payment.status === "pending" && (
@@ -1240,7 +1446,7 @@ export function AdminPaymentsScreen() {
                         {updatingPaymentId === payment.id ? "Saving..." : confirmRefundId === payment.id ? "Confirm refund" : "Refund"}
                       </button>
                       {confirmRefundId === payment.id && (
-                        <button className="tap-card text-[11px] font-medium text-text-secondary" type="button" onClick={() => setConfirmRefundId(null)}>Cancel</button>
+                        <button className="tap-card text-[13px] font-medium text-text-secondary" type="button" onClick={() => setConfirmRefundId(null)}>Cancel</button>
                       )}
                     </>
                   )}
@@ -1249,7 +1455,7 @@ export function AdminPaymentsScreen() {
             </article>
           );
         })}
-        {!visiblePayments.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">No {paymentFilter === "all" ? "" : `${paymentFilter} `}payment entries found.</div>}
+        {!visiblePayments.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[15px] text-text-secondary">No {paymentFilter === "all" ? "" : `${paymentFilter} `}payment entries found.</div>}
       </div>
     </AdminFrame>
   );
@@ -1370,30 +1576,30 @@ export function AdminClaimsScreen() {
     <AdminFrame active="claims">
       <div className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
         <div className="grid gap-1">
-          <span className="text-[11px] text-text-secondary">Claims</span>
+          <span className="text-[13px] text-text-secondary">Claims</span>
           <h1 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Profile claims</h1>
-          <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Approve true profile matches or reject incorrect claims before they link to a player record.</p>
+          <p className="max-w-[720px] text-[15px] leading-relaxed text-text-secondary">Approve true profile matches or reject incorrect claims before they link to a player record.</p>
         </div>
-        <span className="rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">{claims.length} pending</span>
+        <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{claims.length} pending</span>
       </div>
-      {claimsNotice && <p className="rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[13px] text-[#a32d2d]">{claimsNotice}</p>}
+      {claimsNotice && <p className="rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[15px] text-[#a32d2d]">{claimsNotice}</p>}
       <div className="grid gap-2">
         {claims.map((claim) => {
           const isConfirmingReject = rejectConfirmId === claim.id;
           const isReviewing = reviewingClaimId === claim.id;
           return (
             <article className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center md:p-4" key={claim.id}>
-              <span className={isConfirmingReject ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fcebeb] text-[11px] font-medium text-[#a32d2d]" : "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#eaf3de] text-[11px] font-medium text-[#3b6d11]"}>
+              <span className={isConfirmingReject ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fcebeb] text-[13px] font-medium text-[#a32d2d]" : "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]"}>
                 {getAdminInitials(claim.player_full_name || "Player")}
               </span>
 
               <div className="grid min-w-0 gap-2">
                 <div className="grid gap-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
                   <span className="grid min-w-0 gap-1">
-                    <strong className="truncate text-[15px] font-medium leading-tight text-text-primary">{claim.player_full_name || "Unknown player"}</strong>
-                    <em className="truncate text-[11px] not-italic leading-tight text-text-secondary">{claim.player_jamaat_city || "City missing"} · {formatAdminDateTime(claim.created_at)}</em>
+                    <strong className="truncate text-[17px] font-medium leading-tight text-text-primary">{claim.player_full_name || "Unknown player"}</strong>
+                    <em className="truncate text-[13px] not-italic leading-tight text-text-secondary">{claim.player_jamaat_city || "City missing"} · {formatAdminDateTime(claim.created_at)}</em>
                   </span>
-                  <span className={isConfirmingReject ? "inline-flex w-max rounded-full bg-[#fcebeb] px-2.5 py-1 text-[10px] font-medium text-[#a32d2d]" : "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[10px] font-medium text-[#8a5a00]"}>
+                  <span className={isConfirmingReject ? "inline-flex w-max rounded-full bg-[#fcebeb] px-2.5 py-1 text-[12px] font-medium text-[#a32d2d]" : "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]"}>
                     {isConfirmingReject ? "Confirm rejection" : "Pending review"}
                   </span>
                 </div>
@@ -1403,11 +1609,11 @@ export function AdminClaimsScreen() {
                   <PaymentMeta label="City" value={claim.player_jamaat_city || "City missing"} tone="green" />
                   <PaymentMeta label="Requested" value={formatAdminDateTime(claim.created_at)} tone="neutral" />
                 </div>
-                <p className="truncate text-[11px] font-medium text-text-secondary">{claim.requester_note || "No note provided."}</p>
+                <p className="truncate text-[13px] font-medium text-text-secondary">{claim.requester_note || "No note provided."}</p>
                 {isConfirmingReject && (
-                  <label className="grid gap-2 text-[11px] text-text-secondary">
+                  <label className="grid gap-2 text-[13px] text-text-secondary">
                     Rejection note to player
-                    <textarea className="min-h-20 rounded-[12px] border-hairline border-line bg-white px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" value={rejectNotes[claim.id] || ""} onChange={(event) => setRejectNotes((current) => ({ ...current, [claim.id]: event.target.value }))} placeholder="Example: This profile appears to belong to another player. Please search again or create a new profile." />
+                    <textarea className="min-h-20 rounded-[12px] border-hairline border-line bg-white px-3 py-2 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" value={rejectNotes[claim.id] || ""} onChange={(event) => setRejectNotes((current) => ({ ...current, [claim.id]: event.target.value }))} placeholder="Example: This profile appears to belong to another player. Please search again or create a new profile." />
                   </label>
                 )}
               </div>
@@ -1420,7 +1626,7 @@ export function AdminClaimsScreen() {
                   {isReviewing ? "Working..." : isConfirmingReject ? "Confirm reject" : "Reject"}
                 </button>
                 {isConfirmingReject && (
-                  <button className="tap-card text-[11px] font-medium text-text-secondary" type="button" onClick={() => setRejectConfirmId(null)} disabled={isReviewing}>
+                  <button className="tap-card text-[13px] font-medium text-text-secondary" type="button" onClick={() => setRejectConfirmId(null)} disabled={isReviewing}>
                     Cancel
                   </button>
                 )}
@@ -1428,7 +1634,7 @@ export function AdminClaimsScreen() {
             </article>
           );
         })}
-        {!claims.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">No pending claims.</div>}
+        {!claims.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[15px] text-text-secondary">No pending claims.</div>}
       </div>
     </AdminFrame>
   );
@@ -1437,8 +1643,8 @@ export function AdminClaimsScreen() {
 function AdminStat({ label, value }: { label: string; value: number }) {
   return (
     <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4">
-      <span className="text-[11px] text-text-secondary">{label}</span>
-      <strong className="text-[26px] font-medium leading-none tracking-[-0.4px] text-text-primary">{value}</strong>
+      <span className="text-[13px] text-text-secondary">{label}</span>
+      <strong className="text-[28px] font-medium leading-none tracking-[-0.4px] text-text-primary">{value}</strong>
     </article>
   );
 }
@@ -1451,7 +1657,7 @@ function AdminLinkCard({ href, title, copy }: { href: string; title: string; cop
       </span>
       <span className="grid gap-1">
         <strong className="text-lg font-medium leading-tight text-text-primary">{title}</strong>
-        <em className="text-[13px] not-italic leading-relaxed text-text-secondary">{copy}</em>
+        <em className="text-[15px] not-italic leading-relaxed text-text-secondary">{copy}</em>
       </span>
     </Link>
   );
@@ -1460,8 +1666,8 @@ function AdminLinkCard({ href, title, copy }: { href: string; title: string; cop
 function AdminPlayerMeta({ label, value }: { label: string; value: string }) {
   return (
     <span className="grid gap-1 rounded-[12px] border-hairline border-line bg-white px-3 py-2">
-      <em className="text-[10px] not-italic text-text-secondary">{label}</em>
-      <strong className="truncate text-[12px] font-medium text-text-primary">{value}</strong>
+      <em className="text-[12px] not-italic text-text-secondary">{label}</em>
+      <strong className="truncate text-[14px] font-medium text-text-primary">{value}</strong>
     </span>
   );
 }
@@ -1477,8 +1683,8 @@ function PaymentMeta({ label, value, tone = "neutral" }: { label: string; value:
 
   return (
     <span className={`min-w-0 rounded-[10px] border-hairline px-2.5 py-2 ${toneClass}`}>
-      <em className="block text-[10px] not-italic leading-tight text-text-secondary">{label}</em>
-      <strong className="block truncate text-[12px] font-medium leading-tight text-text-primary">{value}</strong>
+      <em className="block text-[12px] not-italic leading-tight text-text-secondary">{label}</em>
+      <strong className="block truncate text-[14px] font-medium leading-tight text-text-primary">{value}</strong>
     </span>
   );
 }

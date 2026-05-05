@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   const [{ data: player }, { data: tournament }] = await Promise.all([
     admin
       .from("players")
-      .select("id, full_name")
+      .select("id, full_name, phone, email")
       .eq("auth_user_id", userData.user.id)
       .maybeSingle(),
     admin
@@ -52,6 +52,10 @@ export async function POST(request: NextRequest) {
 
   if (!tournament || !["registration_open", "live"].includes(tournament.status)) {
     return NextResponse.json({ error: "This tournament is not open for registration." }, { status: 400 });
+  }
+
+  if (userData.user.email && !player.email) {
+    await admin.from("players").update({ email: userData.user.email }).eq("id", player.id);
   }
 
   const { data: existingRegistration } = await admin
@@ -106,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
   });
 
-  await admin.from("payment_ledger").upsert({
+  const { error: ledgerError } = await admin.from("payment_ledger").insert({
     player_id: player.id,
     tournament_id: tournament.id,
     entry_type: "charge",
@@ -118,8 +122,14 @@ export async function POST(request: NextRequest) {
     stripe_payment_intent_id: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id,
     stripe_failure_code: null,
     stripe_failure_message: null,
+    checkout_email: userData.user.email || player.email || null,
+    checkout_phone: player.phone || null,
     notes: `${tournament.name} registration checkout.`
-  }, { onConflict: "stripe_checkout_session_id" });
+  });
+
+  if (ledgerError) {
+    return NextResponse.json({ error: `Checkout was created, but MRSA could not record the registration interest: ${ledgerError.message}` }, { status: 500 });
+  }
 
   return NextResponse.json({ url: session.url });
 }
