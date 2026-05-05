@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle(),
     admin
       .from("tournaments")
-      .select("id, name, registration_fee_cents, currency, status")
+      .select("id, name, registration_fee_cents, currency, status, starts_on, ends_on, registration_closes_at")
       .eq("id", tournamentId)
       .maybeSingle()
   ]);
@@ -50,8 +50,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Complete or claim your player profile before registering." }, { status: 400 });
   }
 
-  if (!tournament || !["registration_open", "live"].includes(tournament.status)) {
+  const tournamentStatus = tournament ? getTournamentLifecycleStatus(tournament) : null;
+  if (!tournament || tournamentStatus !== "registration_open") {
     return NextResponse.json({ error: "This tournament is not open for registration." }, { status: 400 });
+  }
+  if (tournament.status !== tournamentStatus) {
+    await admin.from("tournaments").update({ status: tournamentStatus }).eq("id", tournament.id);
   }
 
   if (userData.user.email && !player.email) {
@@ -132,4 +136,22 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ url: session.url });
+}
+
+function getTournamentLifecycleStatus(tournament: {
+  status: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  registration_closes_at: string | null;
+}) {
+  if (tournament.status === "cancelled") return "cancelled";
+  const now = new Date();
+  const registrationClose = tournament.registration_closes_at ? new Date(tournament.registration_closes_at) : null;
+  const start = tournament.starts_on ? new Date(`${tournament.starts_on}T00:00:00`) : null;
+  const end = tournament.ends_on ? new Date(`${tournament.ends_on}T23:59:59.999`) : null;
+
+  if (end && now > end) return "completed";
+  if (start && now >= start) return "live";
+  if (registrationClose && now > registrationClose) return "registration_closed";
+  return "registration_open";
 }

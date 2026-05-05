@@ -21,6 +21,7 @@ type AdminPlayer = {
   full_name: string;
   phone: string | null;
   age: number | null;
+  date_of_birth: string | null;
   profile_photo_url: string | null;
   jamaat_city: string | null;
   tier: number;
@@ -338,7 +339,7 @@ export function AdminPlayersScreen() {
 
     let request = supabase
       .from("players")
-      .select("id, auth_user_id, full_name, phone, age, profile_photo_url, jamaat_city, tier, rating, claim_status, tournaments_played, matches_played")
+	      .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, tier, rating, claim_status, tournaments_played, matches_played")
       .order("full_name")
       .limit(80);
 
@@ -378,7 +379,7 @@ export function AdminPlayersScreen() {
     }
 
     const form = new FormData(event.currentTarget);
-    const ageValue = String(form.get("age") || "").trim();
+	    const dateOfBirth = String(form.get("dateOfBirth") || "").trim();
     const tierValue = Number(form.get("tier") || player.tier || 4);
     setSavingPlayerId(player.id);
     setPlayerNotice(null);
@@ -386,9 +387,9 @@ export function AdminPlayersScreen() {
     const { error } = await supabase
       .from("players")
       .update({
-        phone: String(form.get("phone") || "").trim() || null,
-        age: ageValue ? Number(ageValue) : null,
-        tier: tierValue
+	        phone: String(form.get("phone") || "").trim() || null,
+	        date_of_birth: dateOfBirth || null,
+	        tier: tierValue
       })
       .eq("id", player.id);
 
@@ -459,7 +460,7 @@ export function AdminPlayersScreen() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
                   <AdminPlayerMeta label="Phone" value={player.phone || "Missing"} />
-                  <AdminPlayerMeta label="Age" value={player.age ? String(player.age) : "Not set"} />
+	                  <AdminPlayerMeta label="Age" value={calculateAdminAge(player.date_of_birth) || (player.age ? String(player.age) : "Not set")} />
                   <AdminPlayerMeta label="Tier" value={`Tier ${player.tier || 4}`} />
                   <AdminPlayerMeta label="Rating" value={formatAdminRating(player.rating)} />
                   <AdminPlayerMeta label="Record" value={`${player.tournaments_played}T · ${player.matches_played}M`} />
@@ -490,8 +491,8 @@ export function AdminPlayersScreen() {
                   <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="phone" type="tel" defaultValue={player.phone || ""} placeholder="9999999999" />
                 </label>
                 <label className="grid gap-2 text-[13px] text-text-secondary">
-                  Age
-                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="age" type="number" min="1" max="120" defaultValue={player.age || ""} placeholder="Age" />
+	                  Date of birth
+	                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="dateOfBirth" type="date" max={getAdminTodayDateInputValue()} defaultValue={player.date_of_birth || ""} />
                 </label>
                 <label className="grid gap-2 text-[13px] text-text-secondary">
                   Tier
@@ -562,20 +563,22 @@ export function AdminTournamentsScreen() {
     }
 
     const startDate = String(form.get("startsOn") || "");
+    const endDate = String(form.get("endsOn") || "");
+    const registrationClosesAt = localDateTimeInputToIso(String(form.get("registrationClosesAt") || ""));
     const feeDollars = Number(form.get("fee") || 0);
     const tournamentPayload = {
       name: String(form.get("name") || ""),
       season_year: startDate ? new Date(`${startDate}T00:00:00`).getFullYear() : null,
-      status: String(form.get("status") || "registration_open"),
+      status: deriveAdminTournamentStatus({ startsOn: startDate, endsOn: endDate, registrationClosesAt }),
       venue_name: String(form.get("venueName") || ""),
       venue_address: String(form.get("venueName") || ""),
       venue_maps_url: String(form.get("mapsUrl") || ""),
       starts_on: startDate || null,
-      ends_on: String(form.get("endsOn") || "") || null,
-      registration_closes_at: localDateTimeInputToIso(String(form.get("registrationClosesAt") || "")),
+      ends_on: endDate || null,
+      registration_closes_at: registrationClosesAt,
       registration_fee_cents: Math.round(feeDollars * 100),
       currency: "USD",
-      max_players: Math.max(1, Math.round(Number(form.get("maxPlayers")) || 0)) || 64
+      max_players: null
     };
     const { error } = await supabase.from("tournaments").insert({
       sport_id: sportId,
@@ -679,23 +682,10 @@ export function AdminTournamentsScreen() {
               <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="endsOn" type="date" required />
             </label>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="grid gap-2 text-[13px] text-text-secondary">
-              Registration ends
-              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" required />
-            </label>
-            <label className="grid gap-2 text-[13px] text-text-secondary">
-              Status
-              <select className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="status" defaultValue="registration_open" required>
-                <option value="draft">Draft</option>
-                <option value="registration_open">Registration open</option>
-                <option value="registration_closed">Registration closed</option>
-                <option value="live">Live</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </label>
-          </div>
+          <label className="grid gap-2 text-[13px] text-text-secondary">
+            Registration ends
+            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" required />
+          </label>
           <label className="grid gap-2 text-[13px] text-text-secondary">
             Venue name
             <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="venueName" placeholder="Forest Sports Club" required />
@@ -704,16 +694,10 @@ export function AdminTournamentsScreen() {
             Venue Google Maps URL
             <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" placeholder="https://maps.google.com/..." required />
           </label>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="grid gap-2 text-[13px] text-text-secondary">
-              Tournament fees
-              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" placeholder="121.00" required />
-            </label>
-            <label className="grid gap-2 text-[13px] text-text-secondary">
-              Max players
-              <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="maxPlayers" type="number" min="1" step="1" defaultValue="64" placeholder="64" required />
-            </label>
-          </div>
+          <label className="grid gap-2 text-[13px] text-text-secondary">
+            Tournament fees
+            <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" placeholder="121.00" required />
+          </label>
           <div className="grid gap-2 sm:grid-cols-[auto_auto]">
             <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={creating}>{creating ? "Saving..." : "Create tournament"}</button>
             <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] border-hairline border-line bg-white px-5 text-sm font-medium text-brand" type="button" onClick={cancelTournamentForm} disabled={creating}>Cancel</button>
@@ -726,13 +710,13 @@ export function AdminTournamentsScreen() {
           <article className="grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" key={tournament.id}>
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="grid gap-2">
-                <span className="inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">{formatAdminTournamentStatus(tournament.status)}</span>
+                <span className="inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">{formatAdminTournamentStatus(getAdminTournamentLifecycleStatus(tournament))}</span>
                 <strong className="text-xl font-medium leading-tight tracking-[-0.4px] text-text-primary">{tournament.name}</strong>
                 <em className="text-[14px] not-italic leading-relaxed text-text-secondary">{tournament.venue_name || "Venue TBD"} · {formatAdminDate(tournament.starts_on)} - {formatAdminDate(tournament.ends_on)} · closes {formatAdminDateTime(tournament.registration_closes_at)}</em>
               </div>
               <div className="grid gap-2 md:justify-items-end">
                 <strong className="text-[20px] font-medium text-brand">{formatAdminCurrency(tournament.registration_fee_cents)}</strong>
-                <em className="text-[13px] not-italic text-text-secondary">{tournament.max_players || 64} max players</em>
+                <em className="text-[13px] not-italic text-text-secondary">No player cap</em>
                 <div className="flex flex-wrap gap-2">
                   <Link className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white" href={`/admin/tournaments/${tournament.id}`}>Manage</Link>
                   <button className="tap-card min-h-9 rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d]" type="button" onClick={() => deleteTournament(tournament)}>Delete</button>
@@ -767,7 +751,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .maybeSingle(),
       supabase
         .from("tournament_registrations")
-        .select("tournament_id, players(id, full_name, jamaat_city, age, profile_photo_url, tennis_video_url, tennis_video_status, tier, rating)")
+	        .select("tournament_id, players(id, full_name, jamaat_city, age, date_of_birth, profile_photo_url, tennis_video_url, tennis_video_status, tier, rating)")
         .eq("tournament_id", tournamentId)
         .neq("status", "cancelled")
         .in("payment_status", ["paid", "waived"])
@@ -804,8 +788,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         profilePhotoUrl: player.profile_photo_url || "",
         tennisVideoUrl: player.tennis_video_url || "",
         tennisVideoStatus: player.tennis_video_status || null,
-        age: player.age ? `Age ${player.age}` : "Age not set",
-        tier: Number(player.tier || 4),
+	        age: calculateAdminAge(player.date_of_birth) ? `Age ${calculateAdminAge(player.date_of_birth)}` : player.age ? `Age ${player.age}` : "Age not set",
+	        tier: Number(player.tier || 4),
         rating: player.rating
       }];
     }));
@@ -852,20 +836,23 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     if (!supabase || !tournament) return;
 
     const form = new FormData(event.currentTarget);
+    const startDate = String(form.get("startsOn") || "");
+    const endDate = String(form.get("endsOn") || "");
+    const registrationClosesAt = localDateTimeInputToIso(String(form.get("registrationClosesAt") || ""));
     const feeDollars = Number(form.get("fee") || 0);
     setSaving(true);
     setNotice(null);
     const { error } = await supabase.from("tournaments").update({
       name: String(form.get("name") || ""),
-      status: String(form.get("status") || "registration_open"),
+      status: deriveAdminTournamentStatus({ startsOn: startDate, endsOn: endDate, registrationClosesAt }),
       venue_name: String(form.get("venueName") || ""),
       venue_address: String(form.get("venueName") || ""),
       venue_maps_url: String(form.get("mapsUrl") || ""),
-      starts_on: String(form.get("startsOn") || "") || null,
-      ends_on: String(form.get("endsOn") || "") || null,
-      registration_closes_at: localDateTimeInputToIso(String(form.get("registrationClosesAt") || "")),
+      starts_on: startDate || null,
+      ends_on: endDate || null,
+      registration_closes_at: registrationClosesAt,
       registration_fee_cents: Math.round(feeDollars * 100),
-      max_players: Math.max(1, Math.round(Number(form.get("maxPlayers")) || tournament.max_players || 64))
+      max_players: null
     }).eq("id", tournament.id);
     setSaving(false);
 
@@ -969,23 +956,10 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                   <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="endsOn" type="date" defaultValue={tournament.ends_on || ""} required />
                 </label>
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="grid gap-2 text-[13px] text-text-secondary">
-                  Registration ends
-                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" defaultValue={formatAdminDateTimeInput(tournament.registration_closes_at)} required />
-                </label>
-                <label className="grid gap-2 text-[13px] text-text-secondary">
-                  Status
-                  <select className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="status" defaultValue={tournament.status} required>
-                    <option value="draft">Draft</option>
-                    <option value="registration_open">Registration open</option>
-                    <option value="registration_closed">Registration closed</option>
-                    <option value="live">Live</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </label>
-              </div>
+              <label className="grid gap-2 text-[13px] text-text-secondary">
+                Registration ends
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" defaultValue={formatAdminDateTimeInput(tournament.registration_closes_at)} required />
+              </label>
               <label className="grid gap-2 text-[13px] text-text-secondary">
                 Venue name
                 <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="venueName" defaultValue={tournament.venue_name || ""} required />
@@ -994,16 +968,10 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                 Venue Google Maps URL
                 <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" defaultValue={tournament.venue_maps_url || ""} required />
               </label>
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="grid gap-2 text-[13px] text-text-secondary">
-                  Tournament fees
-                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" defaultValue={tournament.registration_fee_cents / 100} required />
-                </label>
-                <label className="grid gap-2 text-[13px] text-text-secondary">
-                  Max players
-                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="maxPlayers" type="number" min="1" step="1" defaultValue={tournament.max_players || 64} required />
-                </label>
-              </div>
+              <label className="grid gap-2 text-[13px] text-text-secondary">
+                Tournament fees
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" defaultValue={tournament.registration_fee_cents / 100} required />
+              </label>
               <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save details"}</button>
             </form>
           </section>
@@ -1693,6 +1661,21 @@ function formatAdminRating(value: number | null) {
   return typeof value === "number" ? value.toFixed(3) : "Pending";
 }
 
+function getAdminTodayDateInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function calculateAdminAge(dateOfBirth?: string | null) {
+  if (!dateOfBirth) return "";
+  const birthDate = new Date(`${dateOfBirth}T00:00:00`);
+  if (Number.isNaN(birthDate.getTime())) return "";
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const birthdayThisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+  if (today < birthdayThisYear) age -= 1;
+  return age >= 0 ? String(age) : "";
+}
+
 function formatAdminClaimStatus(status: string) {
   return status.replace(/_/g, " ");
 }
@@ -1740,6 +1723,35 @@ function localDateTimeInputToIso(value: string) {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function deriveAdminTournamentStatus({
+  startsOn,
+  endsOn,
+  registrationClosesAt
+}: {
+  startsOn?: string | null;
+  endsOn?: string | null;
+  registrationClosesAt?: string | null;
+}) {
+  const now = new Date();
+  const registrationClose = registrationClosesAt ? new Date(registrationClosesAt) : null;
+  const start = startsOn ? new Date(`${startsOn}T00:00:00`) : null;
+  const end = endsOn ? new Date(`${endsOn}T23:59:59.999`) : null;
+
+  if (end && now > end) return "completed";
+  if (start && now >= start) return "live";
+  if (registrationClose && now > registrationClose) return "registration_closed";
+  return "registration_open";
+}
+
+function getAdminTournamentLifecycleStatus(tournament: Pick<AdminTournament, "status" | "starts_on" | "ends_on" | "registration_closes_at">) {
+  if (tournament.status === "cancelled") return "cancelled";
+  return deriveAdminTournamentStatus({
+    startsOn: tournament.starts_on,
+    endsOn: tournament.ends_on,
+    registrationClosesAt: tournament.registration_closes_at
+  });
 }
 
 async function getAdminTennisSportId() {

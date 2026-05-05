@@ -13,7 +13,7 @@ type ProfileData = {
   id?: string;
   profilePhotoUrl?: string;
   fullName: string;
-  age: string;
+  dateOfBirth: string;
   dominantHand: string;
   selfEvaluation: string;
   jamaatCity: string;
@@ -74,20 +74,43 @@ const skillLevels = [
   { value: "Recreational", label: "Recreational (Casual players with limited experience but passion to play)" }
 ];
 const jamaatCityOptions = [
-  "Chicago",
-  "The Woodlands",
   "Atlanta",
   "Austin",
+  "Bakersfield",
+  "Boston",
+  "Calgary",
+  "Chicago",
+  "Columbus",
+  "Dallas",
   "Detroit",
+  "Edmonton",
   "Houston",
+  "Los Angeles",
+  "Miami",
   "Minneapolis",
   "Mississauga",
-  "Irvine",
+  "Montreal",
   "New Jersey",
+  "New York",
+  "North Carolina",
+  "Orange County",
+  "Ottawa",
   "Philadelphia",
-  "Pittsburgh",
   "Plano",
-  "Vancouver"
+  "Portland",
+  "San Antonio",
+  "San Diego",
+  "San Francisco",
+  "San Jose",
+  "Seattle",
+  "South Carolina",
+  "South Jersey",
+  "Tampa",
+  "The Woodlands",
+  "Toronto",
+  "Vancouver",
+  "Virginia",
+  "Washington, D.C."
 ];
 const videoDescription = "Recommended for draft placement: add a Google Drive link to a short video of you playing. Include your serve, forehand, backhand, volleys, and a few rally points so captains and organizers can evaluate your level for drafts.";
 const aboutAlbumUrl = "https://photos.app.goo.gl/oL2hzcfCT1BYXsiD8";
@@ -105,6 +128,7 @@ type DbProfileRow = {
   full_name?: string | null;
   phone?: string | null;
   age?: number | string | null;
+  date_of_birth?: string | null;
   profile_photo_url?: string | null;
   jamaat_city?: string | null;
   self_assessment?: string | null;
@@ -145,7 +169,7 @@ type DbTournamentRow = {
 
 const initialProfile: ProfileData = {
   fullName: "Mohammed Segval",
-  age: "28",
+  dateOfBirth: "",
   dominantHand: "Right",
   selfEvaluation: "Advanced",
   jamaatCity: "Chicago",
@@ -321,13 +345,31 @@ function buildPlayerCheckPath(nextPath?: string | null, reason?: "rejected", pla
 
 function hasRequiredProfileFields(profile?: DbProfileRow | null) {
   return Boolean(
-    profile?.full_name?.trim() &&
-    profile.phone?.trim() &&
-    String(profile.age || "").trim() &&
-    profile.jamaat_city?.trim() &&
+	    profile?.full_name?.trim() &&
+	    profile.phone?.trim() &&
+	    profile.date_of_birth?.trim() &&
+	    profile.jamaat_city?.trim() &&
     profile.self_assessment?.trim() &&
     profile.jersey_size?.trim()
   );
+}
+
+function getMissingProfileFields(profile?: DbProfileRow | null) {
+  const missing: string[] = [];
+  if (!profile?.full_name?.trim()) missing.push("full name");
+  if (!profile?.phone?.trim()) missing.push("phone number");
+  if (!profile?.date_of_birth?.trim()) missing.push("date of birth");
+  if (!profile?.jamaat_city?.trim()) missing.push("Jamaat / city");
+  if (!profile?.self_assessment?.trim()) missing.push("self evaluation");
+  if (!profile?.jersey_size?.trim()) missing.push("shirt size");
+  return missing;
+}
+
+function formatMissingFields(fields: string[]) {
+  if (!fields.length) return "";
+  if (fields.length === 1) return fields[0];
+  if (fields.length === 2) return `${fields[0]} and ${fields[1]}`;
+  return `${fields.slice(0, -1).join(", ")}, and ${fields[fields.length - 1]}`;
 }
 
 export function AppSessionProvider({ children }: { children: ReactNode }) {
@@ -353,7 +395,7 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
     const [{ data: player }, { data: rejectedClaim }, { data: isAdmin }] = await Promise.all([
       supabase
         .from("players")
-        .select("id, auth_user_id, full_name, phone, age, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played, claim_status, claim_requested_by")
+	        .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played, claim_status, claim_requested_by")
         .or(`auth_user_id.eq.${user.id},claim_requested_by.eq.${user.id}`)
         .limit(1)
         .maybeSingle(),
@@ -443,7 +485,7 @@ function useProtectedRoute(nextPath = "/dashboard", requireCompleteProfile = fal
         return;
       }
 
-      router.replace(buildProfileCompletionPath(appSession.player.id, nextPath));
+	      router.replace(buildProfileCompletionPath(appSession.player.auth_user_id === appSession.userId ? undefined : appSession.player.id, nextPath));
     }
   }, [appSession.player, appSession.profileComplete, appSession.ready, appSession.recentRejectedClaim, appSession.userId, nextPath, requireCompleteProfile, router]);
 
@@ -995,6 +1037,10 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
   const [jamaatCity, setJamaatCity] = useState("");
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const destinationPath = normalizeNextPath(nextPath);
+  const existingProfile = claimedProfile || appSession.player;
+  const missingFields = getMissingProfileFields(existingProfile);
+  const missingSummary = formatMissingFields(missingFields);
+  const isCompletingExistingProfile = Boolean(appSession.player && !appSession.profileComplete && !claimPlayerId);
 
   useEffect(() => {
     if (!appSession.ready || !appSession.userId) return;
@@ -1002,7 +1048,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
     const loadClaimedProfile = async () => {
       const supabase = getSupabaseClient();
       if (!supabase) return;
-      if (!claimPlayerId) return;
+      if (!claimPlayerId && !appSession.player?.id) return;
 
       const user = appSession.user;
       if (!user) {
@@ -1012,8 +1058,8 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
 
       const { data } = await supabase
         .from("players")
-        .select("id, auth_user_id, full_name, phone, age, profile_photo_url, jamaat_city, self_assessment, jersey_size, tennis_video_url, tennis_video_status, claim_status, claim_requested_by")
-        .eq("id", claimPlayerId)
+        .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, jersey_size, tennis_video_url, tennis_video_status, claim_status, claim_requested_by")
+        .eq("id", claimPlayerId || appSession.player?.id)
         .maybeSingle();
       if (data) {
         const belongsToUser = data.claim_requested_by === user.id || data.auth_user_id === user.id;
@@ -1030,7 +1076,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
     };
 
     loadClaimedProfile();
-  }, [appSession.ready, appSession.user, appSession.userId, claimPlayerId, router]);
+  }, [appSession.player?.id, appSession.ready, appSession.user, appSession.userId, claimPlayerId, router]);
 
   const createPlayer = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1052,7 +1098,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
     const profilePayload = {
       full_name: String(form.get("fullName") || "").trim(),
       phone: String(form.get("phone") || "").trim(),
-      age: String(form.get("age") || "").trim(),
+      date_of_birth: String(form.get("dateOfBirth") || "").trim(),
       jamaat_city: String(form.get("jamaatCity") || "").trim(),
       self_assessment: String(form.get("selfAssessment") || "").trim(),
       jersey_size: String(form.get("jerseySize") || "").trim(),
@@ -1062,7 +1108,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
 
     if (!hasRequiredProfileFields(profilePayload)) {
       setLoading(false);
-      setMessage("Please complete your name, phone number, age, shirt size, self evaluation, and Jamaat / City.");
+      setMessage(`Please add ${formatMissingFields(getMissingProfileFields(profilePayload))}.`);
       return;
     }
 
@@ -1073,16 +1119,17 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
       ...(photoUrl ? { profile_photo_url: photoUrl } : {})
     };
 
-    const error = claimPlayerId
+    const existingPlayerId = claimPlayerId || appSession.player?.id;
+    const error = existingPlayerId
       ? (await supabase
           .from("players")
           .update({
             ...savedProfilePayload,
             auth_user_id: user.id,
-            claim_status: "pending",
-            claim_requested_by: user.id
+            claim_status: claimPlayerId ? "pending" : "claimed",
+            ...(claimPlayerId ? { claim_requested_by: user.id } : {})
           })
-          .eq("id", claimPlayerId)
+          .eq("id", existingPlayerId)
           .or(`claim_requested_by.eq.${user.id},auth_user_id.eq.${user.id}`)).error
       : await createNewPlayerProfile(supabase, user.id, savedProfilePayload);
 
@@ -1120,17 +1167,23 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
             </div>
             <div className="relative grid gap-3">
               <OnboardingStep step={3} total={3} label={claimPlayerId ? "Complete claim" : "Create profile"} />
-              <h1 className="max-w-[640px] text-3xl font-medium leading-[1.08] tracking-[-0.4px] text-white">{claimPlayerId ? "Complete your profile." : "New MRSA player."}</h1>
-              <p className="max-w-[560px] text-sm leading-relaxed text-white/65">{claimPlayerId ? "Add the required details so admin can review your profile claim and connect your history." : `Create your profile once. New players start at Tier ${startingTennisTier} with a ${startingTennisRating.toFixed(3)} rating.`}</p>
+              <h1 className="max-w-[640px] text-3xl font-medium leading-[1.08] tracking-[-0.4px] text-white">{isCompletingExistingProfile ? "Complete your profile." : claimPlayerId ? "Complete your profile." : "New MRSA player."}</h1>
+              <p className="max-w-[560px] text-sm leading-relaxed text-white/65">{isCompletingExistingProfile && missingSummary ? `Please add ${missingSummary} before continuing.` : claimPlayerId ? "Add the required details so admin can review your profile claim and connect your history." : `Create your profile once. New players start at Tier ${startingTennisTier} with a ${startingTennisRating.toFixed(3)} rating.`}</p>
             </div>
             <div className="relative mt-4 grid gap-2 rounded-[18px] border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
-              <span className="text-[13px] text-white/60">{claimPlayerId ? "Claimed profile" : "Assigned after signup"}</span>
-              <strong className="text-[20px] font-medium text-white">{claimPlayerId ? "Existing tier and rating kept" : `Tier ${startingTennisTier} · Rating ${startingTennisRating.toFixed(3)}`}</strong>
-              <em className="text-[14px] not-italic text-white/60">{claimPlayerId ? "Admin can approve or reject this claim." : "0 tournaments played · 0 matches played"}</em>
+              <span className="text-[13px] text-white/60">{isCompletingExistingProfile ? "Missing required fields" : claimPlayerId ? "Claimed profile" : "Assigned after signup"}</span>
+              <strong className="text-[20px] font-medium text-white">{isCompletingExistingProfile && missingSummary ? missingSummary : claimPlayerId ? "Existing tier and rating kept" : `Tier ${startingTennisTier} · Rating ${startingTennisRating.toFixed(3)}`}</strong>
+              <em className="text-[14px] not-italic text-white/60">{isCompletingExistingProfile ? "Your profile is saved after these are added." : claimPlayerId ? "Admin can approve or reject this claim." : "0 tournaments played · 0 matches played"}</em>
             </div>
           </section>
 
           <form className="grid gap-4" onSubmit={createPlayer}>
+            {missingFields.length > 0 && (
+              <section className="grid gap-2 rounded-[18px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-4">
+                <strong className="text-[17px] font-medium text-[#8a4a22]">Please add {missingSummary}.</strong>
+                <em className="text-[14px] not-italic leading-relaxed text-[#8a4a22]/80">We need this before you can continue to tournaments and registration.</em>
+              </section>
+            )}
             <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:grid-cols-2 md:p-5">
               <label className="grid gap-2 text-[13px] text-text-secondary">
                 Full name
@@ -1141,8 +1194,8 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
                 <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="phone" type="tel" placeholder="9999999999" defaultValue={claimedProfile?.phone || ""} required />
               </label>
               <label className="grid gap-2 text-[13px] text-text-secondary">
-                Age
-                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="age" type="number" min="1" max="120" placeholder="Age" defaultValue={claimedProfile?.age || ""} required />
+                Date of birth
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="dateOfBirth" type="date" max={getTodayDateInputValue()} defaultValue={existingProfile?.date_of_birth || ""} required />
               </label>
               <label className="grid gap-2 text-[13px] text-text-secondary">
                 Jamaat / city
@@ -1281,7 +1334,7 @@ function JamaatCityCombobox({
                 {city}
               </button>
             ))}
-            {!filteredCities.length && <em className="px-3 py-2 text-[14px] not-italic text-text-secondary">No city matches.</em>}
+	            {!filteredCities.length && <em className="px-3 py-2 text-[14px] not-italic text-text-secondary">No city matches. Choose Other to type it in.</em>}
             <button
               className={`rounded-[10px] px-3 py-2 text-left text-[15px] transition ${mode === "other" ? "bg-brand !text-white" : "!text-text-primary hover:bg-brand-light"}`}
               type="button"
@@ -1289,7 +1342,7 @@ function JamaatCityCombobox({
               aria-selected={mode === "other"}
               onClick={selectOther}
             >
-              Other
+	              Other
             </button>
           </div>
         </div>
@@ -1354,11 +1407,11 @@ function SizeGuideModal({
 async function createNewPlayerProfile(
   supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
   userId: string,
-  profilePayload: {
-    full_name: string;
-    phone: string;
-    age: string;
-    jamaat_city: string;
+	  profilePayload: {
+	    full_name: string;
+	    phone: string;
+	    date_of_birth: string;
+	    jamaat_city: string;
     self_assessment: string;
     jersey_size: string;
     tennis_video_url: string;
@@ -1409,7 +1462,7 @@ export function HomeScreen() {
           .from("tournaments")
           .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
           .gte("starts_on", today)
-          .in("status", ["registration_open", "live"])
+	          .in("status", ["registration_open", "registration_closed", "live"])
           .order("starts_on")
           .limit(1)
           .maybeSingle(),
@@ -1601,7 +1654,7 @@ export function DrawScreen() {
       supabase
       .from("tournaments")
       .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
-      .in("status", ["registration_open", "live"])
+	      .in("status", ["registration_open", "registration_closed", "live"])
       .order("starts_on", { ascending: false })
       .limit(1)
         .maybeSingle(),
@@ -1840,8 +1893,9 @@ export function DrawScreen() {
     await continueRegistrationCheckout();
   };
 
-  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
-  const paymentPending = paymentState === "pending";
+	  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+	  const paymentPending = paymentState === "pending";
+	  const registrationOpen = tournament?.status === "registration_open";
 
   return (
     <AppFrame active="tournament">
@@ -1879,7 +1933,7 @@ export function DrawScreen() {
             {tournament && (
               <div className="relative mt-5 grid gap-4 rounded-[20px] border-hairline border-white/20 bg-white/[0.13] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-xl md:mt-0">
                 <p className="text-[14px] leading-relaxed text-white/70">
-                  {registered ? "You are registered for this tournament." : paymentPending ? "Stripe is confirming this payment. Please do not retry yet." : `Upload your video, pay ${formatCurrency(tournament.registrationFeeCents)}, and confirm your spot.`}
+	                  {registered ? "You are registered for this tournament." : paymentPending ? "Stripe is confirming this payment. Please do not retry yet." : registrationOpen ? `Upload your video, pay ${formatCurrency(tournament.registrationFeeCents)}, and confirm your spot.` : "Registration is closed. Tournament details and registered players remain available here."}
                 </p>
                 {registered ? (
                   <div className="grid gap-2">
@@ -1892,10 +1946,10 @@ export function DrawScreen() {
                 ) : (
                   <RegistrationCountdown closesAt={tournament.registrationClosesAt} daysOnly />
                 )}
-                <button className={registered ? "tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-100" : "tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-70"} type="button" onClick={registerForTournament} disabled={paying || registered || paymentPending}>
-                  {registered && <CheckCircle2 size={16} />}
-                  {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState })}
-                  {!registered && !paymentPending && " →"}
+	                <button className={registered ? "tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-100" : "tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-70"} type="button" onClick={registerForTournament} disabled={paying || registered || paymentPending || !registrationOpen}>
+	                  {registered && <CheckCircle2 size={16} />}
+	                  {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen })}
+	                  {!registered && !paymentPending && registrationOpen && " →"}
                 </button>
                 {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">Checking payment. Do not start another payment until this updates.</p>}
               </div>
@@ -2010,7 +2064,7 @@ export function RegisteredPlayersScreen() {
     const { data: tournamentData, error } = await supabase
       .from("tournaments")
       .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
-      .in("status", ["registration_open", "live"])
+	      .in("status", ["registration_open", "registration_closed", "live"])
       .order("starts_on", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -2380,7 +2434,7 @@ export function PlayerScreen() {
 
       const { data } = await supabase
         .from("players")
-        .select("id, full_name, phone, age, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played")
+	        .select("id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played")
         .eq("auth_user_id", appSession.userId)
         .maybeSingle();
 
@@ -2428,9 +2482,9 @@ export function PlayerScreen() {
     const { error } = await supabase
       .from("players")
       .update({
-        full_name: profile.fullName,
-        age: profile.age ? Number(profile.age) : null,
-        dominant_hand: profile.dominantHand,
+	        full_name: profile.fullName,
+	        date_of_birth: profile.dateOfBirth || null,
+	        dominant_hand: profile.dominantHand,
         self_assessment: profile.selfEvaluation,
         jamaat_city: profile.jamaatCity,
         jersey_size: profile.jerseySize,
@@ -2557,7 +2611,7 @@ export function PlayerScreen() {
             )}
             <div className="grid gap-3 md:grid-cols-2">
               <ProfileField label="Full Name" value={profile.fullName} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("fullName", value)} inputRef={firstEditableFieldRef} />
-              <ProfileField label="Age" value={profile.age} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("age", value)} />
+	              <ProfileField label="Date of birth" value={profile.dateOfBirth} displayValue={profile.dateOfBirth ? `${formatDateOfBirth(profile.dateOfBirth)} · Age ${calculateAge(profile.dateOfBirth)}` : "Not set"} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("dateOfBirth", value)} inputType="date" max={getTodayDateInputValue()} />
               <ProfileField label="Dominant Hand" value={profile.dominantHand} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("dominantHand", value)} />
               <ProfileField label="Self Evaluation" value={profile.selfEvaluation} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("selfEvaluation", value)} />
               <article className={isEditing ? "grid gap-2 rounded-[14px] border-hairline border-[#bdd7aa] bg-white p-4" : "grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"}>
@@ -2657,7 +2711,7 @@ function mapProfile(row: DbProfileRow): ProfileData {
     id: row.id,
     profilePhotoUrl: row.profile_photo_url || "",
     fullName: row.full_name || "Player",
-    age: row.age ? String(row.age) : "",
+	    dateOfBirth: row.date_of_birth || "",
     dominantHand: row.dominant_hand || initialProfile.dominantHand,
     selfEvaluation: normalizeSkillLevel(row.self_assessment) || initialProfile.selfEvaluation,
     jamaatCity: row.jamaat_city || initialProfile.jamaatCity,
@@ -2675,7 +2729,7 @@ function mapTournament(row: DbTournamentRow): Tournament {
     id: row.id,
     name: row.name,
     seasonYear: row.season_year,
-    status: row.status,
+    status: getTournamentLifecycleStatus(row),
     venueName: row.venue_name || "",
     venueAddress: row.venue_address || "",
     venueMapsUrl: row.venue_maps_url || "",
@@ -2687,10 +2741,44 @@ function mapTournament(row: DbTournamentRow): Tournament {
   };
 }
 
+function getTournamentLifecycleStatus(row: Pick<DbTournamentRow, "status" | "starts_on" | "ends_on" | "registration_closes_at">) {
+  if (row.status === "cancelled") return "cancelled";
+  const now = new Date();
+  const registrationClose = row.registration_closes_at ? new Date(row.registration_closes_at) : null;
+  const start = row.starts_on ? new Date(`${row.starts_on}T00:00:00`) : null;
+  const end = row.ends_on ? new Date(`${row.ends_on}T23:59:59.999`) : null;
+
+  if (end && now > end) return "completed";
+  if (start && now >= start) return "live";
+  if (registrationClose && now > registrationClose) return "registration_closed";
+  return "registration_open";
+}
+
 function formatRating(value: unknown) {
   if (value === null || value === undefined || value === "") return "Pending";
   const rating = Number(value);
   return Number.isFinite(rating) ? rating.toFixed(3) : String(value);
+}
+
+function getTodayDateInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function calculateAge(dateOfBirth?: string | null) {
+  if (!dateOfBirth) return "";
+  const birthDate = new Date(`${dateOfBirth}T00:00:00`);
+  if (Number.isNaN(birthDate.getTime())) return "";
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const birthdayThisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+  if (today < birthdayThisYear) age -= 1;
+  return age >= 0 ? String(age) : "";
+}
+
+function formatDateOfBirth(dateOfBirth: string) {
+  const date = new Date(`${dateOfBirth}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateOfBirth;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function normalizeSkillLevel(value?: string | null) {
@@ -2763,16 +2851,19 @@ function formatRegistrationClose(value: string | null) {
 function getRegistrationButtonLabel({
   registered,
   paying,
-  paymentState
+  paymentState,
+  registrationOpen
 }: {
   registered: boolean;
   paying: boolean;
   paymentState: PaymentState;
+  registrationOpen: boolean | undefined;
 }) {
   if (registered || paymentState === "paid") return "Registered";
   if (paying) return "Opening payment...";
   if (paymentState === "failed") return "Retry payment";
   if (paymentState === "pending") return "Checking payment...";
+  if (!registrationOpen) return "Registration closed";
   return "Pay and register";
 }
 
@@ -2974,28 +3065,34 @@ function getInitials(name: string) {
 function ProfileField({
   label,
   value,
+  displayValue,
   helper,
   editing = false,
   onEdit,
   onChange,
-  inputRef
+  inputRef,
+  inputType = "text",
+  max
 }: {
   label: string;
   value: string;
+  displayValue?: string;
   helper?: ReactNode;
   editing?: boolean;
   onEdit?: () => void;
   onChange?: (value: string) => void;
   inputRef?: React.Ref<HTMLInputElement>;
+  inputType?: string;
+  max?: string;
 }) {
   return (
     <article className={editing ? "grid gap-2 rounded-[14px] border-hairline border-[#bdd7aa] bg-white p-4 shadow-[0_8px_20px_rgba(12,59,32,0.04)]" : "grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"}>
       <span className="text-[13px] text-text-secondary">{label}</span>
       {editing ? (
-        <input ref={inputRef} className="min-h-11 rounded-[12px] border-hairline border-brand bg-white px-3 text-[16px] text-text-primary outline-none transition ring-2 ring-brand-light placeholder:text-text-muted focus:border-brand focus:ring-4 focus:ring-brand-light" value={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} />
+        <input ref={inputRef} className="min-h-11 rounded-[12px] border-hairline border-brand bg-white px-3 text-[16px] text-text-primary outline-none transition ring-2 ring-brand-light placeholder:text-text-muted focus:border-brand focus:ring-4 focus:ring-brand-light" value={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} type={inputType} max={max} />
       ) : (
         <button className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-left" type="button" onClick={onEdit}>
-          <strong className="break-words text-[17px] font-medium text-text-primary">{value || "Not set"}</strong>
+          <strong className="break-words text-[17px] font-medium text-text-primary">{displayValue || value || "Not set"}</strong>
           <Pencil className="text-text-muted" size={14} aria-hidden="true" />
         </button>
       )}
