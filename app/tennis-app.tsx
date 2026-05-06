@@ -114,15 +114,6 @@ const jamaatCityOptions = [
   "Washington, D.C."
 ];
 const videoDescription = "Recommended for draft placement: add a Google Drive link to a short video of you playing. Include your serve, forehand, backhand, volleys, and a few rally points so captains and organizers can evaluate your level for drafts.";
-const aboutAlbumUrl = "https://photos.app.goo.gl/oL2hzcfCT1BYXsiD8";
-const aboutGalleryImages = [
-  { src: "/images/about-gallery/mrsa-gallery-01.webp", alt: "MRSA tournament players gathered on court.", caption: "Tournament community" },
-  { src: "/images/about-gallery/mrsa-gallery-02.webp", alt: "MRSA tennis player competing during a match.", caption: "Match play" },
-  { src: "/images/about-gallery/mrsa-gallery-03.webp", alt: "MRSA players meeting between tournament matches.", caption: "Player network" },
-  { src: "/images/about-gallery/mrsa-gallery-04.webp", alt: "MRSA tournament participant at the event.", caption: "Event day" },
-  { src: "/images/about-gallery/mrsa-gallery-05.webp", alt: "MRSA players during organized tennis play.", caption: "Organized play" },
-  { src: "/images/about-gallery/mrsa-gallery-06.webp", alt: "MRSA community members at a tournament venue.", caption: "Community moments" }
-];
 type DbProfileRow = {
   id?: string;
   auth_user_id?: string | null;
@@ -566,17 +557,15 @@ export function LoginScreen({ nextPath }: { nextPath?: string }) {
                   </span>
                 </span>
                 <div className="grid gap-2">
-                  <span className="mx-auto inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-caption text-white/72">MRSA player access</span>
-                  <h1 className="max-w-[320px] text-[32px] font-medium leading-[1.05] text-white md:text-[36px]">Sign in to your tournament profile.</h1>
-                  <p className="mx-auto max-w-[300px] text-[15px] leading-relaxed text-white/68">Request a one-time code to access tournaments, ratings, and your MRSA player record.</p>
+                  <h1 className="max-w-[320px] text-[32px] font-medium leading-[1.05] text-white md:text-[36px]">Sign in to your MRSA profile</h1>
                 </div>
               </div>
             </div>
 
             <div className="relative z-10 grid gap-5 bg-white px-6 py-6 md:px-8 md:py-7">
               <div className="grid gap-1 text-center">
-                <h2 className="text-h1 text-text-primary">Welcome, player</h2>
-                <p className="text-body text-text-secondary">Use the email connected to your MRSA profile.</p>
+                <h2 className="text-h1 text-text-primary">Welcome</h2>
+                <p className="text-body text-text-secondary">First time? Use an email you prefer to set up your profile. Already signed up? Sign in with the same email and stay logged in to skip authentication next time.</p>
               </div>
               <form className="grid gap-4" onSubmit={sendOtp}>
                 <label className="grid gap-2 text-caption text-text-secondary" htmlFor="email">
@@ -592,10 +581,6 @@ export function LoginScreen({ nextPath }: { nextPath?: string }) {
                 </button>
                 {message && <StatusMessage tone={message.includes("sent") ? "success" : "error"}>{message}</StatusMessage>}
               </form>
-              <div className="grid gap-2 border-t-hairline border-line pt-4 text-center text-[14px] text-text-secondary">
-                <Link className="inline-block w-auto font-medium text-brand" href="/about">About MRSA</Link>
-                <span>One account for tournaments, ratings, and player history.</span>
-              </div>
             </div>
 	        </section>
 	        </main>
@@ -1654,7 +1639,7 @@ export function HomeScreen() {
               <span className="grid gap-2">
                 <span className="text-[13px] text-text-secondary">What is MRSA?</span>
                 <strong className="text-lg font-medium leading-tight text-brand">Mumineen Racquet Sports Association</strong>
-                <em className="text-[15px] not-italic leading-relaxed text-text-secondary">MRSA brings Mumineen tennis players together through organized tournaments, rankings, match play, and community events.</em>
+                <em className="text-[15px] not-italic leading-relaxed text-text-secondary">A North America-wide community bringing together women through a shared passion for racquet sports — tennis, TT, badminton, and pickleball.</em>
               </span>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] text-white shadow-[0_12px_24px_rgba(12,59,32,0.18)]" aria-hidden="true">
                 <ArrowRight size={18} />
@@ -2354,67 +2339,12 @@ export function AboutScreen() {
             <div className="relative grid gap-3">
               <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-caption text-white/75">About MRSA</span>
               <h1 className="max-w-[680px] text-display text-white md:text-[40px]">Mumineen Racquet Sports Association</h1>
-              <p className="max-w-[620px] text-body text-white/72">MRSA brings Mumineen racquet-sports players together through organized tournaments, ratings, registered events, and a stronger competitive community.</p>
+              <p className="max-w-[620px] text-body text-white/72">A North America-wide community bringing together women through a shared passion for racquet sports — tennis, TT, badminton, and pickleball.</p>
             </div>
             <div className="relative mt-5 grid gap-3 rounded-surface border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
-              <span className="text-caption text-white/55">Established</span>
-              <strong className="text-h1 text-white">2023</strong>
-              <p className="text-caption text-white/68">Built for players across North America who want organized match play, fair ratings, and community-first tournaments.</p>
+              <span className="text-caption text-white/55">Events</span>
+              <strong className="text-h1 text-white">1</strong>
             </div>
-          </section>
-
-          <section className="grid gap-3 md:grid-cols-3">
-            <article className="grid gap-2 rounded-surface border-hairline border-line bg-card p-4 md:p-5">
-              <span className="text-caption text-text-secondary">Purpose</span>
-              <h2 className="text-h2 text-text-primary">Build a competitive but welcoming tennis community.</h2>
-              <p className="text-body text-text-secondary">Players can discover events, register for tournaments, view ratings, and stay connected through one shared MRSA platform.</p>
-            </article>
-            <article className="grid gap-2 rounded-surface border-hairline border-line bg-card p-4 md:p-5">
-              <span className="text-caption text-text-secondary">Ratings</span>
-              <h2 className="text-h2 text-text-primary">Rankings make tournament play easier to organize.</h2>
-              <p className="text-body text-text-secondary">MRSA ratings help group players fairly, track progress over time, and create better matchups for future events.</p>
-            </article>
-            <article className="grid gap-2 rounded-surface border-hairline border-line bg-card p-4 md:p-5">
-              <span className="text-caption text-text-secondary">Community</span>
-              <h2 className="text-h2 text-text-primary">A place for players to meet, compete, and improve.</h2>
-              <p className="text-body text-text-secondary">The goal is simple: more organized play, better tournaments, and a stronger Mumineen racquet-sports network.</p>
-            </article>
-          </section>
-
-          <section className="grid gap-3 rounded-surface border-hairline border-line bg-card p-4 md:p-5" aria-labelledby="about-album-title">
-            <div className="grid gap-1">
-              <span className="text-caption text-text-secondary">Photo album</span>
-              <h2 id="about-album-title" className="text-h2 text-text-primary">A look inside MRSA events.</h2>
-              <p className="text-body text-text-secondary">Swipe through a few moments from recent tournament play, then open the full album for the complete set.</p>
-            </div>
-            <div className="-mx-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-5 md:px-5">
-              <div className="flex snap-x snap-mandatory gap-3">
-                {aboutGalleryImages.map((image) => (
-                  <figure className="w-[72vw] max-w-[280px] shrink-0 snap-start overflow-hidden rounded-card border-hairline border-line bg-surface shadow-card" key={image.src}>
-                    <span className="relative block aspect-[4/3] bg-surface">
-                      <NextImage src={image.src} alt={image.alt} fill sizes="(max-width: 768px) 72vw, 280px" className="object-cover" loading="lazy" />
-                    </span>
-                    <figcaption className="px-3 py-2 text-caption text-text-secondary">{image.caption}</figcaption>
-                  </figure>
-                ))}
-                <a className="tap-card grid w-[72vw] max-w-[280px] shrink-0 snap-start content-between rounded-card border-hairline border-line bg-brand p-4 text-white shadow-card" href={aboutAlbumUrl} target="_blank" rel="noreferrer">
-                  <span className="grid gap-2">
-                    <span className="text-caption text-white/65">Full album</span>
-                    <strong className="text-h2 text-white">Open the complete Google Photos album.</strong>
-                  </span>
-                  <span className="mt-8 inline-flex items-center gap-2 text-sm font-medium text-white">View album <ArrowRight size={16} /></span>
-                </a>
-              </div>
-            </div>
-          </section>
-
-          <section className="grid gap-3 rounded-surface border-hairline border-line bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
-            <div className="grid gap-2">
-              <span className="text-caption text-text-secondary">Ready to play?</span>
-              <h2 className="text-h2 text-brand">View the latest tournament and registered players.</h2>
-              <p className="text-body text-text-secondary">Tournament details, registration timing, payment status, and player lists are updated directly in the app.</p>
-            </div>
-            <Link className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white" href="/tournaments">View tournaments →</Link>
           </section>
         </main>
       </div>
