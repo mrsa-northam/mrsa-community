@@ -20,6 +20,7 @@
   --clay: #D06D3D;
   --sky: #EDF8FF;
   --shadow: 0 18px 42px rgba(18, 55, 47, 0.11);
+  --font-serif: "DM Serif Display", Georgia, serif;
 }
 
 * {
@@ -5449,6 +5450,23 @@ body,
   font-size: 13px;
 }
 
+.tournament-video-modal {
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+.tournament-video-form-column {
+  max-height: 100%;
+  padding-bottom: calc(var(--bottom-nav-height, 64px) + 80px);
+}
+
+@supports not (height: 100dvh) {
+  .tournament-video-modal {
+    height: 100vh;
+    min-height: 100vh;
+  }
+}
+
 .bottom-nav {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
@@ -5800,4 +5818,9 @@ body,
   .bottom-nav:active {
     transform: translateX(50%);
   }
+}
+
+.testimonial-sheet {
+  max-height: 85vh;
+  max-height: 85dvh;
 }
