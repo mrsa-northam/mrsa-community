@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, Home, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, Home, Info, LogIn, LogOut, Mail, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -247,8 +247,9 @@ function AppTopBar({
         </Link>
         <span aria-hidden="true" />
         <span aria-hidden="true" />
-        <Link className="tap-card grid h-11 w-11 place-items-center justify-self-end" href="/profile" aria-label={`${name} profile`}>
-          <Avatar className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-brand text-[15px] font-medium text-white shadow-[0_8px_22px_rgba(24,24,26,0.10)]" name={name} photoUrl={photoUrl} />
+        <Link className="tap-card inline-flex min-h-9 items-center gap-1.5 justify-self-end rounded-full border-[0.5px] border-line bg-white/70 px-1.5 py-1 shadow-[0_8px_22px_rgba(24,24,26,0.08)]" href="/profile" aria-label={`${name} profile`}>
+          <Avatar className="relative grid h-6 w-6 place-items-center overflow-hidden rounded-full bg-brand text-[11px] font-medium text-white" name={name} photoUrl={photoUrl} />
+          <ChevronDown size={12} className="text-text-secondary" aria-hidden="true" />
         </Link>
       </div>
     </header>
@@ -1753,7 +1754,7 @@ export function DrawScreen() {
         id: row.player_id,
         name: player?.full_name || "Player",
         city: player?.jamaat_city || "MRSA",
-        rating: formatRating(player?.rating)
+        rating: formatRegisteredPlayerRating(player?.rating)
       };
     }));
 
@@ -1953,6 +1954,7 @@ export function DrawScreen() {
 	  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 	  const paymentPending = paymentState === "pending";
 	  const registrationOpen = tournament?.status === "registration_open";
+    const registeredPlayerCountLabel = `${registeredPlayers.length} ${registeredPlayers.length === 1 ? "player" : "players"}`;
 
   return (
     <AppFrame active="tournament">
@@ -1978,20 +1980,19 @@ export function DrawScreen() {
               <p className="max-w-[680px] text-[18px] font-medium text-white/78">{tournament ? formatTournamentDates(tournament) : "No live tournament is open right now."}</p>
               {tournament && (
                 <div className="grid gap-2 pt-2 sm:grid-cols-2">
-                  <span className="rounded-card border-hairline border-white/10 bg-white/10 p-3 backdrop-blur"><b className="block text-[12px] font-normal text-white/55">Venue</b><strong className="block truncate text-[14px] font-medium text-white">{tournament.venueName || "Venue TBD"}</strong></span>
-                  <span className="rounded-card border-hairline border-white/10 bg-white/10 p-3 backdrop-blur"><b className="block text-[12px] font-normal text-white/55">Fee</b><strong className="block text-[14px] font-medium text-white">{formatCurrency(tournament.registrationFeeCents)}</strong></span>
-                  <a className="tap-card inline-flex min-h-10 items-center justify-center gap-1.5 rounded-card border-hairline border-white/15 bg-white/12 px-3 text-[14px] font-medium text-white backdrop-blur sm:col-span-2 sm:w-max" href={tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueAddress || tournament.venueName || "")}`} target="_blank" rel="noreferrer">
-                    <MapPin size={14} />
-                    Open venue in Maps
-                  </a>
+                  <span className="rounded-card border-hairline border-white/10 bg-white/10 p-3 backdrop-blur">
+                    <b className="block text-[12px] font-normal text-white/55">Venue</b>
+                    <strong className="block truncate text-[15px] font-medium text-white">{tournament.venueName || "Venue TBD"}</strong>
+                    <a className="tap-card mt-1 inline-flex items-center gap-1 text-[13px] text-[#C8F0D6] underline underline-offset-2" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueName || "")}`} target="_blank" rel="noreferrer">
+                      Open venue in Maps
+                      <span className="text-[11px] leading-none" aria-hidden="true">↗</span>
+                    </a>
+                  </span>
                 </div>
               )}
             </div>
             {tournament && (
-              <div className="relative mt-5 grid gap-4 rounded-[20px] border-hairline border-white/20 bg-white/[0.13] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-xl md:mt-0">
-                <p className="text-[14px] leading-relaxed text-white/70">
-	                  {registered ? "You are registered for this tournament." : paymentPending ? "Stripe is confirming this payment. Please do not retry yet." : registrationOpen ? `Upload your video, pay ${formatCurrency(tournament.registrationFeeCents)}, and confirm your spot.` : "Registration is closed. Tournament details and registered players remain available here."}
-                </p>
+              <div className="relative mt-5 grid gap-3 md:mt-0">
                 {registered ? (
                   <div className="grid gap-2">
                     <article className="rounded-card border-hairline border-white/10 bg-white/10 px-3 py-2.5 text-white" aria-label="Tournament date">
@@ -2003,10 +2004,9 @@ export function DrawScreen() {
                 ) : (
                   <RegistrationCountdown closesAt={tournament.registrationClosesAt} daysOnly />
                 )}
-	                <button className={registered ? "tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-100" : "tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70 disabled:opacity-70"} type="button" onClick={registerForTournament} disabled={paying || registered || paymentPending || !registrationOpen}>
+	                <button className={registered ? "tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-100" : "tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-70"} type="button" onClick={registerForTournament} disabled={paying || registered || paymentPending || !registrationOpen}>
 	                  {registered && <CheckCircle2 size={16} />}
-	                  {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen })}
-	                  {!registered && !paymentPending && registrationOpen && " →"}
+	                  {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
                 </button>
                 {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">Checking payment. Do not start another payment until this updates.</p>}
               </div>
@@ -2022,9 +2022,12 @@ export function DrawScreen() {
           <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 pt-2">
             <h2 className="text-[15px] font-medium text-text-primary">Registered players</h2>
             {registeredPlayers.length > 10 ? (
-              <Link className="tap-card justify-self-end whitespace-nowrap text-[14px] font-medium text-brand" href="/tournaments/players">View all →</Link>
+              <span className="inline-flex items-center gap-2 justify-self-end whitespace-nowrap">
+                <span className="text-[13px] text-text-secondary">{registeredPlayerCountLabel}</span>
+                <Link className="tap-card text-[14px] font-medium text-brand" href="/tournaments/players">View all →</Link>
+              </span>
             ) : (
-              <span className="text-[13px] text-text-secondary">{registeredPlayers.length} players</span>
+              <span className="text-[13px] text-text-secondary">{registeredPlayerCountLabel}</span>
             )}
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -2033,7 +2036,7 @@ export function DrawScreen() {
                 <span className={index % 5 === 0 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fde9dc] text-[13px] font-medium text-[#a94d24]" : index % 5 === 1 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#e5f1ff] text-[13px] font-medium text-[#185fa5]" : index % 5 === 2 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fbe7ef] text-[13px] font-medium text-[#aa3f6b]" : "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#f1efe8] text-[13px] font-medium text-[#5f5e5a]"}>{getInitials(player.name)}</span>
                 <div className="grid min-w-0 gap-1">
                   <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
-                  <em className="truncate text-[13px] not-italic text-text-secondary">City: {player.city}</em>
+                  <em className="truncate text-[13px] not-italic text-text-secondary">{player.city}</em>
                 </div>
                 <span className="grid justify-items-end gap-1">
                   <strong className="text-[15px] font-medium leading-none text-brand">{player.rating}</strong>
@@ -2041,6 +2044,7 @@ export function DrawScreen() {
                 </span>
               </article>
             ))}
+            {!loading && registeredPlayers.length === 1 && <p className="rounded-[14px] border-hairline border-dashed border-line bg-surface p-3 text-[13px] leading-relaxed text-text-secondary md:col-span-2">Be one of the first to join — claim your spot above.</p>}
             {loading && !registeredPlayers.length && Array.from({ length: 4 }).map((_, index) => <SkeletonRow key={index} />)}
             {!loading && !registeredPlayers.length && <StatusMessage tone="info">No players registered yet.</StatusMessage>}
           </div>
@@ -2065,8 +2069,8 @@ export function DrawScreen() {
         </section>
         </main>
         {showVideoPrompt && (
-          <div className="fixed inset-0 z-50 grid place-items-end bg-black/35 px-3 pb-3 pt-16 backdrop-blur-sm sm:place-items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="tournament-video-title">
-            <section className="relative grid w-full max-w-[520px] gap-4 rounded-[24px] border-hairline border-white/80 bg-white/90 p-5 shadow-[0_24px_80px_rgba(24,24,26,0.22)] backdrop-blur-xl">
+          <div className="tournament-video-modal fixed inset-0 z-50 grid place-items-end overflow-y-auto bg-black/35 px-3 pb-3 pt-16 backdrop-blur-sm sm:place-items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="tournament-video-title">
+            <section className="tournament-video-form-column relative grid w-full max-w-[520px] gap-4 overflow-y-auto rounded-[24px] border-hairline border-white/80 bg-white/90 p-5 shadow-[0_24px_80px_rgba(24,24,26,0.22)] backdrop-blur-xl">
               <button className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full border-hairline border-line bg-white text-text-secondary shadow-[0_8px_18px_rgba(24,24,26,0.08)] transition active:scale-95 disabled:opacity-60" type="button" onClick={() => setShowVideoPrompt(false)} disabled={savingVideoLink || paying} aria-label="Back to tournament">
                 <X size={16} />
               </button>
@@ -2788,6 +2792,13 @@ function formatRating(value: unknown) {
   return Number.isFinite(rating) ? rating.toFixed(3) : String(value);
 }
 
+function formatRegisteredPlayerRating(value: unknown) {
+  if (value === null || value === undefined || value === "") return "Pending";
+  const rating = Number(value);
+  if (!Number.isFinite(rating)) return String(value);
+  return (Math.trunc(rating * 1000) / 1000).toFixed(3);
+}
+
 function getTodayDateInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -2880,19 +2891,21 @@ function getRegistrationButtonLabel({
   registered,
   paying,
   paymentState,
-  registrationOpen
+  registrationOpen,
+  registrationFeeCents
 }: {
   registered: boolean;
   paying: boolean;
   paymentState: PaymentState;
   registrationOpen: boolean | undefined;
+  registrationFeeCents: number;
 }) {
   if (registered || paymentState === "paid") return "Registered";
   if (paying) return "Opening payment...";
-  if (paymentState === "failed") return "Retry payment";
+  if (paymentState === "failed") return `Retry ${formatCurrency(registrationFeeCents)} payment`;
   if (paymentState === "pending") return "Checking payment...";
   if (!registrationOpen) return "Registration closed";
-  return "Pay and register";
+  return `Pay ${formatCurrency(registrationFeeCents)} and register →`;
 }
 
 function HomeRegistrationCountdown({ closesAt }: { closesAt: string | null }) {
@@ -2946,10 +2959,10 @@ function RegistrationCountdown({ closesAt, daysOnly = false, compact = false }: 
 
   if (daysOnly) {
     return (
-      <article className="rounded-card border-hairline border-white/10 bg-white/10 px-3 py-2 text-white" aria-label="Registration close date">
-        <span className="text-[13px] text-current opacity-60">{remaining.expired ? "Registration closed" : "Registration closes in"}</span>
-        <strong className="block text-[24px] font-medium leading-tight text-current tabular-nums">{remaining.expired ? "Closed" : `${dayCount} ${dayLabel}`}</strong>
-      </article>
+      <div className="flex items-center justify-between gap-3 text-white" aria-label="Registration close date">
+        <span className="text-[12px] text-current opacity-[0.85]">{remaining.expired ? "Registration closed" : "Registration closes in"}</span>
+        <strong className="rounded-full bg-white/12 px-[10px] py-[3px] text-[13px] font-medium leading-tight text-current tabular-nums">{remaining.expired ? "Closed" : `${dayCount} ${dayLabel}`}</strong>
+      </div>
     );
   }
 
@@ -3141,22 +3154,24 @@ function BottomNav({ active, showAdmin }: { active: Tab; showAdmin: boolean }) {
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-50 grid border-t-hairline border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,255,255,0.72))] px-4 py-3 shadow-[0_-18px_44px_rgba(24,24,26,0.08)] backdrop-blur-2xl md:inset-x-6 md:bottom-4 md:mx-auto md:max-w-shell md:rounded-[24px] md:border-hairline md:shadow-[0_18px_50px_rgba(24,24,26,0.12)] lg:left-1/2 lg:right-auto lg:w-[min(760px,calc(100vw-64px))] lg:-translate-x-1/2"
-      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`, paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}
       aria-label="Primary mobile navigation"
     >
       {tabs.map(({ id, href, label, icon: Icon }) => (
-        <Link className={active === id ? "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] bg-white/45 text-brand" : "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#b6b1a8]"} href={href} key={id}>
-          {id === "profile" ? (
-            <Avatar
-              className="relative grid h-5 w-5 place-items-center overflow-hidden rounded-full bg-brand text-[10px] font-medium text-white"
-              name={appSession.player?.full_name || "Profile"}
-              photoUrl={appSession.player?.profile_photo_url || undefined}
-            />
-          ) : (
-            <Icon size={20} strokeWidth={active === id ? 2.2 : 1.7} />
-          )}
-          <span className={active === id ? "text-[12px] font-medium leading-none" : "text-[12px] font-normal leading-none"}>{label}</span>
-          <span className={active === id ? "h-1 w-1 rounded-full bg-brand" : "h-1 w-1 rounded-full bg-transparent"} />
+        <Link className={active === id ? "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#1d6e3a]" : "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#b6b1a8]"} href={href} key={id}>
+          <span className={active === id ? "inline-flex items-center gap-1.5 rounded-full bg-[#E6F3EA] px-[10px] py-1 text-[#1d6e3a]" : "grid place-items-center gap-1"}>
+            {id === "profile" ? (
+              <Avatar
+                className="relative grid h-5 w-5 place-items-center overflow-hidden rounded-full bg-brand text-[10px] font-medium text-white"
+                name={appSession.player?.full_name || "Profile"}
+                photoUrl={appSession.player?.profile_photo_url || undefined}
+              />
+            ) : (
+              <Icon size={20} strokeWidth={active === id ? 2.2 : 1.7} />
+            )}
+            <span className={active === id ? "text-[12px] font-medium leading-none" : "text-[12px] font-normal leading-none"}>{label}</span>
+          </span>
+          <span className="h-1 w-1 rounded-full bg-transparent" />
         </Link>
       ))}
     </nav>
