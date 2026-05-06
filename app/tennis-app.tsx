@@ -1262,10 +1262,12 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
 
 function JamaatCityCombobox({
   value,
-  onChange
+  onChange,
+  triggerRef
 }: {
   value: string;
   onChange: (city: string) => void;
+  triggerRef?: React.Ref<HTMLButtonElement>;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -1319,6 +1321,7 @@ function JamaatCityCombobox({
     >
       <input name="jamaatCity" type="hidden" value={value} />
       <button
+        ref={triggerRef}
         className={`grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] !border-hairline !border-line bg-white px-3 text-left text-[16px] outline-none transition hover:!border-line-strong focus:!border-brand focus:ring-2 focus:ring-brand-light ${value ? "!text-text-primary" : "!text-text-muted"}`}
         style={{ border: "0.5px solid var(--color-border)" }}
         type="button"
@@ -2381,14 +2384,15 @@ export function PlayerScreen() {
   const router = useRouter();
   const appSession = useProtectedRoute("/profile", true);
   const [isEditing, setIsEditing] = useState(false);
+  const [editFocusField, setEditFocusField] = useState<keyof ProfileData>("fullName");
   const [profile, setProfile] = useState(initialProfile);
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
   const [showPayments, setShowPayments] = useState(false);
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const editSectionRef = useRef<HTMLDivElement | null>(null);
-  const firstEditableFieldRef = useRef<HTMLInputElement | null>(null);
+  const editableFieldRefs = useRef<Partial<Record<keyof ProfileData, HTMLElement>>>({});
 
   const signOut = async () => {
     const supabase = getSupabaseClient();
@@ -2402,8 +2406,9 @@ export function PlayerScreen() {
     setProfile((current) => ({ ...current, [field]: value }));
   };
 
-  const startProfileEdit = () => {
+  const startProfileEdit = (field: keyof ProfileData = "fullName") => {
     setMessage("");
+    setEditFocusField(field);
     setIsEditing(true);
   };
 
@@ -2419,10 +2424,11 @@ export function PlayerScreen() {
     if (!isEditing) return;
 
     window.setTimeout(() => {
-      editSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      firstEditableFieldRef.current?.focus({ preventScroll: true });
+      const field = editableFieldRefs.current[editFocusField] || editableFieldRefs.current.fullName;
+      field?.scrollIntoView({ behavior: "smooth", block: "center" });
+      field?.focus({ preventScroll: true });
     }, 80);
-  }, [isEditing]);
+  }, [editFocusField, isEditing]);
 
   useEffect(() => {
     if (!appSession.ready || !appSession.userId) return;
@@ -2578,7 +2584,7 @@ export function PlayerScreen() {
                 Editing now
               </span>
             ) : (
-              <button className="tap-card inline-flex min-h-9 items-center gap-2 justify-self-end whitespace-nowrap rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-3 text-[14px] font-medium text-white shadow-[0_10px_22px_rgba(12,59,32,0.16)]" type="button" onClick={startProfileEdit}>
+              <button className="tap-card inline-flex min-h-9 items-center gap-2 justify-self-end whitespace-nowrap rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-3 text-[14px] font-medium text-white shadow-[0_10px_22px_rgba(12,59,32,0.16)]" type="button" onClick={() => startProfileEdit("fullName")}>
                 <Pencil size={14} />
                 Edit profile
               </button>
@@ -2598,7 +2604,7 @@ export function PlayerScreen() {
 	            </button>
 	          </div>
 
-	          <div ref={editSectionRef} className={isEditing ? "grid gap-3 rounded-[20px] border-hairline border-[#bdd7aa] bg-[linear-gradient(135deg,#f8fbf4,#ffffff)] p-3 shadow-[0_18px_42px_rgba(12,59,32,0.10)] ring-2 ring-brand-light md:p-4" : "grid gap-3"}>
+	          <div className={isEditing ? "grid gap-3 rounded-[20px] border-hairline border-[#bdd7aa] bg-[linear-gradient(135deg,#f8fbf4,#ffffff)] p-3 shadow-[0_18px_42px_rgba(12,59,32,0.10)] ring-2 ring-brand-light md:p-4" : "grid gap-3"}>
             {isEditing && (
               <div className="grid gap-1 rounded-[16px] border-hairline border-[#dbe8cd] bg-white p-4">
                 <span className="inline-flex w-max items-center gap-2 rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">
@@ -2610,17 +2616,17 @@ export function PlayerScreen() {
               </div>
             )}
             <div className="grid gap-3 md:grid-cols-2">
-              <ProfileField label="Full Name" value={profile.fullName} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("fullName", value)} inputRef={firstEditableFieldRef} />
-              <ProfileField label="Phone number" value={profile.phone} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("phone", value)} inputType="tel" />
-              <ProfileField label="Date of birth" value={profile.dateOfBirth} displayValue={profile.dateOfBirth ? `${formatDateOfBirth(profile.dateOfBirth)} · Age ${calculateAge(profile.dateOfBirth)}` : "Not set"} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("dateOfBirth", value)} inputType="date" max={getTodayDateInputValue()} />
-              <ProfileField label="Dominant Hand" value={profile.dominantHand} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("dominantHand", value)} />
-              <ProfileField label="Self Evaluation" value={profile.selfEvaluation} editing={isEditing} onEdit={startProfileEdit} onChange={(value) => updateProfile("selfEvaluation", value)} />
+              <ProfileField label="Full Name" value={profile.fullName} editing={isEditing} onEdit={() => startProfileEdit("fullName")} onChange={(value) => updateProfile("fullName", value)} inputRef={(node) => { if (node) editableFieldRefs.current.fullName = node; }} />
+              <ProfileField label="Phone number" value={profile.phone} editing={isEditing} onEdit={() => startProfileEdit("phone")} onChange={(value) => updateProfile("phone", value)} inputRef={(node) => { if (node) editableFieldRefs.current.phone = node; }} inputType="tel" />
+              <ProfileField label="Date of birth" value={profile.dateOfBirth} displayValue={profile.dateOfBirth ? `${formatDateOfBirth(profile.dateOfBirth)} · Age ${calculateAge(profile.dateOfBirth)}` : "Not set"} editing={isEditing} onEdit={() => startProfileEdit("dateOfBirth")} onChange={(value) => updateProfile("dateOfBirth", value)} inputRef={(node) => { if (node) editableFieldRefs.current.dateOfBirth = node; }} inputType="date" max={getTodayDateInputValue()} />
+              <ProfileField label="Dominant Hand" value={profile.dominantHand} editing={isEditing} onEdit={() => startProfileEdit("dominantHand")} onChange={(value) => updateProfile("dominantHand", value)} inputRef={(node) => { if (node) editableFieldRefs.current.dominantHand = node; }} />
+              <ProfileField label="Self Evaluation" value={profile.selfEvaluation} editing={isEditing} onEdit={() => startProfileEdit("selfEvaluation")} onChange={(value) => updateProfile("selfEvaluation", value)} inputRef={(node) => { if (node) editableFieldRefs.current.selfEvaluation = node; }} />
               <article className={isEditing ? "grid gap-2 rounded-[14px] border-hairline border-[#bdd7aa] bg-white p-4" : "grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"}>
                 <span className="text-[13px] text-text-secondary">Jamaat / City</span>
                 {isEditing ? (
-                  <JamaatCityCombobox value={profile.jamaatCity} onChange={(value) => updateProfile("jamaatCity", value)} />
+                  <JamaatCityCombobox value={profile.jamaatCity} onChange={(value) => updateProfile("jamaatCity", value)} triggerRef={(node) => { if (node) editableFieldRefs.current.jamaatCity = node; }} />
                 ) : (
-                  <button className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-left" type="button" onClick={startProfileEdit}>
+                  <button className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-left" type="button" onClick={() => startProfileEdit("jamaatCity")}>
                     <strong className="break-words text-[17px] font-medium text-text-primary">{profile.jamaatCity || "Not set"}</strong>
                     <Pencil className="text-text-muted" size={14} />
                   </button>
@@ -2630,16 +2636,18 @@ export function PlayerScreen() {
                 label="Jersey Size"
                 value={profile.jerseySize}
                 editing={isEditing}
-                onEdit={startProfileEdit}
+                onEdit={() => startProfileEdit("jerseySize")}
                 onChange={(value) => updateProfile("jerseySize", value)}
-                helper={<a href="https://www.nike.com/size-fit/mens-tops-alpha" target="_blank" rel="noreferrer">Size guide</a>}
+                inputRef={(node) => { if (node) editableFieldRefs.current.jerseySize = node; }}
+                helper={<button className="font-medium text-brand" type="button" onClick={() => setSizeGuideOpen(true)}>Size guide</button>}
               />
               <ProfileField
                 label="Tennis video Google Drive link recommended"
                 value={profile.tennisVideo}
                 editing={isEditing}
-                onEdit={startProfileEdit}
+                onEdit={() => startProfileEdit("tennisVideo")}
                 onChange={(value) => updateProfile("tennisVideo", value)}
+                inputRef={(node) => { if (node) editableFieldRefs.current.tennisVideo = node; }}
                 helper={<span>{videoDescription} Captains and organizers use this for tournament drafts.</span>}
               />
             </div>
@@ -2702,6 +2710,7 @@ export function PlayerScreen() {
             </section>
           </div>
         )}
+        {sizeGuideOpen && <SizeGuideModal selectedSize={profile.jerseySize} onSelect={(size) => updateProfile("jerseySize", size)} onClose={() => setSizeGuideOpen(false)} />}
       </div>
     </AppFrame>
   );
