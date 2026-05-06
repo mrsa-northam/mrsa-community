@@ -485,6 +485,29 @@ function useProtectedRoute(nextPath = "/dashboard", requireCompleteProfile = fal
   return appSession;
 }
 
+function usePublicAuthRedirect(nextPath?: string | null) {
+  const router = useRouter();
+  const appSession = useAppSession();
+
+  useEffect(() => {
+    if (!appSession.ready || !appSession.userId) return;
+
+    const destination = nextPath ? normalizeNextPath(nextPath) : "/dashboard";
+
+    if (!appSession.player) {
+      router.replace(`/player-check?next=${encodeURIComponent(destination)}`);
+      return;
+    }
+
+    if (!appSession.profileComplete) {
+      router.replace(buildProfileCompletionPath(appSession.player.auth_user_id === appSession.userId ? undefined : appSession.player.id, destination));
+      return;
+    }
+
+    router.replace(destination);
+  }, [appSession.player, appSession.profileComplete, appSession.ready, appSession.userId, nextPath, router]);
+}
+
 export function AppFrame({
   active,
   children,
@@ -508,6 +531,7 @@ export function AppFrame({
 
 export function LoginScreen({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
+  usePublicAuthRedirect(nextPath);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -592,6 +616,7 @@ export function LoginScreen({ nextPath }: { nextPath?: string }) {
 export function OtpScreen({ email = "player@mrsa.com", nextPath }: { email?: string; nextPath?: string }) {
   const router = useRouter();
   const appSession = useAppSession();
+  usePublicAuthRedirect(nextPath);
   const [otp, setOtp] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);

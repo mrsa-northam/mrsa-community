@@ -18,7 +18,13 @@ export function getSupabaseClient() {
 
   const supabaseGlobal = globalThis as SupabaseGlobal;
   if (!supabaseGlobal[globalSupabaseKey]) {
-    supabaseGlobal[globalSupabaseKey] = createClient(supabaseUrl, supabaseAnonKey);
+    supabaseGlobal[globalSupabaseKey] = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        persistSession: true
+      }
+    });
   }
 
   return supabaseGlobal[globalSupabaseKey];
