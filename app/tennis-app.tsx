@@ -1097,11 +1097,12 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
 
     setLoading(true);
     setMessage("");
+    const selectedJamaatCity = jamaatCity.trim();
     const profilePayload = {
       full_name: String(form.get("fullName") || "").trim(),
       phone: String(form.get("phone") || "").trim(),
       date_of_birth: String(form.get("dateOfBirth") || "").trim(),
-      jamaat_city: String(form.get("jamaatCity") || "").trim(),
+      jamaat_city: selectedJamaatCity,
       self_assessment: String(form.get("selfAssessment") || "").trim(),
       jersey_size: String(form.get("jerseySize") || "").trim(),
       tennis_video_url: String(form.get("tennisVideo") || "").trim(),
@@ -1263,6 +1264,12 @@ function JamaatCityCombobox({
   const filteredCities = jamaatCityOptions.filter((city) => city.toLowerCase().includes(query.trim().toLowerCase()));
 
   useEffect(() => {
+    if (value && jamaatCityOptions.includes(value)) {
+      setMode("preset");
+      setCustomCity("");
+      return;
+    }
+
     if (value && !jamaatCityOptions.includes(value)) {
       setMode("other");
       setCustomCity(value);
@@ -1271,6 +1278,7 @@ function JamaatCityCombobox({
 
   const selectCity = (city: string) => {
     setMode("preset");
+    setCustomCity("");
     setQuery("");
     setOpen(false);
     onChange(city);
@@ -1278,9 +1286,10 @@ function JamaatCityCombobox({
 
   const selectOther = () => {
     setMode("other");
+    setCustomCity("");
     setQuery("");
     setOpen(false);
-    onChange(customCity);
+    onChange("");
   };
 
   const updateCustomCity = (city: string) => {
@@ -1307,7 +1316,7 @@ function JamaatCityCombobox({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <span className="truncate">{value || (mode === "other" ? "Other" : "Select Jamaat / City")}</span>
+        <span className="truncate">{mode === "other" ? customCity || "Other" : value || "Select Jamaat / City"}</span>
         <ChevronDown className={`shrink-0 transition ${open ? "rotate-180" : ""}`} size={16} />
       </button>
 
@@ -1331,6 +1340,7 @@ function JamaatCityCombobox({
                 role="option"
                 aria-selected={value === city}
                 key={city}
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => selectCity(city)}
               >
                 {city}
@@ -1342,6 +1352,7 @@ function JamaatCityCombobox({
               type="button"
               role="option"
               aria-selected={mode === "other"}
+              onMouseDown={(event) => event.preventDefault()}
               onClick={selectOther}
             >
 	              Other
@@ -1445,6 +1456,7 @@ async function createNewPlayerProfile(
 export function HomeScreen() {
   const appSession = useProtectedRoute("/dashboard", true);
   const [upcomingTournament, setUpcomingTournament] = useState<Tournament | null>(null);
+  const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
   const [hasRegisteredTournament, setHasRegisteredTournament] = useState(false);
   const [needsVideoLink, setNeedsVideoLink] = useState(false);
   const [dashboardVideoLink, setDashboardVideoLink] = useState("");
@@ -1459,7 +1471,7 @@ export function HomeScreen() {
 
     const loadDashboard = async () => {
       const today = new Date().toISOString().slice(0, 10);
-      const [{ data: tournamentData }, { data: profileData }] = await Promise.all([
+      const [{ data: tournamentData }, { data: profileData }, { data: playersData }] = await Promise.all([
         supabase
           .from("tournaments")
           .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
@@ -1474,10 +1486,26 @@ export function HomeScreen() {
               .select("id, full_name, profile_photo_url, tennis_video_url, tennis_video_status")
               .eq("auth_user_id", appSession.userId)
               .maybeSingle()
-          : Promise.resolve({ data: null })
+          : Promise.resolve({ data: null }),
+        supabase
+          .from("players")
+          .select("id, full_name, jamaat_city, profile_photo_url, rating")
+          .order("rating", { ascending: false, nullsFirst: false })
+          .order("full_name")
+          .limit(20)
       ]);
 
       setUpcomingTournament(tournamentData ? mapTournament(tournamentData) : null);
+      setTopPlayers((playersData || [])
+        .filter((row) => !/^test/i.test((row.full_name || "").trim()))
+        .slice(0, 5)
+        .map((row) => ({
+          id: row.id,
+          name: row.full_name || "Player",
+          rating: formatRating(row.rating),
+          city: row.jamaat_city || "City not added",
+          profilePhotoUrl: row.profile_photo_url || ""
+        })));
       setHasRegisteredTournament(false);
       if (profileData) {
         setNeedsVideoLink(false);
@@ -1599,15 +1627,29 @@ export function HomeScreen() {
           </section>
 
           <section className="grid gap-3">
-            <Link className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-card p-4 md:p-5" href="/players">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
               <span className="grid gap-1">
                 <strong className="text-[16px] font-medium leading-tight text-text-primary">Top performers</strong>
-                <em className="text-[14px] not-italic leading-relaxed text-text-secondary">See the full MRSA leaderboard.</em>
+                <em className="text-[14px] not-italic leading-relaxed text-text-secondary">Current MRSA leaderboard.</em>
               </span>
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-light text-[#3b6d11]" aria-hidden="true">
-                <ArrowRight size={16} />
-              </span>
-            </Link>
+              <Link className="tap-card inline-flex items-center justify-self-end gap-1 rounded-full bg-brand-light px-3 py-1.5 text-[13px] font-medium text-[#3b6d11]" href="/players">
+                View all <ArrowRight size={14} />
+              </Link>
+            </div>
+            <div className="grid gap-2">
+              {topPlayers.map((player, index) => (
+                <article className="grid min-h-[62px] grid-cols-[24px_38px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-white/84 p-3 shadow-[0_8px_24px_rgba(24,24,26,0.05)] backdrop-blur" key={player.id}>
+                  <span className={index < 3 ? "text-center text-[14px] font-medium text-[#b8860b]" : "text-center text-[14px] font-medium text-text-muted"}>{index + 1}</span>
+                  <Avatar className={index % 5 === 0 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#fde9dc] text-[12px] font-medium text-[#a94d24]" : index % 5 === 1 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#e5f1ff] text-[12px] font-medium text-[#185fa5]" : index % 5 === 2 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[12px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#fbe7ef] text-[12px] font-medium text-[#aa3f6b]" : "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#f1efe8] text-[12px] font-medium text-[#5f5e5a]"} name={player.name} photoUrl={player.profilePhotoUrl} ariaLabel={`${player.name} profile photo`} />
+                  <span className="grid min-w-0 gap-1">
+                    <strong className="truncate text-[15px] font-medium leading-tight text-text-primary">{player.name}</strong>
+                    <em className="truncate text-[13px] not-italic leading-tight text-text-secondary">{player.city}</em>
+                  </span>
+                  <strong className="rounded-full bg-brand-light px-2.5 py-1 text-[13px] font-medium text-[#3b6d11]">{player.rating}</strong>
+                </article>
+              ))}
+              {!topPlayers.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[15px] text-text-secondary">Top performers will appear here.</div>}
+            </div>
             <Link className="tap-card mt-2 grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5" href="/about">
               <span className="grid gap-2">
                 <span className="text-[13px] text-text-secondary">What is MRSA?</span>
@@ -1999,7 +2041,7 @@ export function DrawScreen() {
               <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4" key={pastTournament.seasonYear}>
                 <span className="text-[13px] text-text-secondary">{pastTournament.seasonYear} season</span>
                 <strong className="text-[17px] font-medium text-text-primary">MRSA {pastTournament.seasonYear}</strong>
-                <em className="text-[13px] not-italic text-text-secondary">{pastTournament.matches} matches · {pastTournament.singles} singles · {pastTournament.doubles} doubles</em>
+                <em className="text-[13px] not-italic text-text-secondary">{pastTournament.matches} matches recorded</em>
               </article>
             ))}
             {loading && !pastTournaments.length && Array.from({ length: 3 }).map((_, index) => <SkeletonCard key={index} />)}
@@ -3115,41 +3157,11 @@ function BottomNav({ active, showAdmin }: { active: Tab; showAdmin: boolean }) {
     ...(showAdmin ? [{ id: "admin" as const, href: "/admin", label: "Admin", icon: Shield }] : [])
   ];
 
-  const [hidden, setHidden] = useState(false);
-
-  useEffect(() => {
-    let lastY = window.scrollY;
-    let ticking = false;
-
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        const currentY = window.scrollY;
-        const delta = currentY - lastY;
-
-        if (currentY < 80) {
-          setHidden(false);
-        } else if (Math.abs(delta) > 6) {
-          setHidden(delta > 0);
-        }
-
-        lastY = currentY;
-        ticking = false;
-      });
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-50 grid border-t-hairline border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,255,255,0.72))] px-4 py-3 shadow-[0_-18px_44px_rgba(24,24,26,0.08)] backdrop-blur-2xl transition-transform duration-300 ease-out motion-reduce:transition-none md:inset-x-6 md:bottom-4 md:mx-auto md:max-w-shell md:rounded-[24px] md:border-hairline md:shadow-[0_18px_50px_rgba(24,24,26,0.12)] lg:left-1/2 lg:right-auto lg:w-[min(760px,calc(100vw-64px))] lg:-translate-x-1/2 ${hidden ? "translate-y-[140%]" : "translate-y-0"}`}
+      className="fixed inset-x-0 bottom-0 z-50 grid border-t-hairline border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,255,255,0.72))] px-4 py-3 shadow-[0_-18px_44px_rgba(24,24,26,0.08)] backdrop-blur-2xl md:inset-x-6 md:bottom-4 md:mx-auto md:max-w-shell md:rounded-[24px] md:border-hairline md:shadow-[0_18px_50px_rgba(24,24,26,0.12)] lg:left-1/2 lg:right-auto lg:w-[min(760px,calc(100vw-64px))] lg:-translate-x-1/2"
       style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
       aria-label="Primary mobile navigation"
-      aria-hidden={hidden || undefined}
-      inert={hidden}
     >
       {tabs.map(({ id, href, label, icon: Icon }) => (
         <Link className={active === id ? "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] bg-white/45 text-brand" : "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#b6b1a8]"} href={href} key={id}>
