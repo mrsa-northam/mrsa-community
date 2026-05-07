@@ -1994,13 +1994,10 @@ export function DrawScreen() {
             {tournament && (
               <div className="relative mt-5 grid gap-3 md:mt-0">
                 {registered ? (
-                  <div className="grid gap-2">
-                    <article className="rounded-card border-hairline border-white/10 bg-white/10 px-3 py-2.5 text-white" aria-label="Tournament date">
-                      <span className="text-[12px] text-current opacity-60">Tournament date</span>
-                      <strong className="block text-[20px] font-medium leading-tight text-current">{formatTournamentDates(tournament)}</strong>
-                    </article>
-                    <RegistrationCountdown closesAt={tournament.registrationClosesAt} compact />
-                  </div>
+                  <article className="rounded-card border-hairline border-white/10 bg-white/10 px-3 py-2.5 text-white" aria-label="Tournament starts in">
+                    <span className="text-[12px] text-current opacity-60">Tournament starts in</span>
+                    <strong className="block text-[20px] font-medium leading-tight text-current">{formatDaysUntilStart(tournament)}</strong>
+                  </article>
                 ) : (
                   <RegistrationCountdown closesAt={tournament.registrationClosesAt} daysOnly />
                 )}
@@ -2013,6 +2010,12 @@ export function DrawScreen() {
             )}
           </header>
           )}
+
+        {tournament && registered && (
+          <p className="px-1 pt-1 text-center text-[13px] text-text-secondary">
+            Need to cancel? <a className="underline underline-offset-2" href="https://wa.me/13128749178?text=Hi%2C%20I%27d%20like%20to%20cancel%20my%20MRSA%20tournament%20registration." target="_blank" rel="noreferrer">Message organisers on WhatsApp ↗</a>
+          </p>
+        )}
 
         <section className="grid gap-4">
           {!tournament && (
@@ -2875,6 +2878,18 @@ function formatTournamentDates(tournament: Tournament) {
     return `${month} ${start.getDate()}`;
   }
   return `${month} ${start.getDate()}-${end.getDate()}`;
+}
+
+function formatDaysUntilStart(tournament: Tournament) {
+  if (!tournament.startsOn) return "TBD";
+  const start = new Date(`${tournament.startsOn}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.ceil((start.getTime() - today.getTime()) / 86400000);
+  if (days < 0) return "Tournament started";
+  if (days === 0) return "Today";
+  if (days === 1) return "1 day";
+  return `${days} days`;
 }
 
 function formatRegistrationClose(value: string | null) {
