@@ -2001,10 +2001,21 @@ export function DrawScreen() {
                 ) : (
                   <RegistrationCountdown closesAt={tournament.registrationClosesAt} daysOnly />
                 )}
-	                <button className={registered ? "tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-100" : "tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-70"} type="button" onClick={registerForTournament} disabled={paying || registered || paymentPending || !registrationOpen}>
-	                  {registered && <CheckCircle2 size={16} />}
-	                  {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
-                </button>
+                {registered ? (
+                  <div className="grid gap-2">
+                    <p className="inline-flex items-center justify-center gap-2 text-[14px] font-medium text-[#C9E84A]">
+                      <CheckCircle2 size={16} />
+                      {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
+                    </p>
+                    <p className="text-center text-[13px] leading-relaxed text-white/70">
+                      Reminder: please <a className="underline underline-offset-2 text-[#C8F0D6]" href="https://drive.google.com/" target="_blank" rel="noreferrer">update your details in Google Drive ↗</a>
+                    </p>
+                  </div>
+                ) : (
+                  <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-70" type="button" onClick={registerForTournament} disabled={paying || paymentPending || !registrationOpen}>
+                    {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
+                  </button>
+                )}
                 {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">Checking payment. Do not start another payment until this updates.</p>}
               </div>
             )}
