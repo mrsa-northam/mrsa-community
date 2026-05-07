@@ -2008,7 +2008,7 @@ export function DrawScreen() {
                       {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
                     </p>
                     <p className="text-center text-[13px] leading-relaxed text-white/70">
-                      Reminder: please <a className="underline underline-offset-2 text-[#C8F0D6]" href="https://drive.google.com/" target="_blank" rel="noreferrer">update your details in Google Drive ↗</a>
+                      Reminder: please <a className="underline underline-offset-2 text-[#C8F0D6]" href="https://drive.google.com/drive/folders/1l_sY5NbcKpKNt0lNDBj1YGRs4mFnC73o" target="_blank" rel="noreferrer">upload your video link to the Google Drive ↗</a>
                     </p>
                   </div>
                 ) : (
