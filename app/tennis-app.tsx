@@ -1690,7 +1690,6 @@ export function DrawScreen() {
   const [registered, setRegistered] = useState(false);
   const [paymentState, setPaymentState] = useState<PaymentState>("idle");
   const [paying, setPaying] = useState(false);
-  const [reconcilingPayment, setReconcilingPayment] = useState(false);
   const [showVideoPrompt, setShowVideoPrompt] = useState(false);
   const [videoLink, setVideoLink] = useState("");
   const [videoPromptMessage, setVideoPromptMessage] = useState("");
@@ -1767,7 +1766,7 @@ export function DrawScreen() {
       if (myPlayer && !paidRegistration) {
         const { data: latestPayment } = await supabase
           .from("payment_ledger")
-          .select("status, stripe_failure_message")
+          .select("status, notes")
           .eq("tournament_id", mappedTournament.id)
           .eq("player_id", myPlayer.id)
           .eq("entry_type", "charge")
@@ -1777,8 +1776,8 @@ export function DrawScreen() {
 
         if (latestPayment?.status === "pending" || latestPayment?.status === "failed") {
           setPaymentState(latestPayment.status);
-          if (latestPayment.status === "failed" && latestPayment.stripe_failure_message) {
-            setMessage(latestPayment.stripe_failure_message);
+          if (latestPayment.status === "failed") {
+            setMessage(latestPayment.notes || "Payment was not completed. You can retry registration.");
           }
         }
       }
@@ -1790,51 +1789,6 @@ export function DrawScreen() {
     if (!appSession.ready || !appSession.userId) return;
 
     const supabase = getSupabaseClient();
-    const paymentResult = new URLSearchParams(window.location.search).get("payment");
-    const checkoutSessionId = new URLSearchParams(window.location.search).get("session_id");
-
-    const reconcileReturnedPayment = async () => {
-      if (!supabase || !checkoutSessionId || !paymentResult) return;
-      setReconcilingPayment(true);
-      setMessage(paymentResult === "success" ? "Confirming payment..." : "Checking payment status...");
-
-      const { data: session } = await supabase.auth.getSession();
-      const response = await fetch(`/api/stripe/checkout-status?session_id=${encodeURIComponent(checkoutSessionId)}&payment=${encodeURIComponent(paymentResult)}`, {
-        headers: {
-          Authorization: `Bearer ${session.session?.access_token || ""}`
-        }
-      });
-      const result = await response.json();
-      setReconcilingPayment(false);
-
-      if (!response.ok) {
-        setPaymentState("failed");
-        setMessage(result.error || "Could not verify payment status. Please retry registration.");
-        return;
-      }
-
-      if (result.registered || result.status === "paid") {
-        setRegistered(true);
-        setPaymentState("paid");
-        setMessage("Payment received. You are registered.");
-        await loadTournament();
-        window.history.replaceState(null, "", "/tournaments");
-        return;
-      }
-
-      if (result.status === "failed") {
-        setPaymentState("failed");
-        setMessage(result.error || "Payment was not completed. You can retry registration.");
-        await loadTournament();
-        window.history.replaceState(null, "", "/tournaments");
-        return;
-      }
-
-      setPaymentState("pending");
-      setMessage("Payment is still pending. Please wait while Stripe confirms it.");
-    };
-
-    reconcileReturnedPayment();
     loadTournament();
     if (!supabase) return;
 
@@ -1870,7 +1824,7 @@ export function DrawScreen() {
     setMessage("");
 
     const { data: session } = await supabase.auth.getSession();
-    const response = await fetch("/api/stripe/create-checkout-session", {
+    const response = await fetch("/api/zeffy/create-checkout", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -2005,18 +1959,18 @@ export function DrawScreen() {
                   <div className="grid gap-2">
                     <p className="inline-flex items-center justify-center gap-2 text-[14px] font-medium text-[#C9E84A]">
                       <CheckCircle2 size={16} />
-                      {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
+                      {getRegistrationButtonLabel({ registered, paying, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
                     </p>
                     <p className="text-center text-[13px] leading-relaxed text-white/70">
                       Reminder: please <a className="underline underline-offset-2 text-[#C8F0D6]" href="https://drive.google.com/drive/folders/1l_sY5NbcKpKNt0lNDBj1YGRs4mFnC73o" target="_blank" rel="noreferrer">upload your video link to the Google Drive ↗</a>
                     </p>
                   </div>
                 ) : (
-                  <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-70" type="button" onClick={registerForTournament} disabled={paying || paymentPending || !registrationOpen}>
-                    {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
+                  <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-70" type="button" onClick={registerForTournament} disabled={paying || !registrationOpen}>
+                    {getRegistrationButtonLabel({ registered, paying, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
                   </button>
                 )}
-                {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">Checking payment. Do not start another payment until this updates.</p>}
+                {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">If you already paid, wait here for Zeffy confirmation. If you closed Zeffy before paying, continue payment again.</p>}
               </div>
             )}
           </header>
@@ -2466,7 +2420,7 @@ export function PlayerScreen() {
 
         const { data: payments } = await supabase
           .from("payment_ledger")
-          .select("id, entry_type, status, amount_cents, currency, occurred_at, notes, stripe_failure_message, tournaments(name)")
+          .select("id, entry_type, status, amount_cents, currency, occurred_at, notes, tournaments(name)")
           .eq("player_id", data.id)
           .order("occurred_at", { ascending: false })
           .limit(12);
@@ -2482,7 +2436,7 @@ export function PlayerScreen() {
             occurredAt: payment.occurred_at,
             notes: payment.notes || "",
             tournamentName: tournament?.name || "MRSA",
-            failureMessage: payment.stripe_failure_message || ""
+            failureMessage: payment.status === "failed" ? payment.notes || "" : ""
           };
         }));
       }
@@ -2929,7 +2883,7 @@ function getRegistrationButtonLabel({
   if (registered || paymentState === "paid") return "Registered";
   if (paying) return "Opening payment...";
   if (paymentState === "failed") return `Retry ${formatCurrency(registrationFeeCents)} payment`;
-  if (paymentState === "pending") return "Checking payment...";
+  if (paymentState === "pending") return "Continue payment on Zeffy →";
   if (!registrationOpen) return "Registration closed";
   return `Pay ${formatCurrency(registrationFeeCents)} and register →`;
 }

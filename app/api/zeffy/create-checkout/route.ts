@@ -1,15 +1,13 @@
-import Stripe from "stripe";
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdminClient, getSupabaseServerClient } from "../../../lib/supabase-server";
 
 export const runtime = "nodejs";
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
+const zeffyPaymentUrl = process.env.ZEFFY_PAYMENT_URL;
 
 export async function POST(request: NextRequest) {
-  if (!stripe) {
-    return NextResponse.json({ error: "Stripe is not configured. Add STRIPE_SECRET_KEY." }, { status: 500 });
+  if (!zeffyPaymentUrl) {
+    return NextResponse.json({ error: "Zeffy is not configured. Add ZEFFY_PAYMENT_URL." }, { status: 500 });
   }
 
   const supabase = getSupabaseServerClient();
@@ -84,58 +82,45 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ registered: true });
   }
 
-  const origin = request.headers.get("origin") || new URL(request.url).origin;
-  const metadata = {
-    tournament_id: tournament.id,
-    player_id: player.id
-  };
-
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    payment_method_types: ["card"],
-    customer_email: userData.user.email || undefined,
-    success_url: `${origin}/tournaments?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}/tournaments?payment=retry&session_id={CHECKOUT_SESSION_ID}`,
-    line_items: [
-      {
-        price_data: {
-          currency: (tournament.currency || "USD").toLowerCase(),
-          product_data: {
-            name: `${tournament.name} registration`
-          },
-          unit_amount: amountCents
-        },
-        quantity: 1
-      }
-    ],
-    metadata,
-    payment_intent_data: {
-      metadata
-    }
-  });
-
-  const { error: ledgerError } = await admin.from("payment_ledger").insert({
+  const { data: payment, error: ledgerError } = await admin.from("payment_ledger").insert({
     player_id: player.id,
     tournament_id: tournament.id,
     entry_type: "charge",
     status: "pending",
     amount_cents: amountCents,
     currency: tournament.currency || "USD",
-    reference: session.id,
-    stripe_checkout_session_id: session.id,
-    stripe_payment_intent_id: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id,
-    stripe_failure_code: null,
-    stripe_failure_message: null,
+    method: "zeffy",
     checkout_email: userData.user.email || player.email || null,
     checkout_phone: player.phone || null,
-    notes: `${tournament.name} registration checkout.`
-  });
+    notes: `${tournament.name} Zeffy registration checkout.`
+  }).select("id").single();
 
-  if (ledgerError) {
-    return NextResponse.json({ error: `Checkout was created, but MRSA could not record the registration interest: ${ledgerError.message}` }, { status: 500 });
+  if (ledgerError || !payment?.id) {
+    return NextResponse.json({ error: `MRSA could not record the registration interest: ${ledgerError?.message || "Missing payment id."}` }, { status: 500 });
   }
 
-  return NextResponse.json({ url: session.url });
+  await admin.from("payment_ledger").update({ reference: payment.id }).eq("id", payment.id);
+
+  const url = buildZeffyUrl(zeffyPaymentUrl, {
+    mrsa_payment_id: payment.id,
+    payment_id: payment.id,
+    reference: payment.id,
+    player_id: player.id,
+    tournament_id: tournament.id,
+    email: userData.user.email || player.email || "",
+    name: player.full_name || "",
+    amount: (amountCents / 100).toFixed(2)
+  });
+
+  return NextResponse.json({ url });
+}
+
+function buildZeffyUrl(baseUrl: string, params: Record<string, string>) {
+  const url = new URL(baseUrl);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) url.searchParams.set(key, value);
+  });
+  return url.toString();
 }
 
 function getTournamentLifecycleStatus(tournament: {
