@@ -759,7 +759,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .limit(500),
       supabase
         .from("payment_ledger")
-        .select("id, player_id, status, amount_cents, currency, occurred_at, notes, checkout_email, checkout_phone, players(id, full_name, jamaat_city, phone, email, profile_photo_url)")
+        .select("id, player_id, status, amount_cents, currency, occurred_at, stripe_failure_message, checkout_email, checkout_phone, players(id, full_name, jamaat_city, phone, email, profile_photo_url)")
         .eq("tournament_id", tournamentId)
         .eq("entry_type", "charge")
         .in("status", ["pending", "failed"])
@@ -819,7 +819,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         amountCents: payment.amount_cents || 0,
         currency: payment.currency || "USD",
         occurredAt: payment.occurred_at,
-        failureMessage: payment.status === "failed" ? payment.notes || "" : "",
+        failureMessage: payment.stripe_failure_message || "",
         checkoutCount: 1
       });
     });
@@ -1013,7 +1013,7 @@ function InterestedPlayersList({ players }: { players: AdminInterestedPlayer[] }
       <div className="grid gap-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <span className="grid gap-1">
           <h3 className="text-[15px] font-medium text-text-primary">Interested players</h3>
-          <p className="max-w-[680px] text-[13px] leading-relaxed text-text-secondary">Went until the Zeffy payment page but did not register. These players may have closed Zeffy or left before paying.</p>
+          <p className="max-w-[680px] text-[13px] leading-relaxed text-text-secondary">Went until checkout page but did not register. These players may have closed checkout, left before paying, or had a card declined.</p>
         </span>
         <span className="rounded-full bg-[#fff4d8] px-3 py-1 text-[13px] font-medium text-[#8a5a00]">{players.length} players</span>
       </div>
@@ -1028,7 +1028,7 @@ function InterestedPlayersList({ players }: { players: AdminInterestedPlayer[] }
               <span className="grid min-w-0 gap-2">
                 <span className="grid min-w-0 gap-1">
                   <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
-                  <em className="truncate text-[13px] not-italic text-text-secondary">{player.jamaatCity} · {formatAdminCurrency(player.amountCents, player.currency)} Zeffy payment · {player.checkoutCount} {player.checkoutCount === 1 ? "occurrence" : "occurrences"}</em>
+                  <em className="truncate text-[13px] not-italic text-text-secondary">{player.jamaatCity} · {formatAdminCurrency(player.amountCents, player.currency)} checkout · {player.checkoutCount} {player.checkoutCount === 1 ? "occurrence" : "occurrences"}</em>
                 </span>
                 <span className="grid gap-1 text-[13px] text-text-secondary sm:grid-cols-2">
                   <a className="truncate font-medium text-brand" href={`tel:${player.checkoutPhone}`}>{player.checkoutPhone}</a>
@@ -1044,7 +1044,7 @@ function InterestedPlayersList({ players }: { players: AdminInterestedPlayer[] }
           ))}
         </ul>
       ) : (
-        <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">No Zeffy payment-only players yet.</div>
+        <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">No checkout-only players yet.</div>
       )}
     </div>
   );
