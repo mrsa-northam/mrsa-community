@@ -247,9 +247,8 @@ function AppTopBar({
         </Link>
         <span aria-hidden="true" />
         <span aria-hidden="true" />
-        <Link className="tap-card inline-flex min-h-9 items-center gap-1.5 justify-self-end rounded-full border-[0.5px] border-line bg-white/70 px-1.5 py-1 shadow-[0_8px_22px_rgba(24,24,26,0.08)]" href="/profile" aria-label={`${name} profile`}>
-          <Avatar className="relative grid h-6 w-6 place-items-center overflow-hidden rounded-full bg-brand text-[11px] font-medium text-white" name={name} photoUrl={photoUrl} />
-          <ChevronDown size={12} className="text-text-secondary" aria-hidden="true" />
+        <Link className="tap-card inline-flex justify-self-end" href="/profile" aria-label={`${name} profile`}>
+          <Avatar className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-brand text-[14px] font-medium text-white shadow-[0_8px_22px_rgba(24,24,26,0.08)]" name={name} photoUrl={photoUrl} />
         </Link>
       </div>
     </header>
@@ -2058,7 +2057,6 @@ export function DrawScreen() {
                 </span>
               </article>
             ))}
-            {!loading && registeredPlayers.length === 1 && <p className="rounded-[14px] border-hairline border-dashed border-line bg-surface p-3 text-[13px] leading-relaxed text-text-secondary md:col-span-2">Be one of the first to join — claim your spot above.</p>}
             {loading && !registeredPlayers.length && Array.from({ length: 4 }).map((_, index) => <SkeletonRow key={index} />)}
             {!loading && !registeredPlayers.length && <StatusMessage tone="info">No players registered yet.</StatusMessage>}
           </div>
@@ -3167,7 +3165,6 @@ function ProfileField({
 }
 
 function BottomNav({ active, showAdmin }: { active: Tab; showAdmin: boolean }) {
-  const appSession = useAppSession();
   const tabs = [
     { id: "home" as const, href: "/dashboard", label: "Home", icon: Home },
     { id: "tournament" as const, href: "/tournaments", label: "Tournament", icon: Trophy },
@@ -3182,20 +3179,10 @@ function BottomNav({ active, showAdmin }: { active: Tab; showAdmin: boolean }) {
       aria-label="Primary mobile navigation"
     >
       {tabs.map(({ id, href, label, icon: Icon }) => (
-        <Link className={active === id ? "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#1d6e3a]" : "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#b6b1a8]"} href={href} key={id}>
-          <span className={active === id ? "inline-flex items-center gap-1.5 rounded-full bg-[#E6F3EA] px-[10px] py-1 text-[#1d6e3a]" : "grid place-items-center gap-1"}>
-            {id === "profile" ? (
-              <Avatar
-                className="relative grid h-5 w-5 place-items-center overflow-hidden rounded-full bg-brand text-[10px] font-medium text-white"
-                name={appSession.player?.full_name || "Profile"}
-                photoUrl={appSession.player?.profile_photo_url || undefined}
-              />
-            ) : (
-              <Icon size={20} strokeWidth={active === id ? 2.2 : 1.7} />
-            )}
-            <span className={active === id ? "text-[12px] font-medium leading-none" : "text-[12px] font-normal leading-none"}>{label}</span>
-          </span>
-          <span className="h-1 w-1 rounded-full bg-transparent" />
+        <Link className={active === id ? "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] bg-[#E6F3EA] text-[#1d6e3a]" : "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#b6b1a8]"} href={href} key={id}>
+          <Icon size={20} strokeWidth={active === id ? 2.2 : 1.7} />
+          <span className={active === id ? "text-[12px] font-medium leading-none" : "text-[12px] font-normal leading-none"}>{label}</span>
+          <span className={active === id ? "h-1 w-1 rounded-full bg-[#1d6e3a]" : "h-1 w-1 rounded-full bg-transparent"} />
         </Link>
       ))}
     </nav>
