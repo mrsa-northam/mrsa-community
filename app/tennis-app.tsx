@@ -2012,11 +2012,11 @@ export function DrawScreen() {
                     </p>
                   </div>
                 ) : (
-                  <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-70" type="button" onClick={registerForTournament} disabled={paying || paymentPending || !registrationOpen}>
+                  <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-70" type="button" onClick={registerForTournament} disabled={paying || reconcilingPayment || !registrationOpen}>
                     {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
                   </button>
                 )}
-                {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">Checking payment. Do not start another payment until this updates.</p>}
+                {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">If you already paid, wait here for confirmation. If checkout was closed before paying, retry payment.</p>}
               </div>
             )}
           </header>
@@ -2929,7 +2929,7 @@ function getRegistrationButtonLabel({
   if (registered || paymentState === "paid") return "Registered";
   if (paying) return "Opening payment...";
   if (paymentState === "failed") return `Retry ${formatCurrency(registrationFeeCents)} payment`;
-  if (paymentState === "pending") return "Checking payment...";
+  if (paymentState === "pending") return `Retry ${formatCurrency(registrationFeeCents)} payment`;
   if (!registrationOpen) return "Registration closed";
   return `Pay ${formatCurrency(registrationFeeCents)} and register →`;
 }
