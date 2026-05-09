@@ -2005,7 +2005,7 @@ export function DrawScreen() {
                   <div className="grid gap-2">
                     <p className="inline-flex items-center justify-center gap-2 text-[14px] font-medium text-[#C9E84A]">
                       <CheckCircle2 size={16} />
-                      {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
+                      {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen })}
                     </p>
                     <p className="text-center text-[13px] leading-relaxed text-white/70">
                       Reminder: please <a className="underline underline-offset-2 text-[#C8F0D6]" href="https://drive.google.com/drive/folders/1l_sY5NbcKpKNt0lNDBj1YGRs4mFnC73o" target="_blank" rel="noreferrer">upload your video link to the Google Drive ↗</a>
@@ -2013,7 +2013,7 @@ export function DrawScreen() {
                   </div>
                 ) : (
                   <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-70" type="button" onClick={registerForTournament} disabled={paying || reconcilingPayment || !registrationOpen}>
-                    {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, registrationFeeCents: tournament.registrationFeeCents })}
+                    {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen })}
                   </button>
                 )}
                 {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">If you already paid, wait here for confirmation. If checkout was closed before paying, retry payment.</p>}
@@ -2917,21 +2917,19 @@ function getRegistrationButtonLabel({
   registered,
   paying,
   paymentState,
-  registrationOpen,
-  registrationFeeCents
+  registrationOpen
 }: {
   registered: boolean;
   paying: boolean;
   paymentState: PaymentState;
   registrationOpen: boolean | undefined;
-  registrationFeeCents: number;
 }) {
   if (registered || paymentState === "paid") return "Registered";
   if (paying) return "Opening payment...";
-  if (paymentState === "failed") return `Retry ${formatCurrency(registrationFeeCents)} payment`;
-  if (paymentState === "pending") return `Retry ${formatCurrency(registrationFeeCents)} payment`;
+  if (paymentState === "failed") return "Retry payment";
+  if (paymentState === "pending") return "Retry payment";
   if (!registrationOpen) return "Registration closed";
-  return `Pay ${formatCurrency(registrationFeeCents)} and register →`;
+  return "Pay and register →";
 }
 
 function HomeRegistrationCountdown({ closesAt }: { closesAt: string | null }) {
