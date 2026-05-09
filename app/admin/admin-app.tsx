@@ -46,6 +46,7 @@ type AdminTournament = {
 };
 type AdminRegisteredPlayer = {
   id: string;
+  registrationId: string;
   tournamentId: string;
   fullName: string;
   jamaatCity: string;
@@ -55,6 +56,10 @@ type AdminRegisteredPlayer = {
   age: string;
   tier: number;
   rating: number | null;
+  paymentId: string | null;
+  paymentStatus: string | null;
+  paymentAmountCents: number;
+  paymentCurrency: string;
 };
 type AdminInterestedPlayer = {
   id: string;
@@ -738,12 +743,14 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [reviewingVideoPlayerId, setReviewingVideoPlayerId] = useState<string | null>(null);
+  const [removingPlayerKey, setRemovingPlayerKey] = useState<string | null>(null);
+  const [confirmRemoveKey, setConfirmRemoveKey] = useState<string | null>(null);
 
   const loadTournamentWorkspace = useCallback(async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    const [{ data, error }, { data: registrations, error: registrationError }, { data: checkoutPayments, error: checkoutPaymentError }] = await Promise.all([
+    const [{ data, error }, { data: registrations, error: registrationError }, { data: checkoutPayments, error: checkoutPaymentError }, { data: paidPayments, error: paidPaymentError }] = await Promise.all([
       supabase
         .from("tournaments")
         .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
@@ -751,7 +758,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .maybeSingle(),
       supabase
         .from("tournament_registrations")
-	        .select("tournament_id, players(id, full_name, jamaat_city, age, date_of_birth, profile_photo_url, tennis_video_url, tennis_video_status, tier, rating)")
+        .select("id, tournament_id, payment_status, players(id, full_name, jamaat_city, age, date_of_birth, profile_photo_url, tennis_video_url, tennis_video_status, tier, rating)")
         .eq("tournament_id", tournamentId)
         .neq("status", "cancelled")
         .in("payment_status", ["paid", "waived"])
@@ -764,33 +771,57 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .eq("entry_type", "charge")
         .in("status", ["pending", "failed"])
         .order("occurred_at", { ascending: false })
+        .limit(120),
+      supabase
+        .from("payment_ledger")
+        .select("id, player_id, registration_id, status, amount_cents, currency, occurred_at")
+        .eq("tournament_id", tournamentId)
+        .eq("entry_type", "charge")
+        .eq("status", "paid")
+        .order("occurred_at", { ascending: false })
         .limit(120)
     ]);
 
-    if (error || registrationError || checkoutPaymentError) {
-      setNotice({ type: "error", text: (error || registrationError || checkoutPaymentError)?.message || "Could not load tournament workspace." });
+    if (error || registrationError || checkoutPaymentError || paidPaymentError) {
+      setNotice({ type: "error", text: (error || registrationError || checkoutPaymentError || paidPaymentError)?.message || "Could not load tournament workspace." });
       return;
     }
 
     setTournament((data || null) as AdminTournament | null);
+    const paymentsByRegistration = new Map<string, { id: string; player_id: string; registration_id: string | null; status: string; amount_cents: number; currency: string }>();
+    const paymentsByPlayer = new Map<string, { id: string; player_id: string; registration_id: string | null; status: string; amount_cents: number; currency: string }>();
+    (paidPayments || []).forEach((payment) => {
+      if (payment.registration_id && !paymentsByRegistration.has(payment.registration_id)) {
+        paymentsByRegistration.set(payment.registration_id, payment);
+      }
+      if (payment.player_id && !paymentsByPlayer.has(payment.player_id)) {
+        paymentsByPlayer.set(payment.player_id, payment);
+      }
+    });
     const registeredPlayerIds = new Set((registrations || []).flatMap((row) => {
       const player = Array.isArray(row.players) ? row.players[0] : row.players;
       return player?.id ? [player.id] : [];
     }));
     setRegisteredPlayers((registrations || []).flatMap((row) => {
       const player = Array.isArray(row.players) ? row.players[0] : row.players;
-      if (!player || !row.tournament_id) return [];
+      if (!player || !row.id || !row.tournament_id) return [];
+      const payment = paymentsByRegistration.get(row.id) || paymentsByPlayer.get(player.id) || null;
       return [{
         id: player.id,
+        registrationId: row.id,
         tournamentId: row.tournament_id,
         fullName: player.full_name || "Unknown player",
         jamaatCity: player.jamaat_city || "City missing",
         profilePhotoUrl: player.profile_photo_url || "",
         tennisVideoUrl: player.tennis_video_url || "",
         tennisVideoStatus: player.tennis_video_status || null,
-	        age: calculateAdminAge(player.date_of_birth) ? `Age ${calculateAdminAge(player.date_of_birth)}` : player.age ? `Age ${player.age}` : "Age not set",
-	        tier: Number(player.tier || 4),
-        rating: player.rating
+        age: calculateAdminAge(player.date_of_birth) ? `Age ${calculateAdminAge(player.date_of_birth)}` : player.age ? `Age ${player.age}` : "Age not set",
+        tier: Number(player.tier || 4),
+        rating: player.rating,
+        paymentId: payment?.id || null,
+        paymentStatus: row.payment_status || payment?.status || null,
+        paymentAmountCents: payment?.amount_cents || 0,
+        paymentCurrency: payment?.currency || "USD"
       }];
     }));
     const interestedByPlayer = new Map<string, AdminInterestedPlayer>();
@@ -920,6 +951,46 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     setNotice({ type: "success", text: `${player.fullName}'s video ${status}.` });
   };
 
+  const removeAndRefundRegisteredPlayer = async (player: AdminRegisteredPlayer) => {
+    const playerKey = `${player.tournamentId}:${player.id}`;
+    if (confirmRemoveKey !== playerKey) {
+      setConfirmRemoveKey(playerKey);
+      setNotice(null);
+      return;
+    }
+
+    if (!player.paymentId) {
+      setNotice({ type: "error", text: `No paid Stripe payment was found for ${player.fullName}.` });
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    setRemovingPlayerKey(playerKey);
+    setNotice(null);
+    const response = await fetch("/api/admin/refund-payment", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sessionData.session?.access_token || ""}`
+      },
+      body: JSON.stringify({ paymentId: player.paymentId, removeRegistration: true })
+    });
+    const result = await response.json().catch(() => ({}));
+    setRemovingPlayerKey(null);
+
+    if (!response.ok) {
+      setNotice({ type: "error", text: result.error || "Could not remove and refund this player." });
+      return;
+    }
+
+    setConfirmRemoveKey(null);
+    setNotice({ type: "success", text: `${player.fullName} was removed and refunded.` });
+    await loadTournamentWorkspace();
+  };
+
   return (
     <AdminFrame active="tournaments">
       <div className="grid gap-3 rounded-[22px] border-hairline border-line bg-card p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-6">
@@ -983,7 +1054,16 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
           </section>
 
           <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-            <TieredRegisteredPlayers players={registeredPlayers} onTierChange={updateRegisteredPlayerTier} onVideoReview={reviewRegisteredPlayerVideo} reviewingVideoPlayerId={reviewingVideoPlayerId} />
+            <TieredRegisteredPlayers
+              players={registeredPlayers}
+              onTierChange={updateRegisteredPlayerTier}
+              onVideoReview={reviewRegisteredPlayerVideo}
+              reviewingVideoPlayerId={reviewingVideoPlayerId}
+              onRemoveAndRefund={removeAndRefundRegisteredPlayer}
+              removingPlayerKey={removingPlayerKey}
+              confirmRemoveKey={confirmRemoveKey}
+              onCancelRemove={() => setConfirmRemoveKey(null)}
+            />
           </section>
 
           <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
@@ -1054,12 +1134,20 @@ function TieredRegisteredPlayers({
   players,
   onTierChange,
   onVideoReview,
-  reviewingVideoPlayerId
+  reviewingVideoPlayerId,
+  onRemoveAndRefund,
+  removingPlayerKey,
+  confirmRemoveKey,
+  onCancelRemove
 }: {
   players: AdminRegisteredPlayer[];
   onTierChange: (playerId: string, tournamentId: string, tier: number) => Promise<boolean>;
   onVideoReview: (player: AdminRegisteredPlayer, status: "approved" | "rejected") => Promise<void>;
   reviewingVideoPlayerId: string | null;
+  onRemoveAndRefund: (player: AdminRegisteredPlayer) => Promise<void>;
+  removingPlayerKey: string | null;
+  confirmRemoveKey: string | null;
+  onCancelRemove: () => void;
 }) {
   const [pendingTiers, setPendingTiers] = useState<Record<string, number>>({});
   const [savingTierKey, setSavingTierKey] = useState<string | null>(null);
@@ -1098,12 +1186,13 @@ function TieredRegisteredPlayers({
 	          </button>
 	          {!collapsed && group.players.length ? (
 		            <ul className="grid gap-2" id={`tier-${group.tier}-registered-players`}>
-		              <li className="hidden rounded-[12px] border-hairline border-line/60 bg-white/55 px-3 py-2 text-[12px] font-medium text-text-secondary lg:grid lg:grid-cols-[minmax(180px,1.2fr)_minmax(130px,0.85fr)_minmax(150px,0.9fr)_90px_minmax(210px,1fr)] lg:items-center lg:gap-3">
+		              <li className="hidden rounded-[12px] border-hairline border-line/60 bg-white/55 px-3 py-2 text-[12px] font-medium text-text-secondary xl:grid xl:grid-cols-[minmax(180px,1.2fr)_minmax(130px,0.85fr)_minmax(150px,0.9fr)_90px_minmax(210px,1fr)_minmax(150px,0.75fr)] xl:items-center xl:gap-3">
 	                <span>Name</span>
 	                <span>City, age</span>
 	                <span>Tier</span>
 	                <span>Rating</span>
 	                <span>Video</span>
+	                <span>Action</span>
 	              </li>
 	              {group.players.map((player) => (
 	                <TieredRegisteredPlayerRow
@@ -1112,7 +1201,11 @@ function TieredRegisteredPlayers({
                   pendingTier={pendingTiers[`${player.tournamentId}:${player.id}`] ?? player.tier}
                   saving={savingTierKey === `${player.tournamentId}:${player.id}`}
                   reviewingVideo={reviewingVideoPlayerId === player.id}
+                  removing={removingPlayerKey === `${player.tournamentId}:${player.id}`}
+                  confirmingRemove={confirmRemoveKey === `${player.tournamentId}:${player.id}`}
                   onVideoReview={onVideoReview}
+                  onRemoveAndRefund={() => onRemoveAndRefund(player)}
+                  onCancelRemove={onCancelRemove}
                   onPendingTierChange={(tier) => setPendingTiers((current) => ({ ...current, [`${player.tournamentId}:${player.id}`]: tier }))}
                   onSaveTier={async () => {
                     const playerKey = `${player.tournamentId}:${player.id}`;
@@ -1146,7 +1239,11 @@ function TieredRegisteredPlayerRow({
   pendingTier,
   saving,
   reviewingVideo,
+  removing,
+  confirmingRemove,
   onVideoReview,
+  onRemoveAndRefund,
+  onCancelRemove,
   onPendingTierChange,
   onSaveTier
 }: {
@@ -1154,29 +1251,33 @@ function TieredRegisteredPlayerRow({
   pendingTier: number;
   saving: boolean;
   reviewingVideo: boolean;
+  removing: boolean;
+  confirmingRemove: boolean;
   onVideoReview: (player: AdminRegisteredPlayer, status: "approved" | "rejected") => Promise<void>;
+  onRemoveAndRefund: () => Promise<void>;
+  onCancelRemove: () => void;
   onPendingTierChange: (tier: number) => void;
   onSaveTier: () => Promise<void>;
 }) {
   const hasTierChange = pendingTier !== player.tier;
 
   return (
-    <li className="grid min-h-[64px] gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3 lg:grid-cols-[minmax(180px,1.2fr)_minmax(130px,0.85fr)_minmax(150px,0.9fr)_90px_minmax(210px,1fr)] lg:items-center" key={player.id}>
+    <li className="grid min-h-[64px] gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3 xl:grid-cols-[minmax(180px,1.2fr)_minmax(130px,0.85fr)_minmax(150px,0.9fr)_90px_minmax(210px,1fr)_minmax(150px,0.75fr)] xl:items-center" key={player.id}>
       <div className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-3">
         <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
           {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
         </span>
         <span className="grid min-w-0 gap-1">
           <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
-          <em className="text-[12px] not-italic text-text-secondary lg:hidden">Player</em>
+          <em className="text-[12px] not-italic text-text-secondary xl:hidden">Player</em>
         </span>
       </div>
       <div className="grid gap-1">
-        <span className="text-[12px] font-medium text-text-secondary lg:hidden">City, age</span>
+        <span className="text-[12px] font-medium text-text-secondary xl:hidden">City, age</span>
         <strong className="truncate text-[14px] font-medium text-text-primary">{player.jamaatCity}</strong>
         <em className="text-[13px] not-italic text-text-secondary">{player.age}</em>
       </div>
-      <div className="grid grid-cols-[minmax(120px,1fr)_auto] items-end gap-2 lg:grid-cols-[96px_auto]">
+      <div className="grid grid-cols-[minmax(120px,1fr)_auto] items-end gap-2 xl:grid-cols-[96px_auto]">
         <label className="grid gap-1 text-[12px] text-text-secondary">
           Tier
           <select
@@ -1200,12 +1301,12 @@ function TieredRegisteredPlayerRow({
           {saving ? "Saving" : "Save"}
         </button>
       </div>
-      <div className="grid gap-1 lg:justify-items-start">
-        <span className="text-[12px] font-medium text-text-secondary lg:hidden">Rating</span>
+      <div className="grid gap-1 xl:justify-items-start">
+        <span className="text-[12px] font-medium text-text-secondary xl:hidden">Rating</span>
         <strong className="text-[15px] font-medium leading-none text-brand">{formatAdminRating(player.rating)}</strong>
       </div>
-      <div className="grid gap-1 lg:justify-items-start">
-        <span className="text-[12px] font-medium text-text-secondary lg:hidden">Video</span>
+      <div className="grid gap-1 xl:justify-items-start">
+        <span className="text-[12px] font-medium text-text-secondary xl:hidden">Video</span>
         {player.tennisVideoUrl ? (
           <span className="grid gap-1">
             <span className="flex flex-wrap items-center gap-1.5">
@@ -1228,6 +1329,26 @@ function TieredRegisteredPlayerRow({
         ) : (
           <span className="inline-flex h-7 w-max items-center justify-center rounded-full bg-[#f1efe8] px-2.5 text-[12px] font-medium text-text-secondary">No video</span>
         )}
+      </div>
+      <div className="grid gap-2 xl:justify-items-start">
+        <span className="text-[12px] font-medium text-text-secondary xl:hidden">Action</span>
+        {confirmingRemove && <em className="max-w-[170px] text-[12px] not-italic leading-snug text-[#a32d2d]">Do you wanna remove them and refund them?</em>}
+        <div className="flex flex-wrap gap-2">
+          <button
+            className={confirmingRemove ? "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] bg-[#a32d2d] px-3 text-[12px] font-medium text-white disabled:opacity-60" : "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-3 text-[12px] font-medium text-[#a32d2d] disabled:opacity-60"}
+            type="button"
+            onClick={onRemoveAndRefund}
+            disabled={removing || !player.paymentId}
+          >
+            {removing ? "Removing..." : confirmingRemove ? "Remove and Refund" : "Remove"}
+          </button>
+          {confirmingRemove && (
+            <button className="tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] bg-surface px-3 text-[12px] font-medium text-text-secondary" type="button" onClick={onCancelRemove}>
+              Cancel
+            </button>
+          )}
+        </div>
+        {!player.paymentId && <small className="text-[12px] leading-snug text-text-muted">No Stripe payment found.</small>}
       </div>
     </li>
   );
@@ -1271,7 +1392,7 @@ export function AdminPaymentsScreen() {
   const [paymentNotice, setPaymentNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
   const [confirmRefundId, setConfirmRefundId] = useState<string | null>(null);
-  const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid" | "refunded" | "failed">("all");
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid" | "refunded" | "failed">("paid");
 
   const loadPayments = useCallback(async () => {
     const supabase = getSupabaseClient();
@@ -1322,20 +1443,22 @@ export function AdminPaymentsScreen() {
     if (!supabase) return;
     setUpdatingPaymentId(payment.id);
     setPaymentNotice(null);
-    const refundedAt = new Date().toISOString();
-    const { error } = await supabase
-      .from("payment_ledger")
-      .update({ status: "refunded", entry_type: "refund", occurred_at: refundedAt })
-      .eq("id", payment.id);
-    if (!error && payment.registration_id) {
-      await supabase.from("tournament_registrations").update({ payment_status: "refunded" }).eq("id", payment.registration_id);
-    }
+    const { data: sessionData } = await supabase.auth.getSession();
+    const response = await fetch("/api/admin/refund-payment", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sessionData.session?.access_token || ""}`
+      },
+      body: JSON.stringify({ paymentId: payment.id })
+    });
+    const result = await response.json().catch(() => ({}));
     setUpdatingPaymentId(null);
-    if (error) {
-      setPaymentNotice({ type: "error", text: error.message });
+    if (!response.ok) {
+      setPaymentNotice({ type: "error", text: result.error || "Could not refund this payment." });
       return;
     }
-    setPaymentNotice({ type: "success", text: "Payment marked refunded." });
+    setPaymentNotice({ type: "success", text: "Stripe refund created and payment marked refunded." });
     setConfirmRefundId(null);
     await loadPayments();
   };
