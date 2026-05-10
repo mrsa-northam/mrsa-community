@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, Home, Info, LogIn, LogOut, Mail, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, Home, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -47,6 +47,7 @@ type Tournament = {
   registrationClosesAt: string | null;
   registrationFeeCents: number;
   maxPlayers: number | null;
+  notes: string | null;
 };
 type RegisteredPlayer = { id: string; name: string; city: string; rating: string };
 type PaymentState = "idle" | "pending" | "failed" | "paid";
@@ -157,6 +158,7 @@ type DbTournamentRow = {
   registration_closes_at: string | null;
   registration_fee_cents: number | null;
   max_players: number | null;
+  notes?: string | null;
 };
 
 const initialProfile: ProfileData = {
@@ -219,11 +221,11 @@ function Avatar({ className, name, photoUrl, ariaLabel }: AvatarProps) {
 function BrandMark() {
   return (
     <span className="inline-flex items-center gap-2.5" aria-label="MRSA">
-      <span className="relative h-12 w-12 shrink-0 overflow-hidden">
+      <span className="relative h-14 w-14 shrink-0 overflow-hidden md:h-16 md:w-16">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brand/mrsa-logo.svg" alt="" aria-hidden="true" className="h-full w-full object-contain" />
       </span>
-      <strong className="text-[27px] font-medium leading-none tracking-[-0.4px] text-brand md:text-[29px]">MRSA</strong>
+      <strong className="text-[22px] font-medium leading-none tracking-[-0.4px] text-brand md:text-[24px]">MRSA</strong>
     </span>
   );
 }
@@ -240,7 +242,7 @@ function AppTopBar({
   const photoUrl = avatarPhotoUrl || appSession.player?.profile_photo_url || undefined;
 
   return (
-    <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-3 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-2.5 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
       <div className="mx-auto grid w-full max-w-shell grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center">
         <Link className="tap-card inline-flex min-w-0 justify-self-start" href="/dashboard" aria-label="MRSA home">
           <BrandMark />
@@ -252,6 +254,17 @@ function AppTopBar({
         </Link>
       </div>
     </header>
+  );
+}
+
+function PageGreeting({ subtitle }: { subtitle: string }) {
+  const appSession = useAppSession();
+  const firstName = appSession.player?.full_name?.split(" ")[0] || "there";
+  return (
+    <div className="mb-1">
+      <div className="text-[17px] font-medium text-text-primary">Hi {firstName}</div>
+      <div className="text-[13px] text-text-secondary">{subtitle}</div>
+    </div>
   );
 }
 
@@ -713,26 +726,21 @@ export function OtpScreen({ email = "player@mrsa.com", nextPath }: { email?: str
                   </span>
                 </span>
                 <div className="grid gap-2">
-                  <span className="mx-auto inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-caption text-white/72">MRSA verification</span>
-                  <h1 className="max-w-[320px] text-[30px] font-medium leading-[1.05] text-white md:text-[34px]">Enter your access code.</h1>
-                  <p className="mx-auto max-w-[310px] text-[15px] leading-relaxed text-white/68">We sent a one-time code to your email. Enter it below to continue.</p>
+                  <h1 className="max-w-[320px] text-[30px] font-medium leading-[1.05] text-white md:text-[34px]">Enter your one-time code</h1>
                 </div>
               </div>
             </div>
 
             <div className="relative z-10 grid gap-4 bg-white px-6 py-5 md:px-8 md:py-6">
               <div className="grid gap-1 text-center">
-                <h2 className="text-h1 text-text-primary">Check your inbox</h2>
-                <p className="truncate text-body text-text-secondary">Enter the code sent to {email}.</p>
+                <p className="truncate text-body text-text-secondary">Code has been sent to {email}</p>
               </div>
               <form className="grid gap-3" onSubmit={verifyOtp}>
                 <input type="hidden" name="email" value={email} />
                 <label className="grid gap-2 text-caption text-text-secondary" htmlFor="otp">
-                  One-time code
                   <span className="grid min-h-12 items-center rounded-card border-hairline border-line bg-surface px-3 transition focus-within:border-brand focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-light">
                     <input id="otp" name="otp" className="min-h-11 w-full bg-transparent text-center font-sans text-[22px] font-medium tracking-[0.14em] text-text-primary outline-none placeholder:tracking-normal placeholder:text-text-muted md:text-[24px] md:tracking-[0.24em]" inputMode="numeric" maxLength={10} placeholder="Enter code" value={otp} onChange={(event) => setOtp(event.target.value)} required />
                   </span>
-                  <em className="text-[13px] not-italic leading-relaxed text-text-secondary">Enter the one-time code from your email.</em>
                 </label>
                 <button className="tap-card inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-card bg-brand px-4 text-center text-sm font-medium text-white shadow-[0_14px_28px_rgba(12,59,32,0.18)] disabled:opacity-60" type="submit" disabled={loading}>
                   <CheckCircle2 size={16} />
@@ -1487,7 +1495,7 @@ export function HomeScreen() {
       const [{ data: tournamentData }, { data: profileData }, { data: playersData }] = await Promise.all([
         supabase
           .from("tournaments")
-          .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
+          .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes")
           .gte("starts_on", today)
 	          .in("status", ["registration_open", "registration_closed", "live"])
           .order("starts_on")
@@ -1594,6 +1602,7 @@ export function HomeScreen() {
         <AppTopBar />
 
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+          <PageGreeting subtitle="Ready for the courts?" />
           {needsVideoLink && (
             <form className="grid gap-3 rounded-[18px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-4 md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:items-end md:p-5" onSubmit={saveDashboardVideoLink}>
               <span className="grid gap-1">
@@ -1612,32 +1621,45 @@ export function HomeScreen() {
               </span>
             </form>
           )}
-          <section className="relative grid min-h-[220px] overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] md:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] md:items-center md:gap-x-8 lg:p-6">
+          <section className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-4 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)]">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
                 <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
               </svg>
             </div>
-            <div className="relative grid gap-3 md:self-center">
-              <span className="text-[13px] text-white/60">Upcoming tournament</span>
-              <h1 className="max-w-[680px] text-2xl font-medium leading-[1.12] tracking-[-0.4px] text-white">{upcomingTournament?.name || "Mumineen Racquet Sports Association"}</h1>
-              <p className="max-w-[680px] text-[16px] font-medium text-white/75">{upcomingTournament ? formatTournamentDates(upcomingTournament) : "No upcoming tournament"}</p>
-              {upcomingTournament && <p className="max-w-[680px] text-[13px] text-white/55">{upcomingTournament.venueName || "Venue TBD"}</p>}
-            </div>
-            <div className="relative mt-5 grid gap-4 rounded-[20px] border-hairline border-white/20 bg-white/[0.13] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-xl md:mt-0">
+            <div className="relative grid gap-3">
               {upcomingTournament?.status === "registration_open" && (
-                <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/12 px-2.5 py-1 text-[13px] text-white/85"><span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />Registration open</span>
+                <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1">
+                  <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />
+                  <span className="text-[12px] text-white">Tournament registrations open</span>
+                </span>
               )}
-              <HomeRegistrationCountdown closesAt={upcomingTournament?.registrationClosesAt || null} />
-              <span className="text-center text-xs font-medium text-white/80">
-                {upcomingTournament ? hasRegisteredTournament ? "Registered" : "Register now" : "View"}
-              </span>
-              <Link className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#ffffff,#d6f241)] px-4 text-sm font-medium text-[#072912] shadow-[0_16px_34px_rgba(214,242,65,0.28)] ring-1 ring-white/70" href="/tournaments">
-                View details →
-              </Link>
+              <h1 className="max-w-[680px] text-[18px] font-medium leading-[1.22] tracking-[-0.2px] text-white">{upcomingTournament?.name || "Mumineen Racquet Sports Association"}</h1>
+              <div className="grid grid-cols-2 gap-2">
+                <span className="grid gap-2 rounded-[12px] border-hairline border-white/20 bg-white/[0.13] p-3">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] text-white/70">
+                    <Calendar size={11} />
+                    Date
+                  </span>
+                  <span className="text-[15px] font-medium text-white">{upcomingTournament ? formatTournamentDates(upcomingTournament) : "Dates TBD"}</span>
+                </span>
+                <span className="grid gap-2 rounded-[12px] border-hairline border-white/20 bg-white/[0.13] p-3">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] text-white/70">
+                    <MapPin size={11} />
+                    Venue
+                  </span>
+                  <span className="text-[15px] font-medium text-white">{upcomingTournament?.venueName || "Venue TBD"}</span>
+                </span>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <Link className="tap-card inline-flex items-center justify-center rounded-full border-hairline border-white/45 bg-transparent px-3.5 py-2 text-[13px] font-medium text-white" href="/tournaments">
+                  View details →
+                </Link>
+              </div>
             </div>
           </section>
+          <HomeRegistrationCountdown closesAt={upcomingTournament?.registrationClosesAt || null} variant="strip" />
 
           <section className="grid gap-3">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
@@ -1686,6 +1708,9 @@ export function DrawScreen() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [registeredPlayers, setRegisteredPlayers] = useState<RegisteredPlayer[]>([]);
   const [pastTournaments, setPastTournaments] = useState<PastTournamentSummary[]>([]);
+  const [isPastExpanded, setIsPastExpanded] = useState(false);
+  const [loadingPast, setLoadingPast] = useState(false);
+  const [pastLoaded, setPastLoaded] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [paymentState, setPaymentState] = useState<PaymentState>("idle");
   const [paying, setPaying] = useState(false);
@@ -1707,27 +1732,19 @@ export function DrawScreen() {
       return;
     }
 
-    const [{ data: tournamentData, error }, { data: historicalMatches, error: historicalError }] = await Promise.all([
-      supabase
+    const { data: tournamentData, error } = await supabase
       .from("tournaments")
-      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
+      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes")
 	      .in("status", ["registration_open", "registration_closed", "live"])
       .order("starts_on", { ascending: false })
       .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("matches")
-        .select("season_year, format")
-        .not("season_year", "is", null)
-    ]);
+      .maybeSingle();
 
-    if (error || historicalError) {
-      setMessage(getFriendlyError(error || historicalError));
+    if (error) {
+      setMessage(getFriendlyError(error));
       setLoading(false);
       return;
     }
-
-    setPastTournaments(buildPastTournamentSummaries(historicalMatches || []));
 
     if (!tournamentData) {
       setTournament(null);
@@ -1784,6 +1801,29 @@ export function DrawScreen() {
     }
     setLoading(false);
   }, [appSession.player?.id, appSession.ready, appSession.userId]);
+
+  const loadPastTournaments = useCallback(async () => {
+    if (pastLoaded || loadingPast) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    setLoadingPast(true);
+    const { data, error } = await supabase
+      .from("matches")
+      .select("season_year, format")
+      .not("season_year", "is", null);
+    setLoadingPast(false);
+    if (error) return;
+    setPastTournaments(buildPastTournamentSummaries(data || []));
+    setPastLoaded(true);
+  }, [pastLoaded, loadingPast]);
+
+  const togglePast = () => {
+    setIsPastExpanded((prev) => {
+      const next = !prev;
+      if (next && !pastLoaded) loadPastTournaments();
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!appSession.ready || !appSession.userId) return;
@@ -1960,6 +2000,7 @@ export function DrawScreen() {
       <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
         <AppTopBar />
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+          <PageGreeting subtitle="Here's what's coming up" />
           {loading && !tournament ? (
             <SkeletonHero />
           ) : (
@@ -1972,22 +2013,16 @@ export function DrawScreen() {
             </div>
             <div className="relative grid gap-3 md:self-center">
               {tournament?.status === "registration_open" && (
-                <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-[13px] text-white/85"><span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />Registration live</span>
+                <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-[13px] text-white/85"><span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />Tournament registration live</span>
               )}
-              <span className="text-[13px] text-white/60">{tournament ? "Tournament" : "Tournament"}</span>
               <h1 className="max-w-[680px] text-2xl font-medium leading-[1.12] tracking-[-0.4px] text-white">{tournament ? tournament.name : "No live tournament"}</h1>
               <p className="max-w-[680px] text-[18px] font-medium text-white/78">{tournament ? formatTournamentDates(tournament) : "No live tournament is open right now."}</p>
               {tournament && (
-                <div className="grid gap-2 pt-2 sm:grid-cols-2">
-                  <span className="rounded-card border-hairline border-white/10 bg-white/10 p-3 backdrop-blur">
-                    <b className="block text-[12px] font-normal text-white/55">Venue</b>
-                    <strong className="block truncate text-[15px] font-medium text-white">{tournament.venueName || "Venue TBD"}</strong>
-                    <a className="tap-card mt-1 inline-flex items-center gap-1 text-[13px] text-[#C8F0D6] underline underline-offset-2" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueName || "")}`} target="_blank" rel="noreferrer">
-                      Open venue in Maps
-                      <span className="text-[11px] leading-none" aria-hidden="true">↗</span>
-                    </a>
-                  </span>
-                </div>
+                <a className="tap-card inline-flex w-max items-center gap-1.5 text-[14px] text-white/85 underline-offset-[3px] hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueName || "")}`} target="_blank" rel="noreferrer">
+                  <MapPin size={14} />
+                  <span>{tournament.venueName || "Venue TBD"}</span>
+                  <span className="text-[11px] leading-none" aria-hidden="true">↗</span>
+                </a>
               )}
             </div>
             {tournament && (
@@ -2004,7 +2039,7 @@ export function DrawScreen() {
                   <div className="grid gap-2">
                     <p className="inline-flex items-center justify-center gap-2 text-[14px] font-medium text-[#C9E84A]">
                       <CheckCircle2 size={16} />
-                      {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen })}
+                      {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, feeCents: tournament.registrationFeeCents })}
                     </p>
                     <p className="text-center text-[13px] leading-relaxed text-white/70">
                       Reminder: please <a className="underline underline-offset-2 text-[#C8F0D6]" href="https://drive.google.com/drive/folders/1l_sY5NbcKpKNt0lNDBj1YGRs4mFnC73o" target="_blank" rel="noreferrer">upload your video link to the Google Drive ↗</a>
@@ -2012,7 +2047,7 @@ export function DrawScreen() {
                   </div>
                 ) : (
                   <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-70" type="button" onClick={registerForTournament} disabled={paying || reconcilingPayment || !registrationOpen}>
-                    {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen })}
+                    {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, feeCents: tournament.registrationFeeCents })}
                   </button>
                 )}
                 {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">If you already paid, wait here for confirmation. If checkout was closed before paying, retry payment.</p>}
@@ -2020,6 +2055,13 @@ export function DrawScreen() {
             )}
           </header>
           )}
+
+        {tournament?.notes && (
+          <section className="rounded-[18px] border-hairline border-line bg-card p-5">
+            <h2 className="mb-2 text-[15px] font-medium text-text-primary">What to know</h2>
+            <div className="whitespace-pre-wrap text-[14px] leading-relaxed text-text-secondary">{tournament.notes}</div>
+          </section>
+        )}
 
         {tournament && registered && (
           <p className="px-1 pt-1 text-center text-[13px] text-text-secondary">
@@ -2036,11 +2078,11 @@ export function DrawScreen() {
             <h2 className="text-[15px] font-medium text-text-primary">Registered players</h2>
             {registeredPlayers.length > 10 ? (
               <span className="inline-flex items-center gap-2 justify-self-end whitespace-nowrap">
-                <span className="text-[13px] text-text-secondary">{registeredPlayerCountLabel}</span>
+                <span className="text-[13px] text-text-secondary">{tournament?.maxPlayers ? `${registeredPlayers.length} of ${tournament.maxPlayers} spots filled` : registeredPlayerCountLabel}</span>
                 <Link className="tap-card text-[14px] font-medium text-brand" href="/tournaments/players">View all →</Link>
               </span>
             ) : (
-              <span className="text-[13px] text-text-secondary">{registeredPlayerCountLabel}</span>
+              <span className="text-[13px] text-text-secondary">{tournament?.maxPlayers ? `${registeredPlayers.length} of ${tournament.maxPlayers} spots filled` : registeredPlayerCountLabel}</span>
             )}
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -2061,21 +2103,45 @@ export function DrawScreen() {
             {!loading && !registeredPlayers.length && <StatusMessage tone="info">No players registered yet.</StatusMessage>}
           </div>
 
-          <div className="flex items-center justify-between pt-2">
+          <section className="rounded-[18px] border-hairline border-line bg-brand-light p-5">
+            <h2 className="text-[15px] font-medium text-[#27500a]">Have questions?</h2>
+            <p className="mt-1 text-[14px] leading-relaxed text-[#27500a]/80">Message organizers on WhatsApp before you register — quick replies on format, eligibility, refunds, and what to bring.</p>
+            <a className="tap-card mt-3 inline-flex min-h-10 items-center gap-2 rounded-full bg-brand px-4 text-[13px] font-medium text-white" href="https://wa.me/13128749178?text=Hi%2C%20I%27m%20looking%20at%20the%20MRSA%20tournament%20and%20have%20a%20question." target="_blank" rel="noreferrer">
+              Open WhatsApp ↗
+            </a>
+          </section>
+
+          <button
+            type="button"
+            className="tap-card flex w-full items-center justify-between pt-2 text-left"
+            onClick={togglePast}
+            aria-expanded={isPastExpanded}
+            aria-controls="past-tournaments-list"
+          >
             <h2 className="text-[15px] font-medium text-text-primary">Past tournaments</h2>
-            <span className="text-[13px] text-text-secondary">{pastTournaments.length} seasons</span>
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {pastTournaments.map((pastTournament) => (
-              <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4" key={pastTournament.seasonYear}>
-                <span className="text-[13px] text-text-secondary">{pastTournament.seasonYear} season</span>
-                <strong className="text-[17px] font-medium text-text-primary">MRSA {pastTournament.seasonYear}</strong>
-                <em className="text-[13px] not-italic text-text-secondary">{pastTournament.matches} matches recorded</em>
-              </article>
-            ))}
-            {loading && !pastTournaments.length && Array.from({ length: 3 }).map((_, index) => <SkeletonCard key={index} />)}
-            {!loading && !pastTournaments.length && <StatusMessage tone="info">No historical tournament data found.</StatusMessage>}
-          </div>
+            <span className="inline-flex items-center gap-2 text-[13px] text-text-secondary">
+              {pastLoaded
+                ? `${pastTournaments.length} ${pastTournaments.length === 1 ? "season" : "seasons"}`
+                : "View"}
+              <ChevronDown size={16} className={`transition-transform ${isPastExpanded ? "rotate-180" : ""}`} />
+            </span>
+          </button>
+
+          {isPastExpanded && (
+            <div id="past-tournaments-list" className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {pastTournaments.map((pastTournament) => (
+                <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4" key={pastTournament.seasonYear}>
+                  <span className="text-[13px] text-text-secondary">{pastTournament.seasonYear} season</span>
+                  <strong className="text-[17px] font-medium text-text-primary">MRSA {pastTournament.seasonYear}</strong>
+                  <em className="text-[13px] not-italic text-text-secondary">{pastTournament.matches} matches recorded</em>
+                </article>
+              ))}
+              {loadingPast && Array.from({ length: 3 }).map((_, index) => <SkeletonCard key={index} />)}
+              {!loadingPast && pastLoaded && !pastTournaments.length && (
+                <StatusMessage tone="info">No historical tournament data found.</StatusMessage>
+              )}
+            </div>
+          )}
 
           {message && <StatusMessage tone={paymentState === "failed" ? "error" : paymentState === "pending" ? "warning" : "success"}>{message}</StatusMessage>}
         </section>
@@ -2136,7 +2202,7 @@ export function RegisteredPlayersScreen() {
 
     const { data: tournamentData, error } = await supabase
       .from("tournaments")
-      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
+      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes")
 	      .in("status", ["registration_open", "registration_closed", "live"])
       .order("starts_on", { ascending: false })
       .limit(1)
@@ -2215,6 +2281,7 @@ export function RegisteredPlayersScreen() {
         </header>
 
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+          <PageGreeting subtitle="Here's what's coming up" />
           <section className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] lg:p-6">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2317,6 +2384,7 @@ export function PlayersScreen() {
       <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
         <AppTopBar />
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+          <PageGreeting subtitle="The MRSA leaderboard" />
           <section className="relative grid min-h-[190px] overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] lg:p-6">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2373,6 +2441,7 @@ export function AboutScreen() {
         </header>
 
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+          {isAuthenticated && <PageGreeting subtitle="Ready for the courts?" />}
           <section className="relative grid min-h-[220px] overflow-hidden rounded-hero bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(250px,320px)] md:items-center md:gap-8 lg:p-6">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2561,7 +2630,8 @@ export function PlayerScreen() {
         <AppTopBar avatarName={profile.fullName} avatarPhotoUrl={profile.profilePhotoUrl} />
 
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
-        <section className="relative grid min-h-[220px] grid-cols-[minmax(0,1fr)_auto] items-start gap-4 overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 pb-16 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] md:gap-6 lg:p-6 lg:pb-16">
+          <PageGreeting subtitle="Manage your player profile" />
+          <section className="relative grid min-h-[220px] grid-cols-[minmax(0,1fr)_auto] items-start gap-4 overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 pb-16 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] md:gap-6 lg:p-6 lg:pb-16">
           <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
             <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -2781,7 +2851,8 @@ function mapTournament(row: DbTournamentRow): Tournament {
     endsOn: row.ends_on,
     registrationClosesAt: row.registration_closes_at,
     registrationFeeCents: row.registration_fee_cents || 0,
-    maxPlayers: row.max_players
+    maxPlayers: row.max_players,
+    notes: row.notes ?? null
   };
 }
 
@@ -2915,22 +2986,24 @@ function getRegistrationButtonLabel({
   registered,
   paying,
   paymentState,
-  registrationOpen
+  registrationOpen,
+  feeCents
 }: {
   registered: boolean;
   paying: boolean;
   paymentState: PaymentState;
   registrationOpen: boolean | undefined;
+  feeCents: number;
 }) {
   if (registered || paymentState === "paid") return "Registered";
   if (paying) return "Opening payment...";
-  if (paymentState === "failed") return "Retry payment";
-  if (paymentState === "pending") return "Retry payment";
+  if (paymentState === "failed") return `Retry $${Math.round(feeCents / 100)} payment`;
+  if (paymentState === "pending") return `Retry $${Math.round(feeCents / 100)} payment`;
   if (!registrationOpen) return "Registration closed";
   return "Pay and register →";
 }
 
-function HomeRegistrationCountdown({ closesAt }: { closesAt: string | null }) {
+function HomeRegistrationCountdown({ closesAt, variant = "card" }: { closesAt: string | null; variant?: "card" | "strip" }) {
   const [remaining, setRemaining] = useState(() => getTimeRemaining(closesAt));
 
   useEffect(() => {
@@ -2943,11 +3016,27 @@ function HomeRegistrationCountdown({ closesAt }: { closesAt: string | null }) {
   if (!closesAt) return null;
 
   const units = [
-    { label: "Days", value: remaining.days },
-    { label: "Hours", value: remaining.hours },
-    { label: "Mins", value: remaining.minutes },
-    { label: "Secs", value: remaining.seconds }
+    { label: "Days", suffix: "d", value: remaining.days },
+    { label: "Hours", suffix: "h", value: remaining.hours },
+    { label: "Mins", suffix: "m", value: remaining.minutes },
+    { label: "Secs", suffix: "s", value: remaining.seconds }
   ];
+
+  if (variant === "strip") {
+    return (
+      <div className="mt-3 flex items-center justify-between px-1" aria-label="Registration close countdown">
+        <span className="text-[12px] font-medium text-text-secondary">Registration closes in</span>
+        <span className="flex gap-1.5">
+          {units.map((unit) => (
+            <span className="rounded-[8px] border-hairline border-line bg-white px-2 py-1 text-[12px] font-medium tabular-nums text-text-primary" key={unit.label}>
+              {remaining.expired ? "00" : String(unit.value).padStart(2, "0")}
+              {unit.suffix}
+            </span>
+          ))}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <article className="grid gap-2 rounded-card border-hairline border-white/10 bg-white/10 px-3 py-3 text-white" aria-label="Registration close countdown">

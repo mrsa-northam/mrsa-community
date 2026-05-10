@@ -43,6 +43,7 @@ type AdminTournament = {
   registration_closes_at: string | null;
   registration_fee_cents: number;
   max_players: number | null;
+  notes: string | null;
 };
 type AdminRegisteredPlayer = {
   id: string;
@@ -128,10 +129,20 @@ function AdminBrandMark({ light = false }: { light?: boolean }) {
   );
 }
 
+function AdminPageGreeting({ firstName, subtitle }: { firstName: string; subtitle: string }) {
+  return (
+    <div className="mb-1">
+      <div className="text-[17px] font-medium text-text-primary">Hi {firstName}</div>
+      <div className="text-[13px] text-text-secondary">{subtitle}</div>
+    </div>
+  );
+}
+
 export function AdminFrame({ active, children }: { active: AdminTab; children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [adminFirstName, setAdminFirstName] = useState("there");
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -153,6 +164,12 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
         return;
       }
 
+      const { data: player } = await supabase
+        .from("players")
+        .select("full_name")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+      setAdminFirstName(player?.full_name?.split(" ")[0] || "there");
       setAllowed(true);
     };
 
@@ -238,7 +255,10 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
         </nav>
         <Link className="tap-card hidden min-h-10 items-center justify-center rounded-[14px] border-hairline border-white/12 bg-white/10 px-4 text-xs font-medium text-white/85 lg:mt-auto lg:inline-flex" href="/dashboard">Player app →</Link>
       </aside>
-      <section className="mx-auto grid w-full max-w-shell content-start gap-4 px-4 py-5 pb-10 md:px-6 lg:px-8">{children}</section>
+      <section className="mx-auto grid w-full max-w-shell content-start gap-4 px-4 py-5 pb-10 md:px-6 lg:px-8">
+        <AdminPageGreeting firstName={adminFirstName} subtitle="Admin tools" />
+        {children}
+      </section>
     </main>
   );
 }
@@ -532,7 +552,7 @@ export function AdminTournamentsScreen() {
     if (!supabase) return;
     const { data, error } = await supabase
       .from("tournaments")
-      .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
+      .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes")
       .order("starts_on", { ascending: false })
       .limit(30);
 
@@ -583,7 +603,8 @@ export function AdminTournamentsScreen() {
       registration_closes_at: registrationClosesAt,
       registration_fee_cents: Math.round(feeDollars * 100),
       currency: "USD",
-      max_players: null
+      max_players: form.get("maxPlayers") ? Number(form.get("maxPlayers")) : null,
+      notes: String(form.get("notes") || "").trim() || null
     };
     const { error } = await supabase.from("tournaments").insert({
       sport_id: sportId,
@@ -699,9 +720,28 @@ export function AdminTournamentsScreen() {
             Venue Google Maps URL
             <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" placeholder="https://maps.google.com/..." required />
           </label>
+          <label className="grid gap-1 text-[12px] text-text-secondary">
+            What players should know
+            <textarea
+              className="min-h-[120px] rounded-[14px] border-hairline border-line bg-white px-3 py-2 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
+              name="notes"
+              placeholder="Format, schedule, dress code, what's included in the fee, parking…"
+            />
+          </label>
           <label className="grid gap-2 text-[13px] text-text-secondary">
             Tournament fees
             <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" placeholder="121.00" required />
+          </label>
+          <label className="grid gap-1 text-[12px] text-text-secondary">
+            Maximum players (slots)
+            <input
+              className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
+              name="maxPlayers"
+              type="number"
+              min="1"
+              step="1"
+              placeholder="64"
+            />
           </label>
           <div className="grid gap-2 sm:grid-cols-[auto_auto]">
             <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={creating}>{creating ? "Saving..." : "Create tournament"}</button>
@@ -753,7 +793,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     const [{ data, error }, { data: registrations, error: registrationError }, { data: checkoutPayments, error: checkoutPaymentError }, { data: paidPayments, error: paidPaymentError }] = await Promise.all([
       supabase
         .from("tournaments")
-        .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players")
+        .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes")
         .eq("id", tournamentId)
         .maybeSingle(),
       supabase
