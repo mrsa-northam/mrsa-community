@@ -1680,7 +1680,7 @@ export function HomeScreen() {
               </button>
             </form>
           )}
-          <section className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-4 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-4 md:p-5">
+          <section className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_80%_22%,rgba(76,222,140,0.14)_0,transparent_28%),linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] p-4 text-white shadow-[0_18px_46px_rgba(12,59,32,0.16)] md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-4 md:p-5">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -1688,7 +1688,7 @@ export function HomeScreen() {
               </svg>
             </div>
             <div className="relative grid gap-2">
-              <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] text-white/82">
+              <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] font-medium text-[#83f0ad]">
                 {homeTournamentCopy.live && <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />}
                 {homeTournamentCopy.badge}
               </span>
@@ -3177,8 +3177,8 @@ function getHomeTournamentCopy(tournament: Tournament | null, paymentState: Paym
     return {
       badge: registrationStatus,
       title: "You are registered",
-      description: "View tournament details.",
-      action: "View",
+      description: "See dates, venue, and players.",
+      action: "View details",
       live: tournament.status === "registration_open"
     };
   }
@@ -3187,7 +3187,7 @@ function getHomeTournamentCopy(tournament: Tournament | null, paymentState: Paym
     return {
       badge: "Pending",
       title: "Payment pending",
-      description: "Open tournament to retry or check status.",
+      description: "Check payment status.",
       action: "Check",
       live: false
     };
@@ -3197,7 +3197,7 @@ function getHomeTournamentCopy(tournament: Tournament | null, paymentState: Paym
     return {
       badge: "Action needed",
       title: "Payment not completed",
-      description: "Open tournament when you are ready.",
+      description: "Retry registration when you are ready.",
       action: "Retry",
       live: false
     };
@@ -3205,10 +3205,10 @@ function getHomeTournamentCopy(tournament: Tournament | null, paymentState: Paym
 
   if (tournament.status === "registration_open") {
     return {
-      badge: "Registration open",
-      title: "Tournament registration",
-      description: "View tournament details.",
-      action: "View",
+      badge: "Registration live",
+      title: "Confirm your spot",
+      description: "See dates, fee, venue, and registered players.",
+      action: "View details",
       live: true
     };
   }
@@ -3216,8 +3216,8 @@ function getHomeTournamentCopy(tournament: Tournament | null, paymentState: Paym
   return {
     badge: formatTournamentStatus(tournament.status),
     title: formatTournamentStatus(tournament.status),
-    description: "View tournament details.",
-    action: "View",
+    description: "View details.",
+    action: "View details",
     live: false
   };
 }
