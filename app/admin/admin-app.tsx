@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Home, Pencil, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Home, Pencil, Shield, Trophy, UsersRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -317,6 +317,13 @@ export function AdminOverviewScreen() {
 
   return (
     <AdminFrame active="overview">
+      <Link
+        className="tap-card inline-flex w-max items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-[13px] font-medium text-brand border-hairline border-line"
+        href="/dashboard"
+      >
+        <ArrowLeft size={14} />
+        Back to player view
+      </Link>
       <section className="relative grid min-h-[230px] overflow-hidden rounded-[22px] bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] md:items-center md:gap-8 lg:p-6">
         <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
           <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -923,7 +930,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       ends_on: endDate || null,
       registration_closes_at: registrationClosesAt,
       registration_fee_cents: Math.round(feeDollars * 100),
-      max_players: null
+      max_players: form.get("maxPlayers") ? Number(form.get("maxPlayers")) : null,
+      notes: String(form.get("notes") || "").trim() || null
     }).eq("id", tournament.id);
     setSaving(false);
 
@@ -1082,6 +1090,26 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
               <label className="grid gap-2 text-[13px] text-text-secondary">
                 Tournament fees
                 <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" defaultValue={tournament.registration_fee_cents / 100} required />
+              </label>
+              <label className="grid gap-2 text-[13px] text-text-secondary">
+                Maximum players (slots)
+                <input
+                  className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
+                  name="maxPlayers"
+                  type="number"
+                  min="1"
+                  step="1"
+                  defaultValue={tournament.max_players ?? ""}
+                />
+              </label>
+              <label className="grid gap-2 text-[13px] text-text-secondary">
+                What players should know
+                <textarea
+                  className="min-h-[120px] rounded-[14px] border-hairline border-line bg-white px-3 py-2 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
+                  name="notes"
+                  placeholder="Format, schedule, dress code, what's included in the fee, parking…"
+                  defaultValue={tournament.notes || ""}
+                />
               </label>
               <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save details"}</button>
             </form>

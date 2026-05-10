@@ -1604,21 +1604,28 @@ export function HomeScreen() {
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
           <PageGreeting subtitle="Ready for the courts?" />
           {needsVideoLink && (
-            <form className="grid gap-3 rounded-[18px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-4 md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:items-end md:p-5" onSubmit={saveDashboardVideoLink}>
-              <span className="grid gap-1">
-                <strong className="text-[17px] font-medium text-[#8a4a22]">Upload your tennis video link</strong>
-                <em className="text-[14px] not-italic leading-relaxed text-[#8a4a22]/80">Captains and organizers use your Google Drive video to draft teams. If it is not uploaded, you may not be drafted.</em>
-                {dashboardVideoMessage && <b className="text-[13px] font-medium text-[#8a4a22]">{dashboardVideoMessage}</b>}
-              </span>
-              <span className="grid gap-2">
-                <label className="grid gap-1 text-[12px] text-[#8a4a22]" htmlFor="dashboard-video-link">
-                  Google Drive video link
-                  <input className="min-h-10 rounded-[12px] border-hairline border-[#f2dccb] bg-white px-3 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" id="dashboard-video-link" value={dashboardVideoLink} onChange={(event) => setDashboardVideoLink(event.target.value)} placeholder="https://drive.google.com/..." inputMode="url" />
-                </label>
-                <button className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-xs font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.18)] disabled:opacity-60" type="submit" disabled={savingDashboardVideo}>
-                  {savingDashboardVideo ? "Saving..." : "Submit video link"}
-                </button>
-              </span>
+            <form className="grid gap-3 rounded-[18px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-4" onSubmit={saveDashboardVideoLink}>
+              <h3 className="text-[16px] font-medium text-[#8a4a22]">Reminder</h3>
+              <em className="text-[14px] not-italic leading-relaxed text-[#8a4a22]/85">
+                Upload a google drive link of a short video of you playing. Include your serve, forehand, backhand, volleys, and a few rally points.
+              </em>
+              {dashboardVideoMessage && <b className="text-[13px] font-medium text-[#8a4a22]">{dashboardVideoMessage}</b>}
+              <input
+                className="min-h-10 rounded-[12px] border-hairline border-[#f2dccb] bg-white px-3 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
+                id="dashboard-video-link"
+                aria-label="Google Drive video link"
+                value={dashboardVideoLink}
+                onChange={(event) => setDashboardVideoLink(event.target.value)}
+                placeholder="https://drive.google.com/..."
+                inputMode="url"
+              />
+              <button
+                className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-xs font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.18)] disabled:opacity-60"
+                type="submit"
+                disabled={savingDashboardVideo}
+              >
+                {savingDashboardVideo ? "Saving..." : "Submit video link"}
+              </button>
             </form>
           )}
           <section className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-4 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)]">
@@ -3000,7 +3007,7 @@ function getRegistrationButtonLabel({
   if (paymentState === "failed") return `Retry $${Math.round(feeCents / 100)} payment`;
   if (paymentState === "pending") return `Retry $${Math.round(feeCents / 100)} payment`;
   if (!registrationOpen) return "Registration closed";
-  return "Pay and register →";
+  return `Pay $${Math.round(feeCents / 100)} and register →`;
 }
 
 function HomeRegistrationCountdown({ closesAt, variant = "card" }: { closesAt: string | null; variant?: "card" | "strip" }) {
