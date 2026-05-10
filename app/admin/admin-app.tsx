@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Home, Pencil, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Home, Pencil, Shield, Trophy, UsersRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -44,6 +44,7 @@ type AdminTournament = {
   registration_fee_cents: number;
   max_players: number | null;
   notes: string | null;
+  faqs?: unknown;
 };
 type AdminRegisteredPlayer = {
   id: string;
@@ -253,6 +254,7 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
           <AdminNavItem active={active === "payments"} href="/admin/payments" icon={<BadgeDollarSign size={17} />} label="Payments" />
           <AdminNavItem active={active === "claims"} href="/admin/claims" icon={<ClipboardCheck size={17} />} label="Claims" />
         </nav>
+        <Link className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-white/12 bg-white/10 px-4 text-xs font-medium text-white/85 lg:hidden" href="/dashboard">Player app →</Link>
         <Link className="tap-card hidden min-h-10 items-center justify-center rounded-[14px] border-hairline border-white/12 bg-white/10 px-4 text-xs font-medium text-white/85 lg:mt-auto lg:inline-flex" href="/dashboard">Player app →</Link>
       </aside>
       <section className="mx-auto grid w-full max-w-shell content-start gap-4 px-4 py-5 pb-10 md:px-6 lg:px-8">
@@ -284,16 +286,24 @@ function AdminNavItem({
 
 export function AdminOverviewScreen() {
   const [counts, setCounts] = useState<CountMap>({ players: 0, tournaments: 0, payments: 0, claims: 0 });
+  const [currentTournament, setCurrentTournament] = useState<Pick<AdminTournament, "id" | "name"> | null>(null);
 
   const loadCounts = useCallback(async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    const [players, tournaments, payments, claims] = await Promise.all([
+    const [players, tournaments, payments, claims, currentTournamentResult] = await Promise.all([
       supabase.from("players").select("id", { count: "exact", head: true }),
       supabase.from("tournaments").select("id", { count: "exact", head: true }),
       supabase.from("payment_ledger").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      supabase.from("player_claims").select("id", { count: "exact", head: true }).eq("status", "pending")
+      supabase.from("player_claims").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      supabase
+        .from("tournaments")
+        .select("id, name")
+        .in("status", ["registration_open", "registration_closed", "live", "draft"])
+        .order("starts_on", { ascending: true, nullsFirst: false })
+        .limit(1)
+        .maybeSingle()
     ]);
 
     setCounts({
@@ -302,6 +312,7 @@ export function AdminOverviewScreen() {
       payments: payments.count || 0,
       claims: claims.count || 0
     });
+    setCurrentTournament((currentTournamentResult.data as Pick<AdminTournament, "id" | "name"> | null) || null);
   }, []);
 
   useEffect(() => {
@@ -317,13 +328,15 @@ export function AdminOverviewScreen() {
 
   return (
     <AdminFrame active="overview">
-      <Link
-        className="tap-card inline-flex w-max items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-[13px] font-medium text-brand border-hairline border-line"
-        href="/dashboard"
-      >
-        <ArrowLeft size={14} />
-        Back to player view
-      </Link>
+      {currentTournament && (
+        <Link
+          className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-brand px-5 text-sm font-medium text-white shadow-[0_14px_28px_rgba(12,59,32,0.14)] md:w-max"
+          href={`/admin/tournaments/${currentTournament.id}`}
+        >
+          Manage active tournament
+          <ArrowRight size={15} />
+        </Link>
+      )}
       <section className="relative grid min-h-[230px] overflow-hidden rounded-[22px] bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] md:items-center md:gap-8 lg:p-6">
         <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
           <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -559,7 +572,7 @@ export function AdminTournamentsScreen() {
     if (!supabase) return;
     const { data, error } = await supabase
       .from("tournaments")
-      .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes")
+      .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
       .order("starts_on", { ascending: false })
       .limit(30);
 
@@ -611,7 +624,8 @@ export function AdminTournamentsScreen() {
       registration_fee_cents: Math.round(feeDollars * 100),
       currency: "USD",
       max_players: form.get("maxPlayers") ? Number(form.get("maxPlayers")) : null,
-      notes: String(form.get("notes") || "").trim() || null
+      notes: String(form.get("notes") || "").trim() || null,
+      faqs: getAdminTournamentFaqs(form)
     };
     const { error } = await supabase.from("tournaments").insert({
       sport_id: sportId,
@@ -727,18 +741,11 @@ export function AdminTournamentsScreen() {
             Venue Google Maps URL
             <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" placeholder="https://maps.google.com/..." required />
           </label>
-          <label className="grid gap-1 text-[12px] text-text-secondary">
-            What players should know
-            <textarea
-              className="min-h-[120px] rounded-[14px] border-hairline border-line bg-white px-3 py-2 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
-              name="notes"
-              placeholder="Format, schedule, dress code, what's included in the fee, parking…"
-            />
-          </label>
           <label className="grid gap-2 text-[13px] text-text-secondary">
             Tournament fees
             <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" placeholder="121.00" required />
           </label>
+          <AdminFaqFields />
           <label className="grid gap-1 text-[12px] text-text-secondary">
             Maximum players (slots)
             <input
@@ -800,7 +807,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     const [{ data, error }, { data: registrations, error: registrationError }, { data: checkoutPayments, error: checkoutPaymentError }, { data: paidPayments, error: paidPaymentError }] = await Promise.all([
       supabase
         .from("tournaments")
-        .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes")
+        .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
         .eq("id", tournamentId)
         .maybeSingle(),
       supabase
@@ -931,7 +938,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       registration_closes_at: registrationClosesAt,
       registration_fee_cents: Math.round(feeDollars * 100),
       max_players: form.get("maxPlayers") ? Number(form.get("maxPlayers")) : null,
-      notes: String(form.get("notes") || "").trim() || null
+      notes: String(form.get("notes") || "").trim() || null,
+      faqs: getAdminTournamentFaqs(form)
     }).eq("id", tournament.id);
     setSaving(false);
 
@@ -1102,15 +1110,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                   defaultValue={tournament.max_players ?? ""}
                 />
               </label>
-              <label className="grid gap-2 text-[13px] text-text-secondary">
-                What players should know
-                <textarea
-                  className="min-h-[120px] rounded-[14px] border-hairline border-line bg-white px-3 py-2 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
-                  name="notes"
-                  placeholder="Format, schedule, dress code, what's included in the fee, parking…"
-                  defaultValue={tournament.notes || ""}
-                />
-              </label>
+              <AdminFaqFields faqs={normalizeAdminTournamentFaqs(tournament.faqs)} />
               <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save details"}</button>
             </form>
           </section>
@@ -1152,6 +1152,64 @@ function AdminFutureCard({ title, copy }: { title: string; copy: string }) {
       <strong className="text-lg font-medium leading-tight text-text-primary">{title}</strong>
       <em className="text-[15px] not-italic leading-relaxed text-text-secondary">{copy}</em>
     </article>
+  );
+}
+
+type AdminFaq = { question: string; answer: string };
+
+function normalizeAdminTournamentFaqs(value: unknown): AdminFaq[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as { question?: unknown; answer?: unknown };
+    const question = typeof record.question === "string" ? record.question.trim() : "";
+    const answer = typeof record.answer === "string" ? record.answer.trim() : "";
+    return question && answer ? [{ question, answer }] : [];
+  });
+}
+
+function getAdminTournamentFaqs(form: FormData): AdminFaq[] {
+  const questions = form.getAll("faqQuestion").map((value) => String(value || "").trim());
+  const answers = form.getAll("faqAnswer").map((value) => String(value || "").trim());
+  return questions.flatMap((question, index) => {
+    const answer = answers[index] || "";
+    return question && answer ? [{ question, answer }] : [];
+  });
+}
+
+function AdminFaqFields({ faqs = [] }: { faqs?: AdminFaq[] }) {
+  const [rows, setRows] = useState<AdminFaq[]>(() => faqs.length ? faqs : [{ question: "", answer: "" }]);
+
+  const updateRow = (index: number, field: keyof AdminFaq, value: string) => {
+    setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
+  };
+
+  const addRow = () => {
+    setRows((current) => [...current, { question: "", answer: "" }]);
+  };
+
+  const removeRow = (index: number) => {
+    setRows((current) => current.length === 1 ? [{ question: "", answer: "" }] : current.filter((_, rowIndex) => rowIndex !== index));
+  };
+
+  return (
+    <fieldset className="grid gap-3 rounded-[16px] border-hairline border-line bg-surface/50 p-3">
+      <legend className="px-1 text-[13px] font-medium text-text-primary">FAQs</legend>
+      <p className="text-[13px] leading-relaxed text-text-secondary">Add question and answer pairs for players. Empty rows are ignored.</p>
+      {rows.map((faq, index) => (
+        <div className="grid gap-2 rounded-[14px] border-hairline border-line bg-white p-3" key={`faq-${index}`}>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <span className="text-[13px] font-medium text-text-primary">FAQ {index + 1}</span>
+            <button className="tap-card rounded-full bg-[#fcebeb] px-3 py-1 text-[12px] font-medium text-[#a32d2d]" type="button" onClick={() => removeRow(index)}>Remove</button>
+          </div>
+          <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="faqQuestion" placeholder={`Question ${index + 1}`} value={faq.question} onChange={(event) => updateRow(index, "question", event.target.value)} />
+          <textarea className="min-h-20 rounded-[12px] border-hairline border-line bg-white px-3 py-2 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="faqAnswer" placeholder="Answer" value={faq.answer} onChange={(event) => updateRow(index, "answer", event.target.value)} />
+        </div>
+      ))}
+      <button className="tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[12px] border-hairline border-line bg-white px-4 text-[13px] font-medium text-brand md:w-max" type="button" onClick={addRow}>
+        Add FAQ
+      </button>
+    </fieldset>
   );
 }
 

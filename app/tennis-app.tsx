@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, Home, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, DollarSign, ExternalLink, Home, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -48,7 +48,9 @@ type Tournament = {
   registrationFeeCents: number;
   maxPlayers: number | null;
   notes: string | null;
+  faqs: TournamentFaq[];
 };
+type TournamentFaq = { question: string; answer: string };
 type RegisteredPlayer = { id: string; name: string; city: string; rating: string };
 type PaymentState = "idle" | "pending" | "failed" | "paid";
 type PaymentHistoryItem = {
@@ -159,25 +161,39 @@ type DbTournamentRow = {
   registration_fee_cents: number | null;
   max_players: number | null;
   notes?: string | null;
+  faqs?: unknown;
 };
 
 const initialProfile: ProfileData = {
-  fullName: "Mohammed Segval",
+  fullName: "Player",
   phone: "",
   dateOfBirth: "",
-  dominantHand: "Right",
-  selfEvaluation: "Advanced",
-  jamaatCity: "Chicago",
-  tier: "1",
-  rating: "4.432",
-  tournamentsPlayed: "2",
-  matchesPlayed: "11",
-  jerseySize: "M",
+  dominantHand: "",
+  selfEvaluation: "",
+  jamaatCity: "",
+  tier: "",
+  rating: "0.000",
+  tournamentsPlayed: "0",
+  matchesPlayed: "0",
+  jerseySize: "",
   tennisVideo: ""
 };
 
 const startingTennisTier = 4;
 const startingTennisRating = 3.6;
+const homeFunFacts = [
+  "A tennis ball can spin more than 4,000 times per minute on a heavy topspin shot.",
+  "The fastest recorded tennis serve is over 160 mph.",
+  "A tennis court is 78 feet long from baseline to baseline.",
+  "The longest professional tennis match lasted over 11 hours.",
+  "Racquet strings can lose tension even when the racquet is not being used.",
+  "Most tennis points are decided in four shots or fewer.",
+  "The word tennis comes from the French word tenez, meaning take or receive.",
+  "Wimbledon first started in 1877.",
+  "Tennis balls were originally white before yellow became standard for TV visibility.",
+  "The center service line divides the service boxes into deuce and ad sides.",
+  "A let serve is replayed when the ball clips the net and still lands in."
+];
 type AppSessionState = {
   ready: boolean;
   session: Session | null;
@@ -298,6 +314,29 @@ function SkeletonHero() {
         <span className="h-10 rounded-card bg-white/80" />
       </div>
     </section>
+  );
+}
+
+function TournamentDetailRow({ icon, label, value, action, className = "" }: { icon: ReactNode; label: string; value: string; action?: ReactNode; className?: string }) {
+  return (
+    <div className={`grid grid-cols-[52px_minmax(0,1fr)] gap-3 border-t-hairline border-white/10 px-4 py-3.5 first:border-t-0 ${className}`}>
+      <span className="grid h-10 w-10 place-items-center self-center rounded-[14px] bg-[#34704a] text-[#83f0ad]">
+        {icon}
+      </span>
+      <span className="grid min-w-0 gap-1">
+        <span className="text-[12px] font-medium uppercase tracking-[0.08em] text-white/50">{label}</span>
+        <strong className="break-words text-[16px] font-medium leading-tight text-white">{value}</strong>
+        {action}
+      </span>
+    </div>
+  );
+}
+
+function WhatsAppIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height={size} viewBox="0 0 24 24" width={size}>
+      <path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.5 0 .15 5.35.15 11.93c0 2.1.55 4.15 1.6 5.95L0 24l6.28-1.65a11.9 11.9 0 0 0 5.8 1.48h.01c6.58 0 11.93-5.35 11.93-11.93 0-3.19-1.24-6.18-3.5-8.42Zm-8.43 18.33h-.01a9.9 9.9 0 0 1-5.05-1.38l-.36-.21-3.73.98 1-3.64-.24-.37a9.87 9.87 0 0 1-1.51-5.26c0-5.46 4.44-9.9 9.9-9.9 2.64 0 5.13 1.03 7 2.9a9.84 9.84 0 0 1 2.9 7c0 5.46-4.44 9.88-9.9 9.88Zm5.43-7.4c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.4-1.47-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.2-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48 0 1.46 1.07 2.88 1.22 3.08.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.7.63.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2-1.41.25-.7.25-1.3.17-1.42-.07-.13-.27-.2-.57-.35Z" />
+    </svg>
   );
 }
 
@@ -1476,9 +1515,10 @@ async function createNewPlayerProfile(
 
 export function HomeScreen() {
   const appSession = useProtectedRoute("/dashboard", true);
+  const [homeFunFact] = useState(() => homeFunFacts[Math.floor(Math.random() * homeFunFacts.length)]);
   const [upcomingTournament, setUpcomingTournament] = useState<Tournament | null>(null);
   const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
-  const [hasRegisteredTournament, setHasRegisteredTournament] = useState(false);
+  const [homeTournamentStatus, setHomeTournamentStatus] = useState<PaymentState>("idle");
   const [needsVideoLink, setNeedsVideoLink] = useState(false);
   const [dashboardVideoLink, setDashboardVideoLink] = useState("");
   const [dashboardVideoMessage, setDashboardVideoMessage] = useState("");
@@ -1495,7 +1535,7 @@ export function HomeScreen() {
       const [{ data: tournamentData }, { data: profileData }, { data: playersData }] = await Promise.all([
         supabase
           .from("tournaments")
-          .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes")
+          .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
           .gte("starts_on", today)
 	          .in("status", ["registration_open", "registration_closed", "live"])
           .order("starts_on")
@@ -1527,21 +1567,32 @@ export function HomeScreen() {
           city: row.jamaat_city || "City not added",
           profilePhotoUrl: row.profile_photo_url || ""
         })));
-      setHasRegisteredTournament(false);
       if (profileData) {
         setNeedsVideoLink(false);
+        setHomeTournamentStatus("idle");
         setDashboardVideoLink(hasPlayerVideoLink(profileData.tennis_video_url) ? profileData.tennis_video_url || "" : "");
       }
       if (profileData && tournamentData) {
-        const { data: registration } = await supabase
-          .from("tournament_registrations")
-          .select("id")
-          .eq("tournament_id", tournamentData.id)
-          .eq("player_id", profileData.id)
-          .in("payment_status", ["paid", "waived"])
-          .maybeSingle();
+        const [{ data: registration }, { data: latestPayment }] = await Promise.all([
+          supabase
+            .from("tournament_registrations")
+            .select("id")
+            .eq("tournament_id", tournamentData.id)
+            .eq("player_id", profileData.id)
+            .in("payment_status", ["paid", "waived"])
+            .maybeSingle(),
+          supabase
+            .from("payment_ledger")
+            .select("status")
+            .eq("tournament_id", tournamentData.id)
+            .eq("player_id", profileData.id)
+            .eq("entry_type", "charge")
+            .order("occurred_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        ]);
 
-        setHasRegisteredTournament(Boolean(registration));
+        setHomeTournamentStatus(registration || latestPayment?.status === "paid" ? "paid" : latestPayment?.status === "pending" || latestPayment?.status === "failed" ? latestPayment.status : "idle");
         setNeedsVideoLink(Boolean(registration) && needsPlayerVideoUpload(profileData.tennis_video_url, profileData.tennis_video_status));
       }
     };
@@ -1595,6 +1646,7 @@ export function HomeScreen() {
   };
 
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  const homeTournamentCopy = getHomeTournamentCopy(upcomingTournament, homeTournamentStatus);
 
   return (
     <AppFrame active="home">
@@ -1602,7 +1654,7 @@ export function HomeScreen() {
         <AppTopBar />
 
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
-          <PageGreeting subtitle="Ready for the courts?" />
+          <PageGreeting subtitle={`Did you know? ${homeFunFact}`} />
           {needsVideoLink && (
             <form className="grid gap-3 rounded-[18px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-4" onSubmit={saveDashboardVideoLink}>
               <h3 className="text-[16px] font-medium text-[#8a4a22]">Reminder</h3>
@@ -1628,45 +1680,28 @@ export function HomeScreen() {
               </button>
             </form>
           )}
-          <section className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-4 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)]">
+          <section className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-4 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-4 md:p-5">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
                 <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
               </svg>
             </div>
-            <div className="relative grid gap-3">
-              {upcomingTournament?.status === "registration_open" && (
-                <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1">
-                  <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />
-                  <span className="text-[12px] text-white">Tournament registrations open</span>
-                </span>
-              )}
-              <h1 className="max-w-[680px] text-[18px] font-medium leading-[1.22] tracking-[-0.2px] text-white">{upcomingTournament?.name || "Mumineen Racquet Sports Association"}</h1>
-              <div className="grid grid-cols-2 gap-2">
-                <span className="grid gap-2 rounded-[12px] border-hairline border-white/20 bg-white/[0.13] p-3">
-                  <span className="inline-flex items-center gap-1.5 text-[11px] text-white/70">
-                    <Calendar size={11} />
-                    Date
-                  </span>
-                  <span className="text-[15px] font-medium text-white">{upcomingTournament ? formatTournamentDates(upcomingTournament) : "Dates TBD"}</span>
-                </span>
-                <span className="grid gap-2 rounded-[12px] border-hairline border-white/20 bg-white/[0.13] p-3">
-                  <span className="inline-flex items-center gap-1.5 text-[11px] text-white/70">
-                    <MapPin size={11} />
-                    Venue
-                  </span>
-                  <span className="text-[15px] font-medium text-white">{upcomingTournament?.venueName || "Venue TBD"}</span>
-                </span>
-              </div>
-              <div className="mt-3 flex justify-end">
-                <Link className="tap-card inline-flex items-center justify-center rounded-full border-hairline border-white/45 bg-transparent px-3.5 py-2 text-[13px] font-medium text-white" href="/tournaments">
-                  View details →
-                </Link>
-              </div>
+            <div className="relative grid gap-2">
+              <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] text-white/82">
+                {homeTournamentCopy.live && <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />}
+                {homeTournamentCopy.badge}
+              </span>
+              <span className="grid gap-1">
+                {upcomingTournament?.name && <span className="text-[12px] text-white/56">{upcomingTournament.name}</span>}
+                <h1 className="max-w-[680px] text-[18px] font-medium leading-[1.22] tracking-[-0.2px] text-white">{homeTournamentCopy.title}</h1>
+                <em className="max-w-[620px] text-[14px] not-italic leading-relaxed text-white/70">{homeTournamentCopy.description}</em>
+              </span>
             </div>
+            <Link className="tap-card relative mt-4 inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-[#C9E84A] px-4 text-[14px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] md:mt-0" href="/tournaments">
+              {homeTournamentCopy.action} <ArrowRight size={15} />
+            </Link>
           </section>
-          <HomeRegistrationCountdown closesAt={upcomingTournament?.registrationClosesAt || null} variant="strip" />
 
           <section className="grid gap-3">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
@@ -1692,13 +1727,13 @@ export function HomeScreen() {
               ))}
               {!topPlayers.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[15px] text-text-secondary">Top performers will appear here.</div>}
             </div>
-            <Link className="tap-card mt-2 grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5" href="/about">
+            <Link className="tap-card mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:items-center md:p-5" href="/about">
               <span className="grid gap-2">
                 <span className="text-[13px] text-text-secondary">What is MRSA?</span>
                 <strong className="text-lg font-medium leading-tight text-brand">Mumineen Racquet Sports Association</strong>
                 <em className="text-[15px] not-italic leading-relaxed text-text-secondary">A North America-wide community bringing together women through a shared passion for racquet sports — tennis, TT, badminton, and pickleball.</em>
               </span>
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] text-white shadow-[0_12px_24px_rgba(12,59,32,0.18)]" aria-hidden="true">
+              <span className="inline-flex h-10 w-10 items-center justify-center justify-self-end rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] text-white shadow-[0_12px_24px_rgba(12,59,32,0.18)]" aria-hidden="true">
                 <ArrowRight size={18} />
               </span>
             </Link>
@@ -1715,6 +1750,8 @@ export function DrawScreen() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [registeredPlayers, setRegisteredPlayers] = useState<RegisteredPlayer[]>([]);
   const [pastTournaments, setPastTournaments] = useState<PastTournamentSummary[]>([]);
+  const [registeredPlayersOpen, setRegisteredPlayersOpen] = useState(false);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [isPastExpanded, setIsPastExpanded] = useState(false);
   const [loadingPast, setLoadingPast] = useState(false);
   const [pastLoaded, setPastLoaded] = useState(false);
@@ -1741,7 +1778,7 @@ export function DrawScreen() {
 
     const { data: tournamentData, error } = await supabase
       .from("tournaments")
-      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes")
+      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
 	      .in("status", ["registration_open", "registration_closed", "live"])
       .order("starts_on", { ascending: false })
       .limit(1)
@@ -1763,15 +1800,30 @@ export function DrawScreen() {
     const mappedTournament = mapTournament(tournamentData);
     setTournament(mappedTournament);
 
-    const { data: registrations } = await supabase
-      .from("tournament_registrations")
-      .select("player_id, players(id, full_name, jamaat_city, rating)")
-      .eq("tournament_id", mappedTournament.id)
-      .neq("status", "cancelled")
-      .in("payment_status", ["paid", "waived"])
-      .order("registered_at");
+    const [registrationsResult, latestPaymentResult] = await Promise.all([
+      supabase
+        .from("tournament_registrations")
+        .select("player_id, players(id, full_name, jamaat_city, rating)")
+        .eq("tournament_id", mappedTournament.id)
+        .neq("status", "cancelled")
+        .in("payment_status", ["paid", "waived"])
+        .order("registered_at"),
+      appSession.player?.id
+        ? supabase
+            .from("payment_ledger")
+            .select("status, stripe_failure_message")
+            .eq("tournament_id", mappedTournament.id)
+            .eq("player_id", appSession.player.id)
+            .eq("entry_type", "charge")
+            .order("occurred_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null })
+    ]);
+    const registrations = registrationsResult.data || [];
+    const latestPayment = latestPaymentResult.data;
 
-    setRegisteredPlayers((registrations || []).map((row) => {
+    setRegisteredPlayers(registrations.map((row) => {
       const player = Array.isArray(row.players) ? row.players[0] : row.players;
       return {
         id: row.player_id,
@@ -1783,21 +1835,11 @@ export function DrawScreen() {
 
     if (appSession.player?.id) {
       const myPlayer = { id: appSession.player.id };
-      const paidRegistration = Boolean(myPlayer && registrations?.some((row) => row.player_id === myPlayer.id));
+      const paidRegistration = Boolean(myPlayer && registrations.some((row) => row.player_id === myPlayer.id));
       setRegistered(paidRegistration);
       setPaymentState(paidRegistration ? "paid" : "idle");
 
-      if (myPlayer && !paidRegistration) {
-        const { data: latestPayment } = await supabase
-          .from("payment_ledger")
-          .select("status, stripe_failure_message")
-          .eq("tournament_id", mappedTournament.id)
-          .eq("player_id", myPlayer.id)
-          .eq("entry_type", "charge")
-          .order("occurred_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
+      if (!paidRegistration) {
         if (latestPayment?.status === "pending" || latestPayment?.status === "failed") {
           setPaymentState(latestPayment.status);
           if (latestPayment.status === "failed" && latestPayment.stripe_failure_message) {
@@ -1839,8 +1881,15 @@ export function DrawScreen() {
     const paymentResult = new URLSearchParams(window.location.search).get("payment");
     const checkoutSessionId = new URLSearchParams(window.location.search).get("session_id");
 
+    const clearCheckoutParams = () => {
+      window.history.replaceState(null, "", "/tournaments");
+    };
+
     const reconcileReturnedPayment = async () => {
-      if (!supabase || !checkoutSessionId || !paymentResult) return;
+      if (!supabase || !checkoutSessionId || !paymentResult) {
+        await loadTournament();
+        return;
+      }
       setReconcilingPayment(true);
       setMessage(paymentResult === "success" ? "Confirming payment..." : "Checking payment status...");
 
@@ -1856,6 +1905,8 @@ export function DrawScreen() {
       if (!response.ok) {
         setPaymentState("failed");
         setMessage(result.error || "Could not verify payment status. Please retry registration.");
+        clearCheckoutParams();
+        await loadTournament();
         return;
       }
 
@@ -1863,38 +1914,44 @@ export function DrawScreen() {
         setRegistered(true);
         setPaymentState("paid");
         setMessage("Payment received. You are registered.");
+        clearCheckoutParams();
         await loadTournament();
-        window.history.replaceState(null, "", "/tournaments");
         return;
       }
 
       if (result.status === "failed") {
         setPaymentState("failed");
         setMessage(result.error || "Payment was not completed. You can retry registration.");
+        clearCheckoutParams();
         await loadTournament();
-        window.history.replaceState(null, "", "/tournaments");
         return;
       }
 
       setPaymentState("pending");
       setMessage("Payment is still pending. Please wait while Stripe confirms it.");
+      clearCheckoutParams();
+      await loadTournament();
     };
 
     reconcileReturnedPayment();
-    loadTournament();
     if (!supabase) return;
 
     const channel = supabase
       .channel("tournaments-live-data")
       .on("postgres_changes", { event: "*", schema: "public", table: "tournaments" }, loadTournament)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_registrations" }, loadTournament)
-      .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, loadTournament)
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [appSession.ready, appSession.userId, appSession.player?.id, loadTournament]);
+
+  useEffect(() => {
+    if (!videoLink && hasPlayerVideoLink(appSession.player?.tennis_video_url)) {
+      setVideoLink(appSession.player?.tennis_video_url || "");
+    }
+  }, [appSession.player?.tennis_video_url, videoLink]);
 
   const continueRegistrationCheckout = async () => {
     const supabase = getSupabaseClient();
@@ -1992,6 +2049,40 @@ export function DrawScreen() {
     await continueRegistrationCheckout();
   };
 
+  const saveTournamentVideoLink = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const supabase = getSupabaseClient();
+    if (!supabase || !appSession.player?.id) return;
+
+    const trimmedLink = videoLink.trim();
+    if (!trimmedLink) {
+      setVideoPromptMessage("Please add your Google Drive video link.");
+      return;
+    }
+
+    setSavingVideoLink(true);
+    setVideoPromptMessage("");
+    const { error } = await supabase
+      .from("players")
+      .update({
+        tennis_video_url: trimmedLink,
+        tennis_video_status: "pending",
+        tennis_video_reviewed_at: null,
+        tennis_video_reviewed_by: null,
+        tennis_video_rejection_note: null
+      })
+      .eq("id", appSession.player.id);
+    setSavingVideoLink(false);
+
+    if (error) {
+      setVideoPromptMessage(getFriendlyError(error));
+      return;
+    }
+
+    setVideoPromptMessage("Video link submitted for review.");
+    await appSession.refresh();
+  };
+
   const skipVideoLinkAndContinue = async () => {
     setShowVideoPrompt(false);
     await continueRegistrationCheckout();
@@ -2000,6 +2091,7 @@ export function DrawScreen() {
 	  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 	  const paymentPending = paymentState === "pending";
 	  const registrationOpen = tournament?.status === "registration_open";
+    const needsTournamentVideoLink = needsPlayerVideoUpload(appSession.player?.tennis_video_url, appSession.player?.tennis_video_status);
     const registeredPlayerCountLabel = `${registeredPlayers.length} ${registeredPlayers.length === 1 ? "player" : "players"}`;
 
   return (
@@ -2007,114 +2099,153 @@ export function DrawScreen() {
       <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
         <AppTopBar />
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
-          <PageGreeting subtitle="Here's what's coming up" />
           {loading && !tournament ? (
             <SkeletonHero />
           ) : (
-          <header className="relative grid min-h-[260px] overflow-hidden rounded-hero border-hairline border-white/20 bg-[radial-gradient(circle_at_80%_22%,rgba(214,242,65,0.22)_0,transparent_28%),radial-gradient(circle_at_18%_0%,rgba(76,222,140,0.18)_0,transparent_30%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-hero md:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] md:items-center md:gap-x-8 lg:p-6">
+          <header className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_80%_22%,rgba(76,222,140,0.14)_0,transparent_28%),linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] p-4 text-white shadow-[0_18px_46px_rgba(12,59,32,0.16)] md:p-5">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
                 <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
               </svg>
             </div>
-            <div className="relative grid gap-3 md:self-center">
-              {tournament?.status === "registration_open" && (
-                <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-[13px] text-white/85"><span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />Tournament registration live</span>
-              )}
-              <h1 className="max-w-[680px] text-2xl font-medium leading-[1.12] tracking-[-0.4px] text-white">{tournament ? tournament.name : "No live tournament"}</h1>
-              <p className="max-w-[680px] text-[18px] font-medium text-white/78">{tournament ? formatTournamentDates(tournament) : "No live tournament is open right now."}</p>
+            <div className="relative grid gap-4">
+              <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] font-medium text-[#83f0ad]">
+                {tournament?.status === "registration_open" && <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />}
+                {tournament ? formatTournamentStatus(tournament.status) : "No tournament"}
+              </span>
+              <h1 className="max-w-[760px] text-[24px] font-medium leading-[1.1] tracking-[-0.3px] text-white md:text-[30px]">{tournament ? tournament.name : "No live tournament"}</h1>
               {tournament && (
-                <a className="tap-card inline-flex w-max items-center gap-1.5 text-[14px] text-white/85 underline-offset-[3px] hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueName || "")}`} target="_blank" rel="noreferrer">
-                  <MapPin size={14} />
-                  <span>{tournament.venueName || "Venue TBD"}</span>
-                  <span className="text-[11px] leading-none" aria-hidden="true">↗</span>
-                </a>
+                <div className="grid overflow-hidden rounded-[20px] border-hairline border-white/14 bg-white/[0.10] md:grid-cols-2">
+                  <TournamentDetailRow className="md:border-t-0" icon={<Calendar size={18} />} label="Dates" value={formatTournamentDates(tournament)} />
+                  <TournamentDetailRow className="md:border-l-hairline md:border-l-white/10 md:border-t-0" icon={<DollarSign size={20} />} label="Entry fee" value={formatCurrency(tournament.registrationFeeCents, "USD")} />
+                  <TournamentDetailRow
+                    className="md:col-span-2"
+                    icon={<MapPin size={20} />}
+                    label="Venue"
+                    value={tournament.venueName || "Venue TBD"}
+                    action={(
+                      <a className="tap-card inline-flex w-max items-center gap-1.5 text-[14px] font-medium text-[#83f0ad]" href={tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueName || "")}`} target="_blank" rel="noreferrer">
+                        <ExternalLink size={14} />
+                        Open in maps
+                      </a>
+                    )}
+                  />
+                </div>
               )}
-            </div>
-            {tournament && (
-              <div className="relative mt-5 grid gap-3 md:mt-0">
+              {tournament && (
+              <div className="grid gap-3">
                 {registered ? (
-                  <article className="rounded-card border-hairline border-white/10 bg-white/10 px-3 py-2.5 text-white" aria-label="Tournament starts in">
+                  <article className="rounded-[18px] border-hairline border-white/10 bg-white/10 px-4 py-3 text-white" aria-label="Tournament starts in">
                     <span className="text-[12px] text-current opacity-60">Tournament starts in</span>
-                    <strong className="block text-[20px] font-medium leading-tight text-current">{formatDaysUntilStart(tournament)}</strong>
+                    <strong className="block text-[16px] font-medium leading-tight text-current">{formatDaysUntilStart(tournament)}</strong>
                   </article>
                 ) : (
-                  <RegistrationCountdown closesAt={tournament.registrationClosesAt} daysOnly />
+                  <RegistrationCountdown closesAt={tournament.registrationClosesAt} compact />
                 )}
                 {registered ? (
                   <div className="grid gap-2">
                     <p className="inline-flex items-center justify-center gap-2 text-[14px] font-medium text-[#C9E84A]">
                       <CheckCircle2 size={16} />
-                      {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, feeCents: tournament.registrationFeeCents })}
+                      {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen })}
                     </p>
-                    <p className="text-center text-[13px] leading-relaxed text-white/70">
-                      Reminder: please <a className="underline underline-offset-2 text-[#C8F0D6]" href="https://drive.google.com/drive/folders/1l_sY5NbcKpKNt0lNDBj1YGRs4mFnC73o" target="_blank" rel="noreferrer">upload your video link to the Google Drive ↗</a>
-                    </p>
+                    {needsTournamentVideoLink && (
+                      <form className="grid gap-2 rounded-[16px] border-hairline border-white/10 bg-white/[0.08] p-3" onSubmit={saveTournamentVideoLink}>
+                        <p className="text-[13px] leading-relaxed text-white/70">
+                          Upload a google drive link of a short video of you playing. Include your serve, forehand, backhand, volleys, and a few rally points.
+                        </p>
+                        {videoPromptMessage && <b className="text-[12px] font-medium text-[#C9E84A]">{videoPromptMessage}</b>}
+                        <input
+                          className="min-h-10 rounded-[12px] border-hairline border-white/15 bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-[#C9E84A] focus:ring-2 focus:ring-[#C9E84A]/20"
+                          aria-label="Google Drive video link"
+                          value={videoLink}
+                          onChange={(event) => setVideoLink(event.target.value)}
+                          placeholder="https://drive.google.com/..."
+                          inputMode="url"
+                        />
+                        <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-[linear-gradient(135deg,#C9E84A,#83f0ad)] px-4 text-[13px] font-medium text-[#153419] shadow-[0_12px_26px_rgba(131,240,173,0.18)] disabled:opacity-60" type="submit" disabled={savingVideoLink}>
+                          {savingVideoLink ? "Submitting..." : "Submit video link"}
+                        </button>
+                      </form>
+                    )}
                   </div>
                 ) : (
-                  <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#C9E84A] p-[13px] text-[15px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] disabled:opacity-70" type="button" onClick={registerForTournament} disabled={paying || reconcilingPayment || !registrationOpen}>
-                    {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen, feeCents: tournament.registrationFeeCents })}
+                  <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#B8FF35] px-4 text-[14px] font-medium text-[#153419] shadow-[0_18px_38px_rgba(184,255,53,0.16)] disabled:opacity-70" type="button" onClick={registerForTournament} disabled={paying || reconcilingPayment || !registrationOpen}>
+                    {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen })}
                   </button>
                 )}
                 {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">If you already paid, wait here for confirmation. If checkout was closed before paying, retry payment.</p>}
               </div>
-            )}
+              )}
+            </div>
           </header>
           )}
-
-        {tournament?.notes && (
-          <section className="rounded-[18px] border-hairline border-line bg-card p-5">
-            <h2 className="mb-2 text-[15px] font-medium text-text-primary">What to know</h2>
-            <div className="whitespace-pre-wrap text-[14px] leading-relaxed text-text-secondary">{tournament.notes}</div>
-          </section>
-        )}
-
-        {tournament && registered && (
-          <p className="px-1 pt-1 text-center text-[13px] text-text-secondary">
-            Need to cancel? <a className="underline underline-offset-2" href="https://wa.me/13128749178?text=Hi%2C%20I%27d%20like%20to%20cancel%20my%20MRSA%20tournament%20registration." target="_blank" rel="noreferrer">Message organisers on WhatsApp ↗</a>
-          </p>
-        )}
 
         <section className="grid gap-4">
           {!tournament && (
             <StatusMessage tone="info">No live tournament found.</StatusMessage>
           )}
 
-          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 pt-2">
-            <h2 className="text-[15px] font-medium text-text-primary">Registered players</h2>
-            {registeredPlayers.length > 10 ? (
-              <span className="inline-flex items-center gap-2 justify-self-end whitespace-nowrap">
-                <span className="text-[13px] text-text-secondary">{tournament?.maxPlayers ? `${registeredPlayers.length} of ${tournament.maxPlayers} spots filled` : registeredPlayerCountLabel}</span>
-                <Link className="tap-card text-[14px] font-medium text-brand" href="/tournaments/players">View all →</Link>
+          <section className="overflow-hidden rounded-[18px] border-hairline border-line bg-card">
+            <button className="tap-card grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 text-left" type="button" onClick={() => setRegisteredPlayersOpen((current) => !current)} aria-expanded={registeredPlayersOpen} aria-controls="registered-players-panel">
+              <span className="grid gap-1">
+                <strong className="text-[16px] font-medium text-text-primary">Registered players</strong>
+                <em className="text-[13px] not-italic text-text-secondary">{tournament?.maxPlayers ? `${registeredPlayers.length} of ${tournament.maxPlayers} spots filled` : registeredPlayerCountLabel}</em>
               </span>
-            ) : (
-              <span className="text-[13px] text-text-secondary">{tournament?.maxPlayers ? `${registeredPlayers.length} of ${tournament.maxPlayers} spots filled` : registeredPlayerCountLabel}</span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">
+                {registeredPlayers.length}
+                <ChevronDown size={16} className={`transition-transform ${registeredPlayersOpen ? "rotate-180" : ""}`} />
+              </span>
+            </button>
+            {registeredPlayersOpen && (
+              <div className="grid gap-3 border-t-hairline border-line p-3 md:grid-cols-2" id="registered-players-panel">
+                {registeredPlayers.slice(0, 10).map((player, index) => (
+                  <article className="grid min-h-[60px] grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-white px-3 py-3" key={player.name}>
+                    <span className={index % 5 === 0 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fde9dc] text-[13px] font-medium text-[#a94d24]" : index % 5 === 1 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#e5f1ff] text-[13px] font-medium text-[#185fa5]" : index % 5 === 2 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fbe7ef] text-[13px] font-medium text-[#aa3f6b]" : "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#f1efe8] text-[13px] font-medium text-[#5f5e5a]"}>{getInitials(player.name)}</span>
+                    <div className="grid min-w-0 gap-1">
+                      <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
+                      <em className="truncate text-[13px] not-italic text-text-secondary">{player.city}</em>
+                    </div>
+                    <span className="grid justify-items-end gap-1">
+                      <strong className="text-[15px] font-medium leading-none text-brand">{player.rating}</strong>
+                      <em className="text-[12px] not-italic leading-none text-text-secondary">rating</em>
+                    </span>
+                  </article>
+                ))}
+                {registeredPlayers.length > 10 && <Link className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] bg-brand-light px-4 text-[13px] font-medium text-[#3b6d11] md:col-span-2" href="/tournaments/players">View all registered players →</Link>}
+                {loading && !registeredPlayers.length && Array.from({ length: 4 }).map((_, index) => <SkeletonRow key={index} />)}
+                {!loading && !registeredPlayers.length && <StatusMessage tone="info">No players registered yet.</StatusMessage>}
+              </div>
             )}
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {registeredPlayers.slice(0, 10).map((player, index) => (
-              <article className="grid min-h-[60px] grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3" key={player.name}>
-                <span className={index % 5 === 0 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fde9dc] text-[13px] font-medium text-[#a94d24]" : index % 5 === 1 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#e5f1ff] text-[13px] font-medium text-[#185fa5]" : index % 5 === 2 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fbe7ef] text-[13px] font-medium text-[#aa3f6b]" : "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#f1efe8] text-[13px] font-medium text-[#5f5e5a]"}>{getInitials(player.name)}</span>
-                <div className="grid min-w-0 gap-1">
-                  <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
-                  <em className="truncate text-[13px] not-italic text-text-secondary">{player.city}</em>
-                </div>
-                <span className="grid justify-items-end gap-1">
-                  <strong className="text-[15px] font-medium leading-none text-brand">{player.rating}</strong>
-                  <em className="text-[12px] not-italic leading-none text-text-secondary">rating</em>
-                </span>
-              </article>
-            ))}
-            {loading && !registeredPlayers.length && Array.from({ length: 4 }).map((_, index) => <SkeletonRow key={index} />)}
-            {!loading && !registeredPlayers.length && <StatusMessage tone="info">No players registered yet.</StatusMessage>}
-          </div>
+          </section>
 
-          <section className="rounded-[18px] border-hairline border-line bg-brand-light p-5">
-            <h2 className="text-[15px] font-medium text-[#27500a]">Have questions?</h2>
-            <p className="mt-1 text-[14px] leading-relaxed text-[#27500a]/80">Message organizers on WhatsApp before you register — quick replies on format, eligibility, refunds, and what to bring.</p>
-            <a className="tap-card mt-3 inline-flex min-h-10 items-center gap-2 rounded-full bg-brand px-4 text-[13px] font-medium text-white" href="https://wa.me/13128749178?text=Hi%2C%20I%27m%20looking%20at%20the%20MRSA%20tournament%20and%20have%20a%20question." target="_blank" rel="noreferrer">
-              Open WhatsApp ↗
+          {!!tournament?.faqs.length && (
+            <section className="overflow-hidden rounded-[18px] border-hairline border-line bg-card">
+              <div className="border-b-hairline border-line px-4 py-3">
+                <h2 className="text-[16px] font-medium text-text-primary">FAQs</h2>
+              </div>
+              <div className="divide-y divide-line">
+                {tournament.faqs.map((faq, index) => {
+                  const open = openFaqIndex === index;
+                  return (
+                    <article key={`${faq.question}-${index}`}>
+                      <button className="tap-card grid min-h-12 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left" type="button" onClick={() => setOpenFaqIndex(open ? null : index)} aria-expanded={open}>
+                        <strong className="text-[15px] font-medium text-text-primary">{faq.question}</strong>
+                        <ChevronDown size={16} className={`text-brand transition-transform ${open ? "rotate-180" : ""}`} />
+                      </button>
+                      {open && <p className="px-4 pb-4 text-[14px] leading-relaxed text-text-secondary">{faq.answer}</p>}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-brand-light p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <h2 className="text-[15px] font-medium text-[#27500a]">Have more questions? Contact organizer</h2>
+            <a className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-brand px-4 text-[13px] font-medium text-white" href="https://wa.me/13128749178?text=Hi%2C%20I%27m%20looking%20at%20the%20MRSA%20tournament%20and%20have%20a%20question." target="_blank" rel="noreferrer">
+              <WhatsAppIcon size={16} />
+              WhatsApp
             </a>
           </section>
 
@@ -2209,7 +2340,7 @@ export function RegisteredPlayersScreen() {
 
     const { data: tournamentData, error } = await supabase
       .from("tournaments")
-      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes")
+      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
 	      .in("status", ["registration_open", "registration_closed", "live"])
       .order("starts_on", { ascending: false })
       .limit(1)
@@ -2523,6 +2654,12 @@ export function PlayerScreen() {
   }, [editFocusField, isEditing]);
 
   useEffect(() => {
+    if (appSession.player && !isEditing) {
+      setProfile(mapProfile(appSession.player));
+    }
+  }, [appSession.player, isEditing]);
+
+  useEffect(() => {
     if (!appSession.ready || !appSession.userId) return;
 
     const loadProfile = async () => {
@@ -2833,14 +2970,14 @@ function mapProfile(row: DbProfileRow): ProfileData {
     fullName: row.full_name || "Player",
     phone: row.phone || "",
     dateOfBirth: row.date_of_birth || "",
-    dominantHand: row.dominant_hand || initialProfile.dominantHand,
-    selfEvaluation: normalizeSkillLevel(row.self_assessment) || initialProfile.selfEvaluation,
-    jamaatCity: row.jamaat_city || initialProfile.jamaatCity,
+    dominantHand: row.dominant_hand || "",
+    selfEvaluation: normalizeSkillLevel(row.self_assessment) || "",
+    jamaatCity: row.jamaat_city || "",
     tier: String(row.tier || 1),
     rating: formatRating(row.rating),
     tournamentsPlayed: String(row.tournaments_played || 0),
     matchesPlayed: String(row.matches_played || 0),
-    jerseySize: row.jersey_size || initialProfile.jerseySize,
+    jerseySize: row.jersey_size || "",
     tennisVideo: hasPlayerVideoLink(row.tennis_video_url) ? row.tennis_video_url || "" : ""
   };
 }
@@ -2859,8 +2996,20 @@ function mapTournament(row: DbTournamentRow): Tournament {
     registrationClosesAt: row.registration_closes_at,
     registrationFeeCents: row.registration_fee_cents || 0,
     maxPlayers: row.max_players,
-    notes: row.notes ?? null
+    notes: row.notes ?? null,
+    faqs: normalizeTournamentFaqs(row.faqs)
   };
+}
+
+function normalizeTournamentFaqs(value: unknown): TournamentFaq[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as { question?: unknown; answer?: unknown };
+    const question = typeof record.question === "string" ? record.question.trim() : "";
+    const answer = typeof record.answer === "string" ? record.answer.trim() : "";
+    return question && answer ? [{ question, answer }] : [];
+  });
 }
 
 function getTournamentLifecycleStatus(row: Pick<DbTournamentRow, "status" | "starts_on" | "ends_on" | "registration_closes_at">) {
@@ -2993,71 +3142,94 @@ function getRegistrationButtonLabel({
   registered,
   paying,
   paymentState,
-  registrationOpen,
-  feeCents
+  registrationOpen
 }: {
   registered: boolean;
   paying: boolean;
   paymentState: PaymentState;
   registrationOpen: boolean | undefined;
-  feeCents: number;
 }) {
   if (registered || paymentState === "paid") return "Registered";
   if (paying) return "Opening payment...";
-  if (paymentState === "failed") return `Retry $${Math.round(feeCents / 100)} payment`;
-  if (paymentState === "pending") return `Retry $${Math.round(feeCents / 100)} payment`;
+  if (paymentState === "failed") return "Retry payment";
+  if (paymentState === "pending") return "Retry payment";
   if (!registrationOpen) return "Registration closed";
-  return `Pay $${Math.round(feeCents / 100)} and register →`;
+  return "Pay and register →";
 }
 
-function HomeRegistrationCountdown({ closesAt, variant = "card" }: { closesAt: string | null; variant?: "card" | "strip" }) {
-  const [remaining, setRemaining] = useState(() => getTimeRemaining(closesAt));
-
-  useEffect(() => {
-    setRemaining(getTimeRemaining(closesAt));
-    if (!closesAt) return undefined;
-    const timer = window.setInterval(() => setRemaining(getTimeRemaining(closesAt)), 1000);
-    return () => window.clearInterval(timer);
-  }, [closesAt]);
-
-  if (!closesAt) return null;
-
-  const units = [
-    { label: "Days", suffix: "d", value: remaining.days },
-    { label: "Hours", suffix: "h", value: remaining.hours },
-    { label: "Mins", suffix: "m", value: remaining.minutes },
-    { label: "Secs", suffix: "s", value: remaining.seconds }
-  ];
-
-  if (variant === "strip") {
-    return (
-      <div className="mt-3 flex items-center justify-between px-1" aria-label="Registration close countdown">
-        <span className="text-[12px] font-medium text-text-secondary">Registration closes in</span>
-        <span className="flex gap-1.5">
-          {units.map((unit) => (
-            <span className="rounded-[8px] border-hairline border-line bg-white px-2 py-1 text-[12px] font-medium tabular-nums text-text-primary" key={unit.label}>
-              {remaining.expired ? "00" : String(unit.value).padStart(2, "0")}
-              {unit.suffix}
-            </span>
-          ))}
-        </span>
-      </div>
-    );
+function getHomeTournamentCopy(tournament: Tournament | null, paymentState: PaymentState) {
+  if (!tournament) {
+    return {
+      badge: "No tournament",
+      title: "No active tournament",
+      description: "New events will appear here.",
+      action: "Open",
+      live: false
+    };
   }
 
-  return (
-    <article className="grid gap-2 rounded-card border-hairline border-white/10 bg-white/10 px-3 py-3 text-white" aria-label="Registration close countdown">
-      <span className="text-[13px] text-current opacity-62">{remaining.expired ? "Registration closed" : "Registration closes in"}</span>
-      <div className="grid grid-cols-4 gap-2">
-        {units.map((unit) => (
-          <span className="grid min-h-[54px] place-items-center rounded-[12px] border-hairline border-white/10 bg-white/12 px-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]" key={unit.label}>
-            <strong className="font-mono text-[20px] font-medium leading-none tabular-nums">{remaining.expired ? "00" : String(unit.value).padStart(2, "0")}</strong>
-            <em className="text-[11px] not-italic leading-none text-white/58">{unit.label}</em>
-          </span>
-        ))}
-      </div>
-    </article>
-  );
+  if (paymentState === "paid") {
+    const registrationStatus = tournament.status === "registration_open"
+      ? "Registration is live"
+      : tournament.status === "registration_closed"
+        ? "Registration ended"
+        : formatTournamentStatus(tournament.status);
+    return {
+      badge: registrationStatus,
+      title: "You are registered",
+      description: "View tournament details.",
+      action: "View",
+      live: tournament.status === "registration_open"
+    };
+  }
+
+  if (paymentState === "pending") {
+    return {
+      badge: "Pending",
+      title: "Payment pending",
+      description: "Open tournament to retry or check status.",
+      action: "Check",
+      live: false
+    };
+  }
+
+  if (paymentState === "failed") {
+    return {
+      badge: "Action needed",
+      title: "Payment not completed",
+      description: "Open tournament when you are ready.",
+      action: "Retry",
+      live: false
+    };
+  }
+
+  if (tournament.status === "registration_open") {
+    return {
+      badge: "Registration open",
+      title: "Tournament registration",
+      description: "View tournament details.",
+      action: "View",
+      live: true
+    };
+  }
+
+  return {
+    badge: formatTournamentStatus(tournament.status),
+    title: formatTournamentStatus(tournament.status),
+    description: "View tournament details.",
+    action: "View",
+    live: false
+  };
+}
+
+function formatTournamentStatus(status: string) {
+  if (status === "registration_open") return "Registration is live";
+  if (status === "registration_closed") return "Registration closed";
+  if (status === "live") return "Tournament live";
+  if (status === "completed") return "Tournament completed";
+  if (status === "cancelled") return "Tournament cancelled";
+  if (status === "draft") return "Draft tournament";
+  return "Tournament status";
 }
 
 function RegistrationCountdown({ closesAt, daysOnly = false, compact = false }: { closesAt: string | null; daysOnly?: boolean; compact?: boolean }) {
@@ -3065,12 +3237,21 @@ function RegistrationCountdown({ closesAt, daysOnly = false, compact = false }: 
   const remaining = getTimeRemaining(closesAt);
   const dayCount = Math.max(0, remaining.days);
   const dayLabel = dayCount === 1 ? "day" : "days";
+  const hourLabel = remaining.hours === 1 ? "hour" : "hours";
+  const minuteLabel = remaining.minutes === 1 ? "minute" : "minutes";
+  const compactRemaining = remaining.expired
+    ? "Closed"
+    : dayCount > 0
+      ? `in ${dayCount} ${dayLabel}`
+      : remaining.hours > 0
+        ? `in ${remaining.hours} ${hourLabel}`
+        : `in ${remaining.minutes} ${minuteLabel}`;
 
   if (compact) {
     return (
       <article className="rounded-card border-hairline border-white/10 bg-white/[0.08] px-3 py-2 text-white" aria-label="Registration close date">
         <span className="text-[12px] text-current opacity-55">{remaining.expired ? "Registration closed" : "Registration closes"}</span>
-        <strong className="block text-[13px] font-medium text-current opacity-78">{formatRegistrationClose(closesAt)}</strong>
+        <strong className="block text-[13px] font-medium text-current opacity-78">{compactRemaining}</strong>
       </article>
     );
   }
