@@ -1842,9 +1842,6 @@ export function DrawScreen() {
       if (!paidRegistration) {
         if (latestPayment?.status === "pending" || latestPayment?.status === "failed") {
           setPaymentState(latestPayment.status);
-          if (latestPayment.status === "failed" && latestPayment.stripe_failure_message) {
-            setMessage(latestPayment.stripe_failure_message);
-          }
         }
       }
     }
@@ -1946,6 +1943,12 @@ export function DrawScreen() {
       supabase.removeChannel(channel);
     };
   }, [appSession.ready, appSession.userId, appSession.player?.id, loadTournament]);
+
+  useEffect(() => {
+    if (!message) return;
+    const timeout = window.setTimeout(() => setMessage(""), 22000);
+    return () => window.clearTimeout(timeout);
+  }, [message]);
 
   useEffect(() => {
     if (!videoLink && hasPlayerVideoLink(appSession.player?.tennis_video_url)) {
@@ -2181,6 +2184,12 @@ export function DrawScreen() {
           </header>
           )}
 
+          {message && (
+            <StatusMessage tone={paymentState === "failed" ? "error" : paymentState === "pending" ? "warning" : "success"}>
+              {message}
+            </StatusMessage>
+          )}
+
         <section className="grid gap-4">
           {!tournament && (
             <StatusMessage tone="info">No live tournament found.</StatusMessage>
@@ -2280,8 +2289,6 @@ export function DrawScreen() {
               )}
             </div>
           )}
-
-          {message && <StatusMessage tone={paymentState === "failed" ? "error" : paymentState === "pending" ? "warning" : "success"}>{message}</StatusMessage>}
         </section>
         </main>
         {showVideoPrompt && (
