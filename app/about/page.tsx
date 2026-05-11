@@ -61,40 +61,54 @@ const FEATURED_VIDEO_PREVIEW_URL = "https://drive.google.com/file/d/1oyHOkUphZ4X
 
 const TOURNAMENTS: TournamentHighlight[] = [
   {
+    title: "South Regional",
+    date: "Apr 2026",
+    albumUrl: "https://photos.app.goo.gl/DZkfEqfGDmYJHBr17",
+    thumbs: ["/images/about-tournaments/south-regional-2026-01.jpg"]
+  },
+  {
     title: "Northeast Regional",
     date: "Jan 2026",
     albumUrl: "https://photos.app.goo.gl/hqN5hxRYannDHzpV6",
-    thumbs: []
+    thumbs: ["/images/about-tournaments/northeast-regional-2026-01.jpg"]
   },
   {
     title: "North America Tennis",
     date: "2025",
     albumUrl: "https://photos.app.goo.gl/5TXzAeMxDkxvfzfg8",
-    thumbs: ["https://drive.google.com/thumbnail?id=15TXzAeMxDkxvfzfg8&sz=w400&sz=w400"]
+    thumbs: [
+      "/images/about-tournaments/north-america-tennis-2025-01.jpg",
+      "/images/about-tournaments/north-america-tennis-2025-02.jpg",
+      "/images/about-tournaments/north-america-tennis-2025-03.jpg"
+    ]
   },
   {
     title: "South Regional",
     date: "Apr 2025",
     albumUrl: "https://photos.app.goo.gl/wPtjBZpyBGEsvG3X8",
-    thumbs: []
+    thumbs: ["/images/about-tournaments/south-regional-2025-01.jpg"]
   },
   {
     title: "Midwest Regional",
     date: "Apr 2025",
     albumUrl: "https://photos.app.goo.gl/ZHZA5wkSmMrUNNkK8",
-    thumbs: []
+    thumbs: ["/images/about-tournaments/midwest-regional-2025-01.jpg"]
   },
   {
     title: "Tennis & Pickleball",
     date: "2024",
     albumUrl: "https://photos.app.goo.gl/oL2hzcfCT1BYXsiD8",
-    thumbs: []
+    thumbs: ["/images/about-tournaments/tennis-pickleball-2024-01.jpg"]
   },
   {
     title: "Tri-Sports Tournament",
     date: "2023",
     albumUrl: "https://photos.app.goo.gl/dS3ZxkBNL5xcRngy8",
-    thumbs: []
+    thumbs: [
+      "/images/about-tournaments/tri-sports-2023-01.jpg",
+      "/images/about-tournaments/tri-sports-2023-02.jpg",
+      "/images/about-tournaments/tri-sports-2023-03.jpg"
+    ]
   }
 ];
 
@@ -201,6 +215,7 @@ const TEAM: Team = {
   ],
   sportLeads: [
     { name: "Hussain Boxwalla", short: "Hussain B.", role: "Tennis", initials: "HB" },
+    { name: "Shabbir Shams", short: "Shabbir S.", role: "Table Tennis", initials: "SS" },
     { name: "Shoaib Shabbir", short: "Shoaib S.", role: "Pickleball", initials: "SS" },
     { name: "Batul Kaj", short: "Batul K.", role: "Badminton", initials: "BK" }
   ],
@@ -428,15 +443,6 @@ function TournamentStrip({ tournament }: { tournament: TournamentHighlight }) {
             src={thumb}
           />
         ))}
-        <a
-          className="grid h-[68px] w-[92px] shrink-0 snap-start place-items-center rounded-md border-hairline border-dashed border-line bg-surface px-2 text-center text-[10px] font-medium leading-snug text-[#1d6e3a]"
-          href={tournament.albumUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          + View all<br />
-          <span className="text-[10px] font-normal text-text-secondary">Open album</span>
-        </a>
       </div>
     </article>
   );
@@ -850,10 +856,15 @@ function TeamStrip({ groupLabel, members }: { groupLabel: string; members: TeamM
 function ReadyToPlayCta() {
   return (
     <section className="grid gap-3 rounded-[22px] border-hairline border-line bg-white p-4 shadow-[0_8px_24px_rgba(24,24,26,0.05)]">
-      <span className="text-[10px] font-medium uppercase tracking-[0.4px] text-text-secondary">Ready to play</span>
-      <h2 className="text-[16px] font-medium leading-tight text-text-primary">Join the next MRSA event.</h2>
-      <p className="text-[12px] leading-relaxed text-text-secondary">Create your profile, follow tournament updates, and step onto court with Mumineen across North America.</p>
-      <Link className="inline-flex min-h-11 items-center justify-center rounded-[14px] bg-[#1d6e3a] px-4 text-[13px] font-medium text-white" href="/tournaments">View tournaments</Link>
+      <p className="text-[12px] leading-relaxed text-text-secondary">To stay up to date with MRSA events and announcements</p>
+      <a
+        className="inline-flex min-h-11 items-center justify-center rounded-[14px] bg-[#1d6e3a] px-4 text-center text-[13px] font-medium leading-tight text-white"
+        href="https://chat.whatsapp.com/Lcl6BM01bu86LW00MVtf1V"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Join the MRSA WhatsApp Community channel
+      </a>
     </section>
   );
 }
