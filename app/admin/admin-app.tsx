@@ -24,6 +24,7 @@ type AdminPlayer = {
   date_of_birth: string | null;
   profile_photo_url: string | null;
   jamaat_city: string | null;
+  self_assessment: string | null;
   tier: number;
   rating: number | null;
   claim_status: string;
@@ -384,7 +385,7 @@ export function AdminPlayersScreen() {
 
     let request = supabase
       .from("players")
-	      .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, tier, rating, claim_status, tournaments_played, matches_played")
+	      .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, tier, rating, claim_status, tournaments_played, matches_played")
       .order("full_name")
       .limit(80);
 
@@ -424,14 +425,20 @@ export function AdminPlayersScreen() {
     }
 
     const form = new FormData(event.currentTarget);
+    const fullName = String(form.get("fullName") || "").trim();
 	    const dateOfBirth = String(form.get("dateOfBirth") || "").trim();
     const tierValue = Number(form.get("tier") || player.tier || 4);
+    if (!fullName) {
+      setPlayerNotice({ type: "error", text: "Player name is required." });
+      return;
+    }
     setSavingPlayerId(player.id);
     setPlayerNotice(null);
 
     const { error } = await supabase
       .from("players")
       .update({
+	        full_name: fullName,
 	        phone: String(form.get("phone") || "").trim() || null,
 	        date_of_birth: dateOfBirth || null,
 	        tier: tierValue
@@ -445,7 +452,7 @@ export function AdminPlayersScreen() {
     }
 
     setEditingPlayerId(null);
-    setPlayerNotice({ type: "success", text: `${player.full_name} updated.` });
+    setPlayerNotice({ type: "success", text: `${fullName} updated.` });
     await loadPlayers();
   };
 
@@ -503,9 +510,10 @@ export function AdminPlayersScreen() {
                   <strong className="truncate text-[18px] font-medium text-text-primary">{player.full_name}</strong>
                   <em className="truncate text-[14px] not-italic text-text-secondary">{player.jamaat_city || "City missing"} · {formatAdminClaimStatus(player.claim_status)}</em>
                 </div>
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
                   <AdminPlayerMeta label="Phone" value={player.phone || "Missing"} />
 	                  <AdminPlayerMeta label="Age" value={calculateAdminAge(player.date_of_birth) || (player.age ? String(player.age) : "Not set")} />
+                  <AdminPlayerMeta label="Self evaluation" value={player.self_assessment || "Not set"} />
                   <AdminPlayerMeta label="Tier" value={`Tier ${player.tier || 4}`} />
                   <AdminPlayerMeta label="Rating" value={formatAdminRating(player.rating)} />
                   <AdminPlayerMeta label="Record" value={`${player.tournaments_played}T · ${player.matches_played}M`} />
@@ -530,7 +538,11 @@ export function AdminPlayersScreen() {
             </div>
 
             {editingPlayerId === player.id && (
-              <form className="grid gap-3 rounded-[16px] border-hairline border-line bg-surface/50 p-3 md:grid-cols-[repeat(3,minmax(0,1fr))_auto] md:items-end" onSubmit={(event) => updatePlayerDetails(event, player)}>
+              <form className="grid gap-3 rounded-[16px] border-hairline border-line bg-surface/50 p-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto] md:items-end" onSubmit={(event) => updatePlayerDetails(event, player)}>
+                <label className="grid gap-2 text-[13px] text-text-secondary">
+                  Player name
+                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="fullName" type="text" defaultValue={player.full_name} placeholder="Full name" required />
+                </label>
                 <label className="grid gap-2 text-[13px] text-text-secondary">
                   Phone number
                   <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="phone" type="tel" defaultValue={player.phone || ""} placeholder="9999999999" />
@@ -929,7 +941,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     setNotice(null);
     const { error } = await supabase.from("tournaments").update({
       name: String(form.get("name") || ""),
-      status: deriveAdminTournamentStatus({ startsOn: startDate, endsOn: endDate, registrationClosesAt }),
+      status: tournament.status,
       venue_name: String(form.get("venueName") || ""),
       venue_address: String(form.get("venueName") || ""),
       venue_maps_url: String(form.get("mapsUrl") || ""),
@@ -949,6 +961,28 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     }
 
     setNotice({ type: "success", text: "Tournament details saved." });
+    await loadTournamentWorkspace();
+  };
+
+  const updateTournamentRegistrationStatus = async (status: "registration_open" | "registration_closed") => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    setSaving(true);
+    setNotice(null);
+    const { error } = await supabase
+      .from("tournaments")
+      .update({ status })
+      .eq("id", tournament.id);
+    setSaving(false);
+
+    if (error) {
+      setNotice({ type: "error", text: error.message });
+      return;
+    }
+
+    setTournament({ ...tournament, status });
+    setNotice({ type: "success", text: status === "registration_open" ? "Registration restarted." : "Registration stopped." });
     await loadTournamentWorkspace();
   };
 
@@ -1056,7 +1090,30 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
           <h1 className="text-3xl font-medium leading-tight tracking-[-0.4px] text-text-primary">{tournament?.name || "Tournament"}</h1>
           <p className="max-w-[720px] text-[15px] leading-relaxed text-text-secondary">Manage this tournament’s setup, registrations, tiers, and future operational workflows.</p>
         </div>
-        <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{registeredPlayers.length} registered</span>
+        <div className="grid gap-2 md:justify-items-end">
+          <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{registeredPlayers.length} registered</span>
+          {tournament && <span className="rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-text-secondary">{formatAdminTournamentStatus(tournament.status)}</span>}
+          {tournament && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-4 text-xs font-medium text-[#8a4a22] disabled:opacity-50"
+                type="button"
+                onClick={() => updateTournamentRegistrationStatus("registration_closed")}
+                disabled={saving || tournament.status === "registration_closed"}
+              >
+                Stop registration
+              </button>
+              <button
+                className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] bg-brand px-4 text-xs font-medium text-white disabled:opacity-50"
+                type="button"
+                onClick={() => updateTournamentRegistrationStatus("registration_open")}
+                disabled={saving || tournament.status === "registration_open"}
+              >
+                Restart registration
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[15px] text-[#a32d2d]" : "rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[15px] text-[#3b6d11]"}>{notice.text}</p>}
