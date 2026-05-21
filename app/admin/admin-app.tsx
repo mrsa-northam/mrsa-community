@@ -56,6 +56,7 @@ type AdminRegisteredPlayer = {
   profilePhotoUrl: string;
   tennisVideoUrl: string;
   tennisVideoStatus: string | null;
+  selfEvaluation: string;
   age: string;
   tier: number;
   rating: number | null;
@@ -521,6 +522,10 @@ export function AdminPlayersScreen() {
                 </div>
               </div>
               <div className="grid gap-2">
+                <button className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-xs font-medium text-white" type="button" onClick={() => setEditingPlayerId(player.id)}>
+                  <Pencil size={15} />
+                  Edit name
+                </button>
                 <button className={editingPlayerId === player.id ? "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-text-secondary" : "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-xs font-medium text-white"} type="button" onClick={() => setEditingPlayerId(editingPlayerId === player.id ? null : player.id)}>
                   {editingPlayerId === player.id ? <X size={15} /> : <Pencil size={15} />}
                   {editingPlayerId === player.id ? "Cancel" : "Update details"}
@@ -538,7 +543,7 @@ export function AdminPlayersScreen() {
             </div>
 
             {editingPlayerId === player.id && (
-              <form className="grid gap-3 rounded-[16px] border-hairline border-line bg-surface/50 p-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto] md:items-end" onSubmit={(event) => updatePlayerDetails(event, player)}>
+              <form className="grid gap-3 rounded-[16px] border-hairline border-line bg-surface/50 p-3 md:grid-cols-4 md:items-end" onSubmit={(event) => updatePlayerDetails(event, player)}>
                 <label className="grid gap-2 text-[13px] text-text-secondary">
                   Player name
                   <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="fullName" type="text" defaultValue={player.full_name} placeholder="Full name" required />
@@ -559,10 +564,12 @@ export function AdminPlayersScreen() {
                     ))}
                   </select>
                 </label>
-                <button className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[12px] bg-brand px-4 text-xs font-medium text-white disabled:opacity-60" type="submit" disabled={savingPlayerId === player.id}>
-                  <CheckCircle2 size={15} />
-                  {savingPlayerId === player.id ? "Saving..." : "Save"}
-                </button>
+                <div className="grid gap-2 md:col-span-4 md:flex md:justify-end">
+                  <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[12px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={savingPlayerId === player.id}>
+                    <CheckCircle2 size={16} />
+                    {savingPlayerId === player.id ? "Saving..." : "Save player details"}
+                  </button>
+                </div>
               </form>
             )}
           </article>
@@ -824,7 +831,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .maybeSingle(),
       supabase
         .from("tournament_registrations")
-        .select("id, tournament_id, payment_status, players(id, full_name, jamaat_city, age, date_of_birth, profile_photo_url, tennis_video_url, tennis_video_status, tier, rating)")
+        .select("id, tournament_id, payment_status, players(id, full_name, jamaat_city, age, date_of_birth, profile_photo_url, tennis_video_url, tennis_video_status, self_assessment, tier, rating)")
         .eq("tournament_id", tournamentId)
         .neq("status", "cancelled")
         .in("payment_status", ["paid", "waived"])
@@ -881,6 +888,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         profilePhotoUrl: player.profile_photo_url || "",
         tennisVideoUrl: player.tennis_video_url || "",
         tennisVideoStatus: player.tennis_video_status || null,
+        selfEvaluation: player.self_assessment || "Not set",
         age: calculateAdminAge(player.date_of_birth) ? `Age ${calculateAdminAge(player.date_of_birth)}` : player.age ? `Age ${player.age}` : "Age not set",
         tier: Number(player.tier || 4),
         rating: player.rating,
@@ -1459,6 +1467,7 @@ function TieredRegisteredPlayerRow({
         <span className="text-[12px] font-medium text-text-secondary xl:hidden">City, age</span>
         <strong className="truncate text-[14px] font-medium text-text-primary">{player.jamaatCity}</strong>
         <em className="text-[13px] not-italic text-text-secondary">{player.age}</em>
+        <em className="text-[13px] not-italic text-text-secondary">Self: {player.selfEvaluation}</em>
       </div>
       <div className="grid grid-cols-[minmax(120px,1fr)_auto] items-end gap-2 xl:grid-cols-[96px_auto]">
         <label className="grid gap-1 text-[12px] text-text-secondary">
