@@ -51,8 +51,8 @@ type Tournament = {
   faqs: TournamentFaq[];
 };
 type TournamentFaq = { question: string; answer: string };
-type RegisteredPlayer = { id: string; name: string; city: string; rating: string };
-type PaymentState = "idle" | "pending" | "failed" | "paid";
+type RegisteredPlayer = { id: string; name: string; city: string; rating: string; tennisVideoUrl: string };
+type PaymentState = "idle" | "pending" | "failed" | "paid" | "waitlist_pending" | "waitlist_accepted" | "waitlist_rejected";
 type PaymentHistoryItem = {
   id: string;
   entryType: string;
@@ -116,7 +116,7 @@ const jamaatCityOptions = [
   "Virginia",
   "Washington, D.C."
 ];
-const videoDescription = "Recommended for draft placement: add a Google Drive link to a short video of you playing. Include your serve, forehand, backhand, volleys, and a few rally points so captains and organizers can evaluate your level for drafts.";
+const videoDescription = "Recommended for draft placement: add a Google Drive link to a short video of you playing. Please set sharing to anyone with the link can view. Include your serve, forehand, backhand, volleys, and a few rally points so captains and organizers can evaluate your level for drafts.";
 type DbProfileRow = {
   id?: string;
   auth_user_id?: string | null;
@@ -1576,10 +1576,9 @@ export function HomeScreen() {
         const [{ data: registration }, { data: latestPayment }] = await Promise.all([
           supabase
             .from("tournament_registrations")
-            .select("id")
+            .select("id, status, payment_status, waitlist_status")
             .eq("tournament_id", tournamentData.id)
             .eq("player_id", profileData.id)
-            .in("payment_status", ["paid", "waived"])
             .maybeSingle(),
           supabase
             .from("payment_ledger")
@@ -1592,8 +1591,17 @@ export function HomeScreen() {
             .maybeSingle()
         ]);
 
-        setHomeTournamentStatus(registration || latestPayment?.status === "paid" ? "paid" : latestPayment?.status === "pending" || latestPayment?.status === "failed" ? latestPayment.status : "idle");
-        setNeedsVideoLink(Boolean(registration) && needsPlayerVideoUpload(profileData.tennis_video_url, profileData.tennis_video_status));
+        const waitlistStatus = registration?.status === "waitlisted" ? registration.waitlist_status : null;
+        setHomeTournamentStatus(
+          registration && ["paid", "waived"].includes(registration.payment_status) ? "paid"
+            : waitlistStatus === "accepted" ? "waitlist_accepted"
+              : waitlistStatus === "rejected" ? "waitlist_rejected"
+                : waitlistStatus === "pending" ? "waitlist_pending"
+                  : latestPayment?.status === "paid" ? "paid"
+                    : tournamentData.status === "registration_open" && (latestPayment?.status === "pending" || latestPayment?.status === "failed") ? latestPayment.status
+                      : "idle"
+        );
+        setNeedsVideoLink(Boolean(registration && ["paid", "waived"].includes(registration.payment_status)) && needsPlayerVideoUpload(profileData.tennis_video_url, profileData.tennis_video_status));
       }
     };
 
@@ -1659,7 +1667,7 @@ export function HomeScreen() {
             <form className="grid gap-3 rounded-[18px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-4" onSubmit={saveDashboardVideoLink}>
               <h3 className="text-[16px] font-medium text-[#8a4a22]">Reminder</h3>
               <em className="text-[14px] not-italic leading-relaxed text-[#8a4a22]/85">
-                Upload a google drive link of a short video of you playing. Include your serve, forehand, backhand, volleys, and a few rally points.
+                Upload a Google Drive link of a short video of you playing. Please set sharing to anyone with the link can view. Include your serve, forehand, backhand, volleys, and a few rally points.
               </em>
               {dashboardVideoMessage && <b className="text-[13px] font-medium text-[#8a4a22]">{dashboardVideoMessage}</b>}
               <input
@@ -1800,14 +1808,22 @@ export function DrawScreen() {
     const mappedTournament = mapTournament(tournamentData);
     setTournament(mappedTournament);
 
-    const [registrationsResult, latestPaymentResult] = await Promise.all([
+    const [registrationsResult, myRegistrationResult, latestPaymentResult] = await Promise.all([
       supabase
         .from("tournament_registrations")
-        .select("player_id, players(id, full_name, jamaat_city, rating)")
+        .select("player_id, players(id, full_name, jamaat_city, rating, tennis_video_url)")
         .eq("tournament_id", mappedTournament.id)
         .neq("status", "cancelled")
         .in("payment_status", ["paid", "waived"])
         .order("registered_at"),
+      appSession.player?.id
+        ? supabase
+            .from("tournament_registrations")
+            .select("id, status, payment_status, waitlist_status")
+            .eq("tournament_id", mappedTournament.id)
+            .eq("player_id", appSession.player.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
       appSession.player?.id
         ? supabase
             .from("payment_ledger")
@@ -1821,6 +1837,7 @@ export function DrawScreen() {
         : Promise.resolve({ data: null })
     ]);
     const registrations = registrationsResult.data || [];
+    const myRegistration = myRegistrationResult.data;
     const latestPayment = latestPaymentResult.data;
 
     setRegisteredPlayers(registrations.map((row) => {
@@ -1829,7 +1846,8 @@ export function DrawScreen() {
         id: row.player_id,
         name: player?.full_name || "Player",
         city: player?.jamaat_city || "MRSA",
-        rating: formatRegisteredPlayerRating(player?.rating)
+        rating: formatRegisteredPlayerRating(player?.rating),
+        tennisVideoUrl: hasPlayerVideoLink(player?.tennis_video_url) ? player?.tennis_video_url || "" : ""
       };
     }));
 
@@ -1837,9 +1855,16 @@ export function DrawScreen() {
       const myPlayer = { id: appSession.player.id };
       const paidRegistration = Boolean(myPlayer && registrations.some((row) => row.player_id === myPlayer.id));
       setRegistered(paidRegistration);
-      setPaymentState(paidRegistration ? "paid" : "idle");
+      const waitlistStatus = myRegistration?.status === "waitlisted" ? myRegistration.waitlist_status : null;
+      setPaymentState(
+        paidRegistration ? "paid"
+          : waitlistStatus === "accepted" ? "waitlist_accepted"
+            : waitlistStatus === "rejected" ? "waitlist_rejected"
+              : waitlistStatus === "pending" ? "waitlist_pending"
+                : "idle"
+      );
 
-      if (!paidRegistration) {
+      if (!paidRegistration && !waitlistStatus && mappedTournament.status === "registration_open") {
         if (latestPayment?.status === "pending" || latestPayment?.status === "failed") {
           setPaymentState(latestPayment.status);
         }
@@ -2091,9 +2116,42 @@ export function DrawScreen() {
     await continueRegistrationCheckout();
   };
 
+  const joinTournamentWaitlist = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament || !appSession.player?.id) return;
+
+    const confirmed = window.confirm("Join the waitlist for this tournament? If an admin accepts your request, you will be able to complete payment.");
+    if (!confirmed) return;
+
+    setPaying(true);
+    setMessage("");
+    const { error } = await supabase
+      .from("tournament_registrations")
+      .upsert({
+        tournament_id: tournament.id,
+        player_id: appSession.player.id,
+        status: "waitlisted",
+        payment_status: "pending",
+        waitlist_status: "pending",
+        notes: "Player joined the waitlist."
+      }, { onConflict: "tournament_id,player_id" });
+    setPaying(false);
+
+    if (error) {
+      setMessage(getFriendlyError(error));
+      return;
+    }
+
+    setPaymentState("waitlist_pending");
+    setMessage("You have joined the waitlist.");
+    await loadTournament();
+  };
+
 	  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 	  const paymentPending = paymentState === "pending";
 	  const registrationOpen = tournament?.status === "registration_open";
+    const waitlistAccepted = paymentState === "waitlist_accepted";
+    const canPayForTournament = Boolean(registrationOpen || waitlistAccepted);
     const needsTournamentVideoLink = needsPlayerVideoUpload(appSession.player?.tennis_video_url, appSession.player?.tennis_video_status);
     const registeredPlayerCountLabel = `${registeredPlayers.length} ${registeredPlayers.length === 1 ? "player" : "players"}`;
 
@@ -2155,7 +2213,7 @@ export function DrawScreen() {
                     {needsTournamentVideoLink && (
                       <form className="grid gap-2 rounded-[16px] border-hairline border-white/10 bg-white/[0.08] p-3" onSubmit={saveTournamentVideoLink}>
                         <p className="text-[13px] leading-relaxed text-white/70">
-                          Upload a google drive link of a short video of you playing. Include your serve, forehand, backhand, volleys, and a few rally points.
+                          Upload a Google Drive link of a short video of you playing. Please set sharing to anyone with the link can view. Include your serve, forehand, backhand, volleys, and a few rally points.
                         </p>
                         {videoPromptMessage && <b className="text-[12px] font-medium text-[#C9E84A]">{videoPromptMessage}</b>}
                         <input
@@ -2173,10 +2231,18 @@ export function DrawScreen() {
                     )}
                   </div>
                 ) : (
-                  <button className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#B8FF35] px-4 text-[14px] font-medium text-[#153419] shadow-[0_18px_38px_rgba(184,255,53,0.16)] disabled:opacity-70" type="button" onClick={registerForTournament} disabled={paying || reconcilingPayment || !registrationOpen}>
+                  <button
+                    className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#B8FF35] px-4 text-[14px] font-medium text-[#153419] shadow-[0_18px_38px_rgba(184,255,53,0.16)] disabled:opacity-70"
+                    type="button"
+                    onClick={canPayForTournament ? registerForTournament : joinTournamentWaitlist}
+                    disabled={paying || reconcilingPayment || paymentState === "waitlist_pending" || paymentState === "waitlist_rejected"}
+                  >
                     {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen })}
                   </button>
                 )}
+                {paymentState === "waitlist_pending" && <p className="text-[13px] leading-relaxed text-white/58">You have joined the waitlist. Organizer will review your request before payment opens.</p>}
+                {paymentState === "waitlist_accepted" && <p className="text-[13px] leading-relaxed text-white/58">Your waitlist request was accepted. Complete payment to finish registration.</p>}
+                {paymentState === "waitlist_rejected" && <p className="text-[13px] leading-relaxed text-white/58">Your waitlist request was not accepted for this tournament.</p>}
                 {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">If you already paid, wait here for confirmation. If checkout was closed before paying, retry payment.</p>}
               </div>
               )}
@@ -2214,6 +2280,14 @@ export function DrawScreen() {
                     <div className="grid min-w-0 gap-1">
                       <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
                       <em className="truncate text-[13px] not-italic text-text-secondary">{player.city}</em>
+                      {player.tennisVideoUrl && (
+                        <a className="inline-flex w-max items-center gap-1.5 text-[12px] font-medium text-[#185fa5]" href={player.tennisVideoUrl} target="_blank" rel="noreferrer" title="View playing video" aria-label={`${player.name} playing video`}>
+                          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#e5f1ff]">
+                            <ExternalLink size={12} strokeWidth={2.2} aria-hidden="true" />
+                          </span>
+                          View video
+                        </a>
+                      )}
                     </div>
                     <span className="grid justify-items-end gap-1">
                       <strong className="text-[15px] font-medium leading-none text-brand">{player.rating}</strong>
@@ -2300,7 +2374,7 @@ export function DrawScreen() {
               <div className="grid gap-2">
                 <span className="inline-flex w-max items-center rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">Tournament draft video</span>
                 <h2 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary" id="tournament-video-title">Add your playing video</h2>
-                <p className="text-[15px] leading-relaxed text-text-secondary">Please upload a Google Drive link with video of you playing and showcasing your skills. This helps captains and organizers draft you fairly.</p>
+                <p className="text-[15px] leading-relaxed text-text-secondary">Please upload a Google Drive link with video of you playing and showcasing your skills. Set sharing to anyone with the link can view. This helps captains and organizers draft you fairly.</p>
                 <p className="rounded-[14px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-3 text-[14px] leading-relaxed text-[#8a4a22]">If the Google Drive link is not uploaded, you may not be drafted. You can skip this step during registration and add it later from your profile.</p>
               </div>
               <label className="grid gap-2 text-[13px] text-text-secondary">
@@ -2371,7 +2445,7 @@ export function RegisteredPlayersScreen() {
 
     const { data: registrations } = await supabase
       .from("tournament_registrations")
-      .select("player_id, players(id, full_name, jamaat_city, rating)")
+      .select("player_id, players(id, full_name, jamaat_city, rating, tennis_video_url)")
       .eq("tournament_id", mappedTournament.id)
       .neq("status", "cancelled")
       .in("payment_status", ["paid", "waived"])
@@ -2383,7 +2457,8 @@ export function RegisteredPlayersScreen() {
         id: row.player_id,
         name: player?.full_name || "Player",
         city: player?.jamaat_city || "MRSA",
-        rating: formatRating(player?.rating)
+        rating: formatRating(player?.rating),
+        tennisVideoUrl: hasPlayerVideoLink(player?.tennis_video_url) ? player?.tennis_video_url || "" : ""
       };
     }));
     setLoading(false);
@@ -2418,14 +2493,12 @@ export function RegisteredPlayersScreen() {
   return (
     <AppFrame active="tournament">
       <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
-        <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-3 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
-          <div className="mx-auto flex max-w-shell items-center justify-between">
-            <BrandMark />
-            <Link className="tap-card rounded-full border-hairline border-white/80 bg-white/65 px-4 py-2 text-xs font-medium text-brand shadow-[0_8px_22px_rgba(24,24,26,0.06)] backdrop-blur" href="/tournaments">Back</Link>
-          </div>
-        </header>
+        <AppTopBar />
 
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+          <Link className="tap-card grid h-9 w-9 place-items-center rounded-full border-hairline border-line bg-white/80 text-brand shadow-[0_8px_22px_rgba(24,24,26,0.06)] backdrop-blur" href="/tournaments" aria-label="Back to tournament">
+            <ArrowLeft size={16} />
+          </Link>
           <PageGreeting subtitle="Here's what's coming up" />
           <section className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] lg:p-6">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
@@ -2467,6 +2540,14 @@ export function RegisteredPlayersScreen() {
                   <div className="grid min-w-0 gap-1">
                     <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
                     <em className="truncate text-[13px] not-italic text-text-secondary">City: {player.city}</em>
+                    {player.tennisVideoUrl && (
+                      <a className="inline-flex w-max items-center gap-1.5 text-[12px] font-medium text-[#185fa5]" href={player.tennisVideoUrl} target="_blank" rel="noreferrer" title="View playing video" aria-label={`${player.name} playing video`}>
+                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#e5f1ff]">
+                          <ExternalLink size={12} strokeWidth={2.2} aria-hidden="true" />
+                        </span>
+                        View video
+                      </a>
+                    )}
                   </div>
                   <span className="grid justify-items-end gap-1">
                     <strong className="text-[15px] font-medium leading-none text-brand">{player.rating}</strong>
@@ -2529,6 +2610,9 @@ export function PlayersScreen() {
       <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
         <AppTopBar />
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+          <Link className="tap-card grid h-9 w-9 place-items-center rounded-full border-hairline border-line bg-white/80 text-brand shadow-[0_8px_22px_rgba(24,24,26,0.06)] backdrop-blur" href="/dashboard" aria-label="Back to dashboard">
+            <ArrowLeft size={16} />
+          </Link>
           <PageGreeting subtitle="The MRSA leaderboard" />
           <section className="relative grid min-h-[190px] overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] lg:p-6">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
@@ -3158,9 +3242,12 @@ function getRegistrationButtonLabel({
 }) {
   if (registered || paymentState === "paid") return "Registered";
   if (paying) return "Opening payment...";
+  if (paymentState === "waitlist_pending") return "Joined waitlist";
+  if (paymentState === "waitlist_accepted") return "Complete payment";
+  if (paymentState === "waitlist_rejected") return "Waitlist not accepted";
   if (paymentState === "failed") return "Retry payment";
   if (paymentState === "pending") return "Retry payment";
-  if (!registrationOpen) return "Registration closed";
+  if (!registrationOpen) return "Join waitlist";
   return "Pay and register →";
 }
 
@@ -3200,6 +3287,36 @@ function getHomeTournamentCopy(tournament: Tournament | null, paymentState: Paym
     };
   }
 
+  if (paymentState === "waitlist_pending") {
+    return {
+      badge: "Registration closed",
+      title: "You have joined the waitlist",
+      description: "Organizer will review your request before payment opens.",
+      action: "View details",
+      live: false
+    };
+  }
+
+  if (paymentState === "waitlist_accepted") {
+    return {
+      badge: "Waitlist accepted",
+      title: "Complete your payment",
+      description: "Your spot is approved pending payment.",
+      action: "Complete payment",
+      live: true
+    };
+  }
+
+  if (paymentState === "waitlist_rejected") {
+    return {
+      badge: "Registration closed",
+      title: "Waitlist not accepted",
+      description: "View details for any tournament updates.",
+      action: "View details",
+      live: false
+    };
+  }
+
   if (paymentState === "failed") {
     return {
       badge: "Action needed",
@@ -3222,9 +3339,9 @@ function getHomeTournamentCopy(tournament: Tournament | null, paymentState: Paym
 
   return {
     badge: formatTournamentStatus(tournament.status),
-    title: formatTournamentStatus(tournament.status),
-    description: "View details.",
-    action: "View details",
+    title: tournament.status === "registration_closed" ? "Join the waitlist" : formatTournamentStatus(tournament.status),
+    description: tournament.status === "registration_closed" ? "Organizer will review your request." : "View details.",
+    action: tournament.status === "registration_closed" ? "Join waitlist" : "View details",
     live: false
   };
 }

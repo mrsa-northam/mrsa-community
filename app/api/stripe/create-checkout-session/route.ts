@@ -49,13 +49,8 @@ export async function POST(request: NextRequest) {
   if (!player) {
     return NextResponse.json({ error: "Complete or claim your player profile before registering." }, { status: 400 });
   }
-
-  const tournamentStatus = tournament ? getTournamentLifecycleStatus(tournament) : null;
-  if (!tournament || tournamentStatus !== "registration_open") {
-    return NextResponse.json({ error: "This tournament is not open for registration." }, { status: 400 });
-  }
-  if (tournament.status !== tournamentStatus) {
-    await admin.from("tournaments").update({ status: tournamentStatus }).eq("id", tournament.id);
+  if (!tournament) {
+    return NextResponse.json({ error: "Tournament was not found." }, { status: 404 });
   }
 
   if (userData.user.email && !player.email) {
@@ -64,10 +59,19 @@ export async function POST(request: NextRequest) {
 
   const { data: existingRegistration } = await admin
     .from("tournament_registrations")
-    .select("id, payment_status")
+    .select("id, status, payment_status, waitlist_status")
     .eq("tournament_id", tournament.id)
     .eq("player_id", player.id)
     .maybeSingle();
+
+  const tournamentStatus = tournament ? getTournamentLifecycleStatus(tournament) : null;
+  const acceptedWaitlist = existingRegistration?.status === "waitlisted" && existingRegistration.waitlist_status === "accepted";
+  if (!tournament || (tournamentStatus !== "registration_open" && !acceptedWaitlist)) {
+    return NextResponse.json({ error: "Registration is closed. Join the waitlist and wait for admin approval before completing payment." }, { status: 400 });
+  }
+  if (tournament.status !== tournamentStatus && !acceptedWaitlist) {
+    await admin.from("tournaments").update({ status: tournamentStatus }).eq("id", tournament.id);
+  }
 
   if (existingRegistration && ["paid", "waived"].includes(existingRegistration.payment_status)) {
     return NextResponse.json({ registered: true });
@@ -79,7 +83,8 @@ export async function POST(request: NextRequest) {
       tournament_id: tournament.id,
       player_id: player.id,
       status: "registered",
-      payment_status: "waived"
+      payment_status: "waived",
+      waitlist_status: acceptedWaitlist ? "accepted" : "none"
     }, { onConflict: "tournament_id,player_id" });
     return NextResponse.json({ registered: true });
   }

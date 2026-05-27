@@ -82,6 +82,16 @@ type AdminInterestedPlayer = {
   failureMessage: string;
   checkoutCount: number;
 };
+type AdminWaitlistedPlayer = {
+  registrationId: string;
+  playerId: string;
+  fullName: string;
+  jamaatCity: string;
+  profilePhotoUrl: string;
+  selfEvaluation: string;
+  waitlistStatus: string;
+  joinedAt: string;
+};
 
 type AdminPayment = {
   id: string;
@@ -812,6 +822,7 @@ export function AdminTournamentsScreen() {
 export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: string }) {
   const [tournament, setTournament] = useState<AdminTournament | null>(null);
   const [registeredPlayers, setRegisteredPlayers] = useState<AdminRegisteredPlayer[]>([]);
+  const [waitlistedPlayers, setWaitlistedPlayers] = useState<AdminWaitlistedPlayer[]>([]);
   const [interestedPlayers, setInterestedPlayers] = useState<AdminInterestedPlayer[]>([]);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -823,7 +834,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    const [{ data, error }, { data: registrations, error: registrationError }, { data: checkoutPayments, error: checkoutPaymentError }, { data: paidPayments, error: paidPaymentError }] = await Promise.all([
+    const [{ data, error }, { data: registrations, error: registrationError }, { data: waitlistRows, error: waitlistError }, { data: checkoutPayments, error: checkoutPaymentError }, { data: paidPayments, error: paidPaymentError }] = await Promise.all([
       supabase
         .from("tournaments")
         .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
@@ -835,6 +846,13 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .eq("tournament_id", tournamentId)
         .neq("status", "cancelled")
         .in("payment_status", ["paid", "waived"])
+        .order("registered_at", { ascending: true })
+        .limit(500),
+      supabase
+        .from("tournament_registrations")
+        .select("id, player_id, waitlist_status, registered_at, players(id, full_name, jamaat_city, profile_photo_url, self_assessment)")
+        .eq("tournament_id", tournamentId)
+        .eq("status", "waitlisted")
         .order("registered_at", { ascending: true })
         .limit(500),
       supabase
@@ -855,8 +873,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .limit(120)
     ]);
 
-    if (error || registrationError || checkoutPaymentError || paidPaymentError) {
-      setNotice({ type: "error", text: (error || registrationError || checkoutPaymentError || paidPaymentError)?.message || "Could not load tournament workspace." });
+    if (error || registrationError || waitlistError || checkoutPaymentError || paidPaymentError) {
+      setNotice({ type: "error", text: (error || registrationError || waitlistError || checkoutPaymentError || paidPaymentError)?.message || "Could not load tournament workspace." });
       return;
     }
 
@@ -896,6 +914,20 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         paymentStatus: row.payment_status || payment?.status || null,
         paymentAmountCents: payment?.amount_cents || 0,
         paymentCurrency: payment?.currency || "USD"
+      }];
+    }));
+    setWaitlistedPlayers((waitlistRows || []).flatMap((row) => {
+      const player = Array.isArray(row.players) ? row.players[0] : row.players;
+      if (!player || !row.id) return [];
+      return [{
+        registrationId: row.id,
+        playerId: row.player_id,
+        fullName: player.full_name || "Unknown player",
+        jamaatCity: player.jamaat_city || "City missing",
+        profilePhotoUrl: player.profile_photo_url || "",
+        selfEvaluation: player.self_assessment || "Not set",
+        waitlistStatus: row.waitlist_status || "pending",
+        joinedAt: row.registered_at
       }];
     }));
     const interestedByPlayer = new Map<string, AdminInterestedPlayer>();
@@ -1019,6 +1051,33 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     return true;
   };
 
+  const reviewWaitlistPlayer = async (player: AdminWaitlistedPlayer, waitlistStatus: "accepted" | "rejected") => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setNotice({ type: "error", text: "Supabase is not configured. Check your environment variables." });
+      return;
+    }
+
+    setSaving(true);
+    setNotice(null);
+    const { error } = await supabase
+      .from("tournament_registrations")
+      .update({
+        waitlist_status: waitlistStatus,
+        notes: waitlistStatus === "accepted" ? "Waitlist accepted by admin. Player may complete payment." : "Waitlist rejected by admin."
+      })
+      .eq("id", player.registrationId);
+    setSaving(false);
+
+    if (error) {
+      setNotice({ type: "error", text: error.message });
+      return;
+    }
+
+    setNotice({ type: "success", text: `${player.fullName} ${waitlistStatus === "accepted" ? "accepted from" : "rejected from"} the waitlist.` });
+    await loadTournamentWorkspace();
+  };
+
   const reviewRegisteredPlayerVideo = async (player: AdminRegisteredPlayer, status: "approved" | "rejected") => {
     const supabase = getSupabaseClient();
     if (!supabase) {
@@ -1035,7 +1094,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         tennis_video_status: status,
         tennis_video_reviewed_at: new Date().toISOString(),
         tennis_video_reviewed_by: userData.user?.id || null,
-        tennis_video_rejection_note: status === "rejected" ? "Please upload a clearer Google Drive playing video for draft review." : null
+        tennis_video_rejection_note: status === "rejected" ? "Please upload a clearer Google Drive playing video for draft review and set sharing to anyone with the link can view." : null
       })
       .eq("id", player.id);
     setReviewingVideoPlayerId(null);
@@ -1202,6 +1261,10 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
           <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
             <InterestedPlayersList players={interestedPlayers} />
           </section>
+
+          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
+            <WaitlistedPlayersList players={waitlistedPlayers} onReview={reviewWaitlistPlayer} saving={saving} />
+          </section>
         </>
       ) : (
         <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[15px] text-text-secondary">Loading tournament workspace...</div>
@@ -1316,6 +1379,46 @@ function InterestedPlayersList({ players }: { players: AdminInterestedPlayer[] }
         </ul>
       ) : (
         <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">No checkout-only players yet.</div>
+      )}
+    </div>
+  );
+}
+
+function WaitlistedPlayersList({ players, onReview, saving }: { players: AdminWaitlistedPlayer[]; onReview: (player: AdminWaitlistedPlayer, status: "accepted" | "rejected") => Promise<void>; saving: boolean }) {
+  return (
+    <div className="grid gap-3" aria-label="Waitlisted players">
+      <div className="grid gap-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+        <span className="grid gap-1">
+          <h3 className="text-[15px] font-medium text-text-primary">Waitlist</h3>
+          <p className="max-w-[680px] text-[13px] leading-relaxed text-text-secondary">Accept a player to unlock their payment button. Reject keeps registration closed for them.</p>
+        </span>
+        <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{players.length} players</span>
+      </div>
+
+      {players.length ? (
+        <ul className="grid gap-2">
+          {players.map((player) => (
+            <li className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center" key={player.registrationId}>
+              <span className="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-full bg-brand-light text-[13px] font-medium text-[#3b6d11]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+                {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
+              </span>
+              <span className="grid min-w-0 gap-1">
+                <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
+                <em className="truncate text-[13px] not-italic text-text-secondary">{player.jamaatCity} · Self: {player.selfEvaluation}</em>
+                <em className="text-[12px] not-italic text-text-secondary">Joined {formatAdminDateTime(player.joinedAt)}</em>
+              </span>
+              <span className="grid gap-2 md:justify-items-end">
+                <b className={player.waitlistStatus === "accepted" ? "rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]" : player.waitlistStatus === "rejected" ? "rounded-full bg-[#fcebeb] px-2.5 py-1 text-[12px] font-medium text-[#a32d2d]" : "rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]"}>{player.waitlistStatus}</b>
+                <span className="flex flex-wrap gap-2">
+                  <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand px-3 text-xs font-medium text-white disabled:opacity-50" type="button" onClick={() => onReview(player, "accepted")} disabled={saving || player.waitlistStatus === "accepted"}>Accept</button>
+                  <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-3 text-xs font-medium text-[#a32d2d] disabled:opacity-50" type="button" onClick={() => onReview(player, "rejected")} disabled={saving || player.waitlistStatus === "rejected"}>Reject</button>
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">No waitlist requests yet.</div>
       )}
     </div>
   );
