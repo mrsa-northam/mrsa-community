@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Home, Pencil, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Download, Home, Pencil, Shield, Trophy, UsersRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -19,12 +19,17 @@ type AdminPlayer = {
   id: string;
   auth_user_id: string | null;
   full_name: string;
+  email?: string | null;
   phone: string | null;
   age: number | null;
   date_of_birth: string | null;
   profile_photo_url: string | null;
   jamaat_city: string | null;
   self_assessment: string | null;
+  dominant_hand?: string | null;
+  jersey_size?: string | null;
+  tennis_video_url?: string | null;
+  tennis_video_status?: string | null;
   tier: number;
   rating: number | null;
   claim_status: string;
@@ -53,6 +58,11 @@ type AdminRegisteredPlayer = {
   tournamentId: string;
   fullName: string;
   jamaatCity: string;
+  phone: string;
+  email: string;
+  dateOfBirth: string;
+  dominantHand: string;
+  jerseySize: string;
   profilePhotoUrl: string;
   tennisVideoUrl: string;
   tennisVideoStatus: string | null;
@@ -130,6 +140,50 @@ type LegacyAdminClaim = {
   created_at: string;
   players: { full_name: string | null; jamaat_city: string | null } | { full_name: string | null; jamaat_city: string | null }[] | null;
 };
+
+const adminSkillLevels = ["Advanced", "Upper Intermediate", "Intermediate", "Developing Intermediate", "Recreational"];
+const adminJamaatCityOptions = [
+  "Atlanta",
+  "Austin",
+  "Bakersfield",
+  "Boston",
+  "Calgary",
+  "Chicago",
+  "Columbus",
+  "Dallas",
+  "Detroit",
+  "Edmonton",
+  "Houston",
+  "Los Angeles",
+  "Miami",
+  "Minneapolis",
+  "Mississauga",
+  "Montreal",
+  "New Jersey",
+  "New York",
+  "North Carolina",
+  "Orange County",
+  "Ottawa",
+  "Philadelphia",
+  "Plano",
+  "Portland",
+  "San Antonio",
+  "San Diego",
+  "San Francisco",
+  "San Jose",
+  "Seattle",
+  "South Carolina",
+  "South Jersey",
+  "Tampa",
+  "The Woodlands",
+  "Toronto",
+  "Vancouver",
+  "Virginia",
+  "Washington, D.C.",
+  "Other"
+];
+const adminJerseySizes = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
+const adminDominantHands = ["Right", "Left", "Both"];
 
 function AdminBrandMark({ light = false }: { light?: boolean }) {
   return (
@@ -386,7 +440,7 @@ export function AdminOverviewScreen() {
 export function AdminPlayersScreen() {
   const [players, setPlayers] = useState<AdminPlayer[]>([]);
   const [query, setQuery] = useState("");
-  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
   const [savingPlayerId, setSavingPlayerId] = useState<string | null>(null);
   const [playerNotice, setPlayerNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -396,7 +450,7 @@ export function AdminPlayersScreen() {
 
     let request = supabase
       .from("players")
-	      .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, tier, rating, claim_status, tournaments_played, matches_played")
+      .select("id, auth_user_id, full_name, email, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tennis_video_status, tier, rating, claim_status, tournaments_played, matches_played")
       .order("full_name")
       .limit(80);
 
@@ -437,7 +491,7 @@ export function AdminPlayersScreen() {
 
     const form = new FormData(event.currentTarget);
     const fullName = String(form.get("fullName") || "").trim();
-	    const dateOfBirth = String(form.get("dateOfBirth") || "").trim();
+    const dateOfBirth = String(form.get("dateOfBirth") || "").trim();
     const tierValue = Number(form.get("tier") || player.tier || 4);
     if (!fullName) {
       setPlayerNotice({ type: "error", text: "Player name is required." });
@@ -449,10 +503,14 @@ export function AdminPlayersScreen() {
     const { error } = await supabase
       .from("players")
       .update({
-	        full_name: fullName,
-	        phone: String(form.get("phone") || "").trim() || null,
-	        date_of_birth: dateOfBirth || null,
-	        tier: tierValue
+        full_name: fullName,
+        phone: String(form.get("phone") || "").trim() || null,
+        date_of_birth: dateOfBirth || null,
+        jamaat_city: String(form.get("jamaatCity") || "").trim() || null,
+        self_assessment: String(form.get("selfAssessment") || "").trim() || null,
+        dominant_hand: String(form.get("dominantHand") || "").trim() || null,
+        jersey_size: String(form.get("jerseySize") || "").trim() || null,
+        tier: tierValue
       })
       .eq("id", player.id);
 
@@ -462,7 +520,6 @@ export function AdminPlayersScreen() {
       return;
     }
 
-    setEditingPlayerId(null);
     setPlayerNotice({ type: "success", text: `${fullName} updated.` });
     await loadPlayers();
   };
@@ -512,33 +569,26 @@ export function AdminPlayersScreen() {
       <div className="grid gap-3">
         {players.map((player) => (
           <article className="grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" key={player.id}>
-            <div className="grid gap-3 md:grid-cols-[44px_minmax(0,1fr)_auto] md:items-center">
-              <span className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[14px] font-medium text-[#3b6d11]" style={player.profile_photo_url ? { backgroundImage: `url(${player.profile_photo_url})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+            <div className="grid gap-3 sm:grid-cols-[48px_minmax(0,1fr)] lg:grid-cols-[48px_minmax(0,1fr)_auto] lg:items-center">
+              <span className="relative grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[14px] font-medium text-[#3b6d11]" style={player.profile_photo_url ? { backgroundImage: `url(${player.profile_photo_url})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
                 {!player.profile_photo_url && getAdminInitials(player.full_name)}
               </span>
-              <div className="grid min-w-0 gap-2">
+              <div className="grid min-w-0 gap-3">
                 <div className="grid gap-1">
                   <strong className="truncate text-[18px] font-medium text-text-primary">{player.full_name}</strong>
-                  <em className="truncate text-[14px] not-italic text-text-secondary">{player.jamaat_city || "City missing"} · {formatAdminClaimStatus(player.claim_status)}</em>
+                  <em className="truncate text-[14px] not-italic text-text-secondary">{player.jamaat_city || "City missing"} · {formatAdminClaimStatus(player.claim_status)} · {player.email || "Email not saved"}</em>
                 </div>
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
-                  <AdminPlayerMeta label="Phone" value={player.phone || "Missing"} />
-	                  <AdminPlayerMeta label="Age" value={calculateAdminAge(player.date_of_birth) || (player.age ? String(player.age) : "Not set")} />
-                  <AdminPlayerMeta label="Self evaluation" value={player.self_assessment || "Not set"} />
-                  <AdminPlayerMeta label="Tier" value={`Tier ${player.tier || 4}`} />
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                   <AdminPlayerMeta label="Rating" value={formatAdminRating(player.rating)} />
+                  <AdminPlayerMeta label="Age" value={calculateAdminAge(player.date_of_birth) || (player.age ? String(player.age) : "Not set")} />
+                  <AdminPlayerMeta label="Tier" value={`Tier ${player.tier || 4}`} />
                   <AdminPlayerMeta label="Record" value={`${player.tournaments_played}T · ${player.matches_played}M`} />
-                  <AdminPlayerMeta label="Role" value={player.is_admin ? "Admin" : "Player"} />
                 </div>
               </div>
-              <div className="grid gap-2">
-                <button className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-xs font-medium text-white" type="button" onClick={() => setEditingPlayerId(player.id)}>
-                  <Pencil size={15} />
-                  Edit name
-                </button>
-                <button className={editingPlayerId === player.id ? "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-text-secondary" : "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-xs font-medium text-white"} type="button" onClick={() => setEditingPlayerId(editingPlayerId === player.id ? null : player.id)}>
-                  {editingPlayerId === player.id ? <X size={15} /> : <Pencil size={15} />}
-                  {editingPlayerId === player.id ? "Cancel" : "Update details"}
+              <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[260px] lg:grid-cols-1">
+                <button className={expandedPlayerId === player.id ? "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-text-secondary" : "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-xs font-medium text-white"} type="button" onClick={() => setExpandedPlayerId(expandedPlayerId === player.id ? null : player.id)}>
+                  {expandedPlayerId === player.id ? <X size={15} /> : <ChevronDown size={15} />}
+                  {expandedPlayerId === player.id ? "Close details" : "View details"}
                 </button>
                 <button
                   className={player.is_admin ? "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d] disabled:opacity-50" : "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-brand disabled:opacity-50"}
@@ -552,32 +602,73 @@ export function AdminPlayersScreen() {
               </div>
             </div>
 
-            {editingPlayerId === player.id && (
-              <form className="grid gap-3 rounded-[16px] border-hairline border-line bg-surface/50 p-3 md:grid-cols-4 md:items-end" onSubmit={(event) => updatePlayerDetails(event, player)}>
-                <label className="grid gap-2 text-[13px] text-text-secondary">
-                  Player name
-                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="fullName" type="text" defaultValue={player.full_name} placeholder="Full name" required />
-                </label>
-                <label className="grid gap-2 text-[13px] text-text-secondary">
-                  Phone number
-                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="phone" type="tel" defaultValue={player.phone || ""} placeholder="9999999999" />
-                </label>
-                <label className="grid gap-2 text-[13px] text-text-secondary">
-	                  Date of birth
-	                  <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="dateOfBirth" type="date" max={getAdminTodayDateInputValue()} defaultValue={player.date_of_birth || ""} />
-                </label>
-                <label className="grid gap-2 text-[13px] text-text-secondary">
-                  Tier
-                  <select className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="tier" defaultValue={player.tier || 4}>
-                    {[1, 2, 3, 4].map((tier) => (
-                      <option value={tier} key={tier}>Tier {tier}</option>
-                    ))}
-                  </select>
-                </label>
-                <div className="grid gap-2 md:col-span-4 md:flex md:justify-end">
+            {expandedPlayerId === player.id && (
+              <form className="grid gap-4 rounded-[18px] border-hairline border-line bg-surface/45 p-3 md:p-4" onSubmit={(event) => updatePlayerDetails(event, player)}>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <AdminEditableField label="Full name" name="fullName" defaultValue={player.full_name} required />
+                  <AdminReadonlyField label="Email" value={player.email || "Email not saved"} />
+                  <AdminEditableField label="Phone number" name="phone" defaultValue={player.phone || ""} inputMode="tel" placeholder="9999999999" />
+                  <AdminEditableField label="Date of birth" name="dateOfBirth" defaultValue={player.date_of_birth || ""} type="date" max={getAdminTodayDateInputValue()} />
+                  <label className="grid gap-2 text-[13px] text-text-secondary">
+                    <span className="inline-flex items-center gap-1.5"><Pencil size={12} /> Jamaat / city</span>
+                    <select className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="jamaatCity" defaultValue={player.jamaat_city || ""}>
+                      <option value="">Select city</option>
+                      {adminJamaatCityOptions.map((city) => (
+                        <option value={city} key={city}>{city}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-2 text-[13px] text-text-secondary">
+                    <span className="inline-flex items-center gap-1.5"><Pencil size={12} /> Self evaluation</span>
+                    <select className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="selfAssessment" defaultValue={player.self_assessment || ""}>
+                      <option value="">Not set</option>
+                      {adminSkillLevels.map((level) => (
+                        <option value={level} key={level}>{level}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-2 text-[13px] text-text-secondary">
+                    <span className="inline-flex items-center gap-1.5"><Pencil size={12} /> Dominant hand</span>
+                    <select className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="dominantHand" defaultValue={player.dominant_hand || ""}>
+                      <option value="">Not set</option>
+                      {adminDominantHands.map((hand) => (
+                        <option value={hand} key={hand}>{hand}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-2 text-[13px] text-text-secondary">
+                    <span className="inline-flex items-center gap-1.5"><Pencil size={12} /> Shirt size</span>
+                    <select className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="jerseySize" defaultValue={player.jersey_size || ""}>
+                      <option value="">Not set</option>
+                      {adminJerseySizes.map((size) => (
+                        <option value={size} key={size}>{size}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-2 text-[13px] text-text-secondary">
+                    <span className="inline-flex items-center gap-1.5"><Pencil size={12} /> Tier</span>
+                    <select className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="tier" defaultValue={player.tier || 4}>
+                      {[1, 2, 3, 4].map((tier) => (
+                        <option value={tier} key={tier}>Tier {tier}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <AdminReadonlyField label="Rating" value={formatAdminRating(player.rating)} />
+                  <AdminReadonlyField label="Record" value={`${player.tournaments_played} tournaments · ${player.matches_played} matches`} />
+                  <AdminReadonlyField label="Role" value={player.is_admin ? "Admin" : "Player"} />
+                  <AdminReadonlyField label="Claim status" value={formatAdminClaimStatus(player.claim_status)} />
+                  <AdminReadonlyField label="Video status" value={player.tennis_video_url ? formatAdminVideoStatus(player.tennis_video_status || null) : "No video"} />
+                </div>
+                {player.tennis_video_url && (
+                  <a className="inline-flex min-h-9 w-max items-center justify-center gap-2 rounded-full bg-[#e5f1ff] px-3 text-[13px] font-medium text-[#185fa5]" href={player.tennis_video_url} target="_blank" rel="noreferrer">
+                    View playing video
+                    <ArrowRight size={13} />
+                  </a>
+                )}
+                <div className="grid gap-2 border-t-hairline border-line pt-3 sm:flex sm:items-center sm:justify-end">
                   <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[12px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={savingPlayerId === player.id}>
                     <CheckCircle2 size={16} />
-                    {savingPlayerId === player.id ? "Saving..." : "Save player details"}
+                    {savingPlayerId === player.id ? "Saving..." : "Save changes"}
                   </button>
                 </div>
               </form>
@@ -842,7 +933,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .maybeSingle(),
       supabase
         .from("tournament_registrations")
-        .select("id, tournament_id, payment_status, players(id, full_name, jamaat_city, age, date_of_birth, profile_photo_url, tennis_video_url, tennis_video_status, self_assessment, tier, rating)")
+        .select("id, tournament_id, payment_status, players(id, full_name, email, phone, jamaat_city, age, date_of_birth, dominant_hand, jersey_size, profile_photo_url, tennis_video_url, tennis_video_status, self_assessment, tier, rating)")
         .eq("tournament_id", tournamentId)
         .neq("status", "cancelled")
         .in("payment_status", ["paid", "waived"])
@@ -903,6 +994,11 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         tournamentId: row.tournament_id,
         fullName: player.full_name || "Unknown player",
         jamaatCity: player.jamaat_city || "City missing",
+        phone: player.phone || "",
+        email: player.email || "",
+        dateOfBirth: player.date_of_birth || "",
+        dominantHand: player.dominant_hand || "",
+        jerseySize: player.jersey_size || "",
         profilePhotoUrl: player.profile_photo_url || "",
         tennisVideoUrl: player.tennis_video_url || "",
         tennisVideoStatus: player.tennis_video_status || null,
@@ -1148,6 +1244,54 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     await loadTournamentWorkspace();
   };
 
+  const downloadRegisteredPlayersCsv = () => {
+    if (!tournament) return;
+    const headers = [
+      "Name",
+      "Email",
+      "Phone",
+      "Jamaat / city",
+      "Age",
+      "Date of birth",
+      "Self evaluation",
+      "Dominant hand",
+      "Shirt size",
+      "Tier",
+      "Rating",
+      "Payment status",
+      "Payment amount",
+      "Video status",
+      "Video link"
+    ];
+    const rows = registeredPlayers.map((player) => [
+      player.fullName,
+      player.email,
+      player.phone,
+      player.jamaatCity,
+      player.age.replace(/^Age\s*/i, ""),
+      player.dateOfBirth,
+      player.selfEvaluation,
+      player.dominantHand,
+      player.jerseySize,
+      `Tier ${player.tier}`,
+      formatAdminRating(player.rating),
+      player.paymentStatus || "",
+      player.paymentAmountCents ? formatAdminCurrency(player.paymentAmountCents, player.paymentCurrency) : "",
+      player.tennisVideoUrl ? formatAdminVideoStatus(player.tennisVideoStatus) : "No video",
+      player.tennisVideoUrl
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map(escapeAdminCsvValue).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${slugifyAdminFileName(tournament.name)}-registered-players.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <AdminFrame active="tournaments">
       <div className="grid gap-3 rounded-[22px] border-hairline border-line bg-card p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-6">
@@ -1162,6 +1306,15 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
           {tournament && <span className="rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-text-secondary">{formatAdminTournamentStatus(tournament.status)}</span>}
           {tournament && (
             <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-brand disabled:opacity-50 sm:col-span-2"
+                type="button"
+                onClick={downloadRegisteredPlayersCsv}
+                disabled={!registeredPlayers.length}
+              >
+                <Download size={15} />
+                Download registered CSV
+              </button>
               <button
                 className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-4 text-xs font-medium text-[#8a4a22] disabled:opacity-50"
                 type="button"
@@ -2056,6 +2209,60 @@ function AdminPlayerMeta({ label, value }: { label: string; value: string }) {
       <strong className="truncate text-[14px] font-medium text-text-primary">{value}</strong>
     </span>
   );
+}
+
+function AdminReadonlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="grid gap-2 rounded-[12px] border-hairline border-line bg-white px-3 py-2">
+      <em className="text-[13px] not-italic text-text-secondary">{label}</em>
+      <strong className="min-h-[24px] break-words text-[15px] font-medium text-text-primary">{value || "Not set"}</strong>
+    </span>
+  );
+}
+
+function AdminEditableField({
+  label,
+  name,
+  defaultValue,
+  type = "text",
+  inputMode,
+  placeholder,
+  required = false,
+  max
+}: {
+  label: string;
+  name: string;
+  defaultValue: string;
+  type?: string;
+  inputMode?: "text" | "tel" | "url" | "email" | "numeric" | "decimal" | "search";
+  placeholder?: string;
+  required?: boolean;
+  max?: string;
+}) {
+  return (
+    <label className="grid gap-2 text-[13px] text-text-secondary">
+      <span className="inline-flex items-center gap-1.5"><Pencil size={12} /> {label}</span>
+      <input
+        className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
+        name={name}
+        type={type}
+        inputMode={inputMode}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        required={required}
+        max={max}
+      />
+    </label>
+  );
+}
+
+function escapeAdminCsvValue(value: string | number | null | undefined) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function slugifyAdminFileName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "tournament";
 }
 
 function PaymentMeta({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "green" | "blue" | "clay" | "neutral" }) {
