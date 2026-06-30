@@ -150,6 +150,8 @@ function getTournamentLifecycleStatus(tournament: {
   registration_closes_at: string | null;
 }) {
   if (tournament.status === "cancelled") return "cancelled";
+  if (tournament.status === "registration_closed") return "registration_closed";
+  if (tournament.status === "registration_open") return "registration_open";
   const now = new Date();
   const registrationClose = tournament.registration_closes_at ? new Date(tournament.registration_closes_at) : null;
   const start = tournament.starts_on ? new Date(`${tournament.starts_on}T00:00:00`) : null;

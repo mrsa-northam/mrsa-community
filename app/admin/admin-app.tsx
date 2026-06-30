@@ -1106,9 +1106,15 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
 
     setSaving(true);
     setNotice(null);
+    const nextRegistrationClosesAt = status === "registration_open"
+      ? new Date(Date.now() + 30 * 60 * 1000).toISOString()
+      : tournament.registration_closes_at;
+    const payload = status === "registration_open"
+      ? { status, registration_closes_at: nextRegistrationClosesAt }
+      : { status };
     const { error } = await supabase
       .from("tournaments")
-      .update({ status })
+      .update(payload)
       .eq("id", tournament.id);
     setSaving(false);
 
@@ -1117,8 +1123,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       return;
     }
 
-    setTournament({ ...tournament, status });
-    setNotice({ type: "success", text: status === "registration_open" ? "Registration restarted." : "Registration stopped." });
+    setTournament({ ...tournament, status, registration_closes_at: nextRegistrationClosesAt });
+    setNotice({ type: "success", text: status === "registration_open" ? `Registration restarted${nextRegistrationClosesAt ? ` until ${formatAdminDateTime(nextRegistrationClosesAt)}` : ""}.` : "Registration stopped." });
     await loadTournamentWorkspace();
   };
 
@@ -2372,6 +2378,8 @@ function deriveAdminTournamentStatus({
 
 function getAdminTournamentLifecycleStatus(tournament: Pick<AdminTournament, "status" | "starts_on" | "ends_on" | "registration_closes_at">) {
   if (tournament.status === "cancelled") return "cancelled";
+  if (tournament.status === "registration_closed") return "registration_closed";
+  if (tournament.status === "registration_open") return "registration_open";
   return deriveAdminTournamentStatus({
     startsOn: tournament.starts_on,
     endsOn: tournament.ends_on,

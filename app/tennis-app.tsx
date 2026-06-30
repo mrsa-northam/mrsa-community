@@ -2202,7 +2202,7 @@ export function DrawScreen() {
                     <strong className="block text-[16px] font-medium leading-tight text-current">{formatDaysUntilStart(tournament)}</strong>
                   </article>
                 ) : (
-                  <RegistrationCountdown closesAt={tournament.registrationClosesAt} compact />
+                  <TournamentActionStatusCard tournament={tournament} paymentState={paymentState} registrationOpen={registrationOpen} />
                 )}
                 {registered ? (
                   <div className="grid gap-2">
@@ -3105,6 +3105,8 @@ function normalizeTournamentFaqs(value: unknown): TournamentFaq[] {
 
 function getTournamentLifecycleStatus(row: Pick<DbTournamentRow, "status" | "starts_on" | "ends_on" | "registration_closes_at">) {
   if (row.status === "cancelled") return "cancelled";
+  if (row.status === "registration_closed") return "registration_closed";
+  if (row.status === "registration_open") return "registration_open";
   const now = new Date();
   const registrationClose = row.registration_closes_at ? new Date(row.registration_closes_at) : null;
   const start = row.starts_on ? new Date(`${row.starts_on}T00:00:00`) : null;
@@ -3219,16 +3221,6 @@ function formatDaysUntilStart(tournament: Tournament) {
   return `${days} days`;
 }
 
-function formatRegistrationClose(value: string | null) {
-  if (!value) return "TBD";
-  return getRegistrationCloseDate(value).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  });
-}
-
 function getRegistrationButtonLabel({
   registered,
   paying,
@@ -3249,6 +3241,77 @@ function getRegistrationButtonLabel({
   if (paymentState === "pending") return "Retry payment";
   if (!registrationOpen) return "Join waitlist";
   return "Pay and register →";
+}
+
+function getTournamentActionStatus(tournament: Tournament, paymentState: PaymentState, registrationOpen: boolean | undefined) {
+  if (paymentState === "pending") {
+    return {
+      label: "Payment incomplete",
+      value: "Retry payment to finish registration"
+    };
+  }
+  if (paymentState === "failed") {
+    return {
+      label: "Payment failed",
+      value: "Retry payment when ready"
+    };
+  }
+  if (paymentState === "waitlist_pending") {
+    return {
+      label: "Waitlist joined",
+      value: "Organizer will review your request"
+    };
+  }
+  if (paymentState === "waitlist_accepted") {
+    return {
+      label: "Waitlist accepted",
+      value: "Complete payment to register"
+    };
+  }
+  if (paymentState === "waitlist_rejected") {
+    return {
+      label: "Waitlist update",
+      value: "Request was not accepted"
+    };
+  }
+  if (!registrationOpen) {
+    return {
+      label: "Registration closed",
+      value: "Join the waitlist"
+    };
+  }
+
+  const remaining = tournament.registrationClosesAt ? getTimeRemaining(tournament.registrationClosesAt) : null;
+  if (!remaining || remaining.expired) {
+    return {
+      label: "Registration is live",
+      value: "Open now"
+    };
+  }
+
+  const dayLabel = remaining.days === 1 ? "day" : "days";
+  const hourLabel = remaining.hours === 1 ? "hour" : "hours";
+  const minuteLabel = remaining.minutes === 1 ? "minute" : "minutes";
+  const value = remaining.days > 0
+    ? `${remaining.days} ${dayLabel} left`
+    : remaining.hours > 0
+      ? `${remaining.hours} ${hourLabel} left`
+      : `${remaining.minutes} ${minuteLabel} left`;
+
+  return {
+    label: "Registration closes in",
+    value
+  };
+}
+
+function TournamentActionStatusCard({ tournament, paymentState, registrationOpen }: { tournament: Tournament; paymentState: PaymentState; registrationOpen: boolean | undefined }) {
+  const status = getTournamentActionStatus(tournament, paymentState, registrationOpen);
+  return (
+    <article className="rounded-card border-hairline border-white/10 bg-white/[0.08] px-3 py-2 text-white" aria-label={status.label}>
+      <span className="text-[12px] text-current opacity-55">{status.label}</span>
+      <strong className="block text-[13px] font-medium text-current opacity-90">{status.value}</strong>
+    </article>
+  );
 }
 
 function getHomeTournamentCopy(tournament: Tournament | null, paymentState: PaymentState) {
@@ -3354,48 +3417,6 @@ function formatTournamentStatus(status: string) {
   if (status === "cancelled") return "Tournament cancelled";
   if (status === "draft") return "Draft tournament";
   return "Tournament status";
-}
-
-function RegistrationCountdown({ closesAt, daysOnly = false, compact = false }: { closesAt: string | null; daysOnly?: boolean; compact?: boolean }) {
-  if (!closesAt) return null;
-  const remaining = getTimeRemaining(closesAt);
-  const dayCount = Math.max(0, remaining.days);
-  const dayLabel = dayCount === 1 ? "day" : "days";
-  const hourLabel = remaining.hours === 1 ? "hour" : "hours";
-  const minuteLabel = remaining.minutes === 1 ? "minute" : "minutes";
-  const compactRemaining = remaining.expired
-    ? "Closed"
-    : dayCount > 0
-      ? `in ${dayCount} ${dayLabel}`
-      : remaining.hours > 0
-        ? `in ${remaining.hours} ${hourLabel}`
-        : `in ${remaining.minutes} ${minuteLabel}`;
-
-  if (compact) {
-    return (
-      <article className="rounded-card border-hairline border-white/10 bg-white/[0.08] px-3 py-2 text-white" aria-label="Registration close date">
-        <span className="text-[12px] text-current opacity-55">{remaining.expired ? "Registration closed" : "Registration closes"}</span>
-        <strong className="block text-[13px] font-medium text-current opacity-78">{compactRemaining}</strong>
-      </article>
-    );
-  }
-
-  if (daysOnly) {
-    return (
-      <div className="flex items-center justify-between gap-3 text-white" aria-label="Registration close date">
-        <span className="text-[12px] text-current opacity-[0.85]">{remaining.expired ? "Registration closed" : "Registration closes in"}</span>
-        <strong className="rounded-full bg-white/12 px-[10px] py-[3px] text-[13px] font-medium leading-tight text-current tabular-nums">{remaining.expired ? "Closed" : `${dayCount} ${dayLabel}`}</strong>
-      </div>
-    );
-  }
-
-  return (
-    <article className="rounded-card border-hairline border-white/10 bg-white/10 px-3 py-2" aria-label="Registration close date">
-      <span className="text-[13px] text-current opacity-60">{remaining.expired ? "Registration closed" : "Registration closes"}</span>
-      <strong className="block text-[15px] font-medium text-current">{formatRegistrationClose(closesAt)}</strong>
-      {!remaining.expired && <em className="text-[13px] not-italic text-current opacity-55">{remaining.days > 0 ? `${remaining.days} days left` : `${remaining.hours} hours left`}</em>}
-    </article>
-  );
 }
 
 function getTimeRemaining(value: string | null) {
