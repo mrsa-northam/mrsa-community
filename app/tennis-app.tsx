@@ -51,7 +51,9 @@ type Tournament = {
   faqs: TournamentFaq[];
 };
 type TournamentFaq = { question: string; answer: string };
-type RegisteredPlayer = { id: string; name: string; city: string; rating: string; tennisVideoUrl: string };
+type RegisteredPlayer = { id: string; name: string; age: string; city: string; rating: string; tennisVideoUrl: string };
+type PublishedTeamMember = { id: string; name: string; age: string; city: string; tier: string; rating: string; isCaptain: boolean; draftOrder: number | null };
+type PublishedTeam = { id: string; name: string; members: PublishedTeamMember[] };
 type PaymentState = "idle" | "pending" | "failed" | "paid" | "waitlist_pending" | "waitlist_accepted" | "waitlist_rejected";
 type PaymentHistoryItem = {
   id: string;
@@ -1757,6 +1759,7 @@ export function DrawScreen() {
   const appSession = useProtectedRoute("/tournaments", true);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [registeredPlayers, setRegisteredPlayers] = useState<RegisteredPlayer[]>([]);
+  const [publishedTeams, setPublishedTeams] = useState<PublishedTeam[]>([]);
   const [pastTournaments, setPastTournaments] = useState<PastTournamentSummary[]>([]);
   const [registeredPlayersOpen, setRegisteredPlayersOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
@@ -1801,6 +1804,7 @@ export function DrawScreen() {
     if (!tournamentData) {
       setTournament(null);
       setRegisteredPlayers([]);
+      setPublishedTeams([]);
       setLoading(false);
       return;
     }
@@ -1808,10 +1812,10 @@ export function DrawScreen() {
     const mappedTournament = mapTournament(tournamentData);
     setTournament(mappedTournament);
 
-    const [registrationsResult, myRegistrationResult, latestPaymentResult] = await Promise.all([
+    const [registrationsResult, myRegistrationResult, latestPaymentResult, teamsResult] = await Promise.all([
       supabase
         .from("tournament_registrations")
-        .select("player_id, players(id, full_name, jamaat_city, rating, tennis_video_url)")
+        .select("player_id, players(id, full_name, jamaat_city, age, date_of_birth, rating, tennis_video_url)")
         .eq("tournament_id", mappedTournament.id)
         .neq("status", "cancelled")
         .in("payment_status", ["paid", "waived"])
@@ -1835,6 +1839,15 @@ export function DrawScreen() {
             .limit(1)
             .maybeSingle()
         : Promise.resolve({ data: null })
+      ,
+      supabase
+        .from("tournament_teams")
+        .select("id, name, sort_order, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
+        .eq("tournament_id", mappedTournament.id)
+        .eq("is_published", true)
+        .order("sort_order", { ascending: true })
+        .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
+        .limit(40)
     ]);
     const registrations = registrationsResult.data || [];
     const myRegistration = myRegistrationResult.data;
@@ -1845,9 +1858,32 @@ export function DrawScreen() {
       return {
         id: row.player_id,
         name: player?.full_name || "Player",
+        age: formatRegisteredPlayerAge(player?.date_of_birth, player?.age),
         city: player?.jamaat_city || "MRSA",
         rating: formatRegisteredPlayerRating(player?.rating),
         tennisVideoUrl: hasPlayerVideoLink(player?.tennis_video_url) ? player?.tennis_video_url || "" : ""
+      };
+    }));
+    setPublishedTeams((teamsResult.data || []).map((team) => {
+      const members = Array.isArray(team.tournament_team_members) ? team.tournament_team_members : team.tournament_team_members ? [team.tournament_team_members] : [];
+      return {
+        id: team.id,
+        name: team.name || "Team",
+        members: members
+          .map((member) => {
+            const player = Array.isArray(member.players) ? member.players[0] : member.players;
+            return {
+              id: member.id,
+              name: player?.full_name || "Player",
+              age: formatRegisteredPlayerAge(player?.date_of_birth, player?.age),
+              city: player?.jamaat_city || "MRSA",
+              tier: member.tier_at_draft ? `Tier ${member.tier_at_draft}` : "Tier TBD",
+              rating: formatRegisteredPlayerRating(player?.rating),
+              isCaptain: Boolean(member.is_captain),
+              draftOrder: member.draft_order ?? null
+            };
+          })
+          .sort((a, b) => Number(b.isCaptain) - Number(a.isCaptain) || (a.draftOrder || 9999) - (b.draftOrder || 9999) || a.name.localeCompare(b.name))
       };
     }));
 
@@ -1962,6 +1998,8 @@ export function DrawScreen() {
       .channel("tournaments-live-data")
       .on("postgres_changes", { event: "*", schema: "public", table: "tournaments" }, loadTournament)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_registrations" }, loadTournament)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_teams" }, loadTournament)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_team_members" }, loadTournament)
       .subscribe();
 
     return () => {
@@ -1980,6 +2018,12 @@ export function DrawScreen() {
       setVideoLink(appSession.player?.tennis_video_url || "");
     }
   }, [appSession.player?.tennis_video_url, videoLink]);
+
+  useEffect(() => {
+    if (tournament?.status === "registration_closed" && registeredPlayers.length) {
+      setRegisteredPlayersOpen(true);
+    }
+  }, [registeredPlayers.length, tournament?.status]);
 
   const continueRegistrationCheckout = async () => {
     const supabase = getSupabaseClient();
@@ -2150,6 +2194,7 @@ export function DrawScreen() {
 	  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
 	  const paymentPending = paymentState === "pending";
 	  const registrationOpen = tournament?.status === "registration_open";
+    const registrationClosed = tournament?.status === "registration_closed";
     const waitlistAccepted = paymentState === "waitlist_accepted";
     const canPayForTournament = Boolean(registrationOpen || waitlistAccepted);
     const needsTournamentVideoLink = needsPlayerVideoUpload(appSession.player?.tennis_video_url, appSession.player?.tennis_video_status);
@@ -2163,25 +2208,35 @@ export function DrawScreen() {
           {loading && !tournament ? (
             <SkeletonHero />
           ) : (
-          <header className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_80%_22%,rgba(76,222,140,0.14)_0,transparent_28%),linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] p-4 text-white shadow-[0_18px_46px_rgba(12,59,32,0.16)] md:p-5">
+          <header className="relative grid overflow-hidden rounded-[22px] border-hairline border-white/20 bg-[linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] p-4 text-white shadow-[0_18px_46px_rgba(12,59,32,0.16)]">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
                 <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
               </svg>
             </div>
-            <div className="relative grid gap-4">
-              <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] font-medium text-[#83f0ad]">
-                {tournament?.status === "registration_open" && <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />}
-                {tournament ? formatTournamentStatus(tournament.status) : "No tournament"}
-              </span>
-              <h1 className="max-w-[760px] text-[24px] font-medium leading-[1.1] tracking-[-0.3px] text-white md:text-[30px]">{tournament ? tournament.name : "No live tournament"}</h1>
+            <div className="relative grid gap-3">
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                <span className="grid gap-2">
+                  <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] font-medium text-[#83f0ad]">
+                    {tournament?.status === "registration_open" && <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />}
+                    {tournament ? formatTournamentStatus(tournament.status) : "No tournament"}
+                  </span>
+                  <h1 className={registrationClosed ? "max-w-[760px] text-[21px] font-medium leading-[1.12] tracking-[-0.2px] text-white md:text-[24px]" : "max-w-[760px] text-[24px] font-medium leading-[1.1] tracking-[-0.3px] text-white md:text-[30px]"}>{tournament ? tournament.name : "No live tournament"}</h1>
+                </span>
+                {registrationClosed && tournament && (
+                  <span className="rounded-[16px] border-hairline border-white/10 bg-white/10 px-3 py-2 text-right">
+                    <em className="block text-[12px] not-italic text-white/60">Tournament starts in</em>
+                    <strong className="block text-[15px] font-medium text-white">{formatDaysUntilStart(tournament)}</strong>
+                  </span>
+                )}
+              </div>
               {tournament && (
-                <div className="grid overflow-hidden rounded-[20px] border-hairline border-white/14 bg-white/[0.10] md:grid-cols-2">
+                <div className={registrationClosed ? "grid overflow-hidden rounded-[18px] border-hairline border-white/14 bg-white/[0.10] md:grid-cols-2" : "grid overflow-hidden rounded-[20px] border-hairline border-white/14 bg-white/[0.10] md:grid-cols-2"}>
                   <TournamentDetailRow className="md:border-t-0" icon={<Calendar size={18} />} label="Dates" value={formatTournamentDates(tournament)} />
-                  <TournamentDetailRow className="md:border-l-hairline md:border-l-white/10 md:border-t-0" icon={<DollarSign size={20} />} label="Entry fee" value={formatCurrency(tournament.registrationFeeCents, "USD")} />
+                  {!registrationClosed && <TournamentDetailRow className="md:border-l-hairline md:border-l-white/10 md:border-t-0" icon={<DollarSign size={20} />} label="Entry fee" value={formatCurrency(tournament.registrationFeeCents, "USD")} />}
                   <TournamentDetailRow
-                    className="md:col-span-2"
+                    className={registrationClosed ? "md:border-l-hairline md:border-l-white/10 md:border-t-0" : "md:col-span-2"}
                     icon={<MapPin size={20} />}
                     label="Venue"
                     value={tournament.venueName || "Venue TBD"}
@@ -2194,7 +2249,25 @@ export function DrawScreen() {
                   />
                 </div>
               )}
-              {tournament && (
+              {registrationClosed && tournament && (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <span className="rounded-[16px] bg-white/[0.10] px-3 py-2">
+                    <em className="block text-[12px] not-italic text-white/60">Registered</em>
+                    <strong className="block text-[15px] font-medium text-white">{registeredPlayerCountLabel}</strong>
+                  </span>
+                  <span className="rounded-[16px] bg-white/[0.10] px-3 py-2">
+                    <em className="block text-[12px] not-italic text-white/60">Published teams</em>
+                    <strong className="block text-[15px] font-medium text-white">{publishedTeams.length}</strong>
+                  </span>
+                  {registered && (
+                    <span className="rounded-[16px] bg-white/[0.10] px-3 py-2 sm:col-span-1">
+                      <em className="block text-[12px] not-italic text-white/60">Your status</em>
+                      <strong className="block text-[15px] font-medium text-[#C9E84A]">Registered</strong>
+                    </span>
+                  )}
+                </div>
+              )}
+              {tournament && !registrationClosed && (
               <div className="grid gap-3">
                 {registered ? (
                   <article className="rounded-[18px] border-hairline border-white/10 bg-white/10 px-4 py-3 text-white" aria-label="Tournament starts in">
@@ -2261,6 +2334,55 @@ export function DrawScreen() {
             <StatusMessage tone="info">No live tournament found.</StatusMessage>
           )}
 
+          {!!publishedTeams.length && (
+            <section className="grid gap-3" aria-label="Published tournament team rosters">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+                <span className="grid gap-1">
+                  <h2 className="text-[16px] font-medium text-text-primary">Team rosters</h2>
+                  <em className="text-[13px] not-italic text-text-secondary">Published draft teams and captains.</em>
+                </span>
+                <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{publishedTeams.length} teams</span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {publishedTeams.map((team) => {
+                  const captain = team.members.find((member) => member.isCaptain);
+                  return (
+                    <article className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4" key={team.id}>
+                      <div className="grid gap-2">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                          <strong className="min-w-0 truncate text-[17px] font-medium text-text-primary">{team.name}</strong>
+                          <span className="rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-text-secondary">{team.members.length} players</span>
+                        </div>
+                        <em className="truncate text-[13px] not-italic text-text-secondary">Captain: {captain?.name || "Not assigned"}</em>
+                      </div>
+                      {team.members.length ? (
+                        <ul className="grid gap-2">
+                          {team.members.map((member, index) => (
+                            <li className="grid min-h-[54px] grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-white px-3 py-2" key={member.id}>
+                              <span className={member.isCaptain ? "grid h-8 w-8 place-items-center rounded-full bg-[#e5f1ff] text-[12px] font-medium text-[#185fa5]" : index % 3 === 0 ? "grid h-8 w-8 place-items-center rounded-full bg-[#eaf3de] text-[12px] font-medium text-[#3b6d11]" : index % 3 === 1 ? "grid h-8 w-8 place-items-center rounded-full bg-[#fde9dc] text-[12px] font-medium text-[#a94d24]" : "grid h-8 w-8 place-items-center rounded-full bg-[#f1efe8] text-[12px] font-medium text-[#5f5e5a]"}>
+                                {getInitials(member.name)}
+                              </span>
+                              <span className="grid min-w-0 gap-1">
+                                <strong className="truncate text-[14px] font-medium text-text-primary">{member.name}</strong>
+                                <em className="truncate text-[12px] not-italic text-text-secondary">{member.city}{member.age ? ` · ${member.age}` : ""}</em>
+                              </span>
+                              <span className="grid justify-items-end gap-1">
+                                {member.isCaptain && <b className="rounded-full bg-[#e5f1ff] px-2 py-0.5 text-[11px] font-medium text-[#185fa5]">Captain</b>}
+                                <em className="text-[12px] not-italic text-text-secondary">{member.tier}</em>
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="rounded-[14px] border-hairline border-line bg-white p-3 text-[14px] text-text-secondary">Roster will appear here once players are assigned.</p>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           <section className="overflow-hidden rounded-[18px] border-hairline border-line bg-card">
             <button className="tap-card grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 text-left" type="button" onClick={() => setRegisteredPlayersOpen((current) => !current)} aria-expanded={registeredPlayersOpen} aria-controls="registered-players-panel">
               <span className="grid gap-1">
@@ -2279,6 +2401,7 @@ export function DrawScreen() {
                     <span className={index % 5 === 0 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fde9dc] text-[13px] font-medium text-[#a94d24]" : index % 5 === 1 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#e5f1ff] text-[13px] font-medium text-[#185fa5]" : index % 5 === 2 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fbe7ef] text-[13px] font-medium text-[#aa3f6b]" : "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#f1efe8] text-[13px] font-medium text-[#5f5e5a]"}>{getInitials(player.name)}</span>
                     <div className="grid min-w-0 gap-1">
                       <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
+                      {player.age && <em className="truncate text-[12px] not-italic text-text-secondary">{player.age}</em>}
                       <em className="truncate text-[13px] not-italic text-text-secondary">{player.city}</em>
                       {player.tennisVideoUrl && (
                         <a className="inline-flex w-max items-center gap-1.5 text-[12px] font-medium text-[#185fa5]" href={player.tennisVideoUrl} target="_blank" rel="noreferrer" title="View playing video" aria-label={`${player.name} playing video`}>
@@ -2445,7 +2568,7 @@ export function RegisteredPlayersScreen() {
 
     const { data: registrations } = await supabase
       .from("tournament_registrations")
-      .select("player_id, players(id, full_name, jamaat_city, rating, tennis_video_url)")
+      .select("player_id, players(id, full_name, jamaat_city, age, date_of_birth, rating, tennis_video_url)")
       .eq("tournament_id", mappedTournament.id)
       .neq("status", "cancelled")
       .in("payment_status", ["paid", "waived"])
@@ -2456,6 +2579,7 @@ export function RegisteredPlayersScreen() {
       return {
         id: row.player_id,
         name: player?.full_name || "Player",
+        age: formatRegisteredPlayerAge(player?.date_of_birth, player?.age),
         city: player?.jamaat_city || "MRSA",
         rating: formatRating(player?.rating),
         tennisVideoUrl: hasPlayerVideoLink(player?.tennis_video_url) ? player?.tennis_video_url || "" : ""
@@ -2539,6 +2663,7 @@ export function RegisteredPlayersScreen() {
                   <span className={index % 5 === 0 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fde9dc] text-[13px] font-medium text-[#a94d24]" : index % 5 === 1 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#e5f1ff] text-[13px] font-medium text-[#185fa5]" : index % 5 === 2 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fbe7ef] text-[13px] font-medium text-[#aa3f6b]" : "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#f1efe8] text-[13px] font-medium text-[#5f5e5a]"}>{getInitials(player.name)}</span>
                   <div className="grid min-w-0 gap-1">
                     <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
+                    {player.age && <em className="truncate text-[12px] not-italic text-text-secondary">{player.age}</em>}
                     <em className="truncate text-[13px] not-italic text-text-secondary">City: {player.city}</em>
                     {player.tennisVideoUrl && (
                       <a className="inline-flex w-max items-center gap-1.5 text-[12px] font-medium text-[#185fa5]" href={player.tennisVideoUrl} target="_blank" rel="noreferrer" title="View playing video" aria-label={`${player.name} playing video`}>
@@ -3129,6 +3254,11 @@ function formatRegisteredPlayerRating(value: unknown) {
   const rating = Number(value);
   if (!Number.isFinite(rating)) return String(value);
   return (Math.trunc(rating * 1000) / 1000).toFixed(3);
+}
+
+function formatRegisteredPlayerAge(dateOfBirth?: string | null, fallbackAge?: number | null) {
+  const age = calculateAge(dateOfBirth) || (fallbackAge ? String(fallbackAge) : "");
+  return age ? `Age ${age}` : "";
 }
 
 function getTodayDateInputValue() {

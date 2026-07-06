@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Download, Home, Pencil, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Crown, Download, Home, Pencil, Plus, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -63,6 +63,7 @@ type AdminRegisteredPlayer = {
   dateOfBirth: string;
   dominantHand: string;
   jerseySize: string;
+  shirtName: string;
   profilePhotoUrl: string;
   tennisVideoUrl: string;
   tennisVideoStatus: string | null;
@@ -74,6 +75,25 @@ type AdminRegisteredPlayer = {
   paymentStatus: string | null;
   paymentAmountCents: number;
   paymentCurrency: string;
+};
+type AdminTeamMember = {
+  id: string;
+  teamId: string;
+  tournamentId: string;
+  registrationId: string;
+  playerId: string;
+  isCaptain: boolean;
+  draftOrder: number | null;
+  tierAtDraft: number | null;
+  shirtName: string;
+};
+type AdminTeam = {
+  id: string;
+  tournamentId: string;
+  name: string;
+  sortOrder: number;
+  isPublished: boolean;
+  members: AdminTeamMember[];
 };
 type AdminInterestedPlayer = {
   id: string;
@@ -913,10 +933,12 @@ export function AdminTournamentsScreen() {
 export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: string }) {
   const [tournament, setTournament] = useState<AdminTournament | null>(null);
   const [registeredPlayers, setRegisteredPlayers] = useState<AdminRegisteredPlayer[]>([]);
+  const [teams, setTeams] = useState<AdminTeam[]>([]);
   const [waitlistedPlayers, setWaitlistedPlayers] = useState<AdminWaitlistedPlayer[]>([]);
   const [interestedPlayers, setInterestedPlayers] = useState<AdminInterestedPlayer[]>([]);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [teamActionKey, setTeamActionKey] = useState<string | null>(null);
   const [reviewingVideoPlayerId, setReviewingVideoPlayerId] = useState<string | null>(null);
   const [removingPlayerKey, setRemovingPlayerKey] = useState<string | null>(null);
   const [confirmRemoveKey, setConfirmRemoveKey] = useState<string | null>(null);
@@ -969,7 +991,31 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       return;
     }
 
+    const [{ data: shirtRows, error: shirtNameError }, { data: teamRows, error: teamError }] = await Promise.all([
+      supabase
+        .from("tournament_registrations")
+        .select("id, shirt_name")
+        .eq("tournament_id", tournamentId)
+        .limit(500),
+      supabase
+        .from("tournament_teams")
+        .select("id, tournament_id, name, sort_order, is_published, tournament_team_members(id, team_id, tournament_id, registration_id, player_id, is_captain, draft_order, tier_at_draft, shirt_name_snapshot)")
+        .eq("tournament_id", tournamentId)
+        .order("sort_order", { ascending: true })
+        .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
+        .limit(80)
+    ]);
+    if (shirtNameError || teamError) {
+      setTeams([]);
+      if (isAdminDraftSchemaMissing(shirtNameError?.message || teamError?.message || "")) {
+        setNotice({ type: "error", text: "Team draft database tables are not applied yet. Apply the new Supabase migration before using team assignments." });
+      } else {
+        setNotice({ type: "error", text: shirtNameError?.message || teamError?.message || "Could not load team draft data." });
+      }
+    }
+
     setTournament((data || null) as AdminTournament | null);
+    const shirtNamesByRegistration = new Map((shirtRows || []).map((row) => [row.id, row.shirt_name || ""]));
     const paymentsByRegistration = new Map<string, { id: string; player_id: string; registration_id: string | null; status: string; amount_cents: number; currency: string }>();
     const paymentsByPlayer = new Map<string, { id: string; player_id: string; registration_id: string | null; status: string; amount_cents: number; currency: string }>();
     (paidPayments || []).forEach((payment) => {
@@ -999,6 +1045,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         dateOfBirth: player.date_of_birth || "",
         dominantHand: player.dominant_hand || "",
         jerseySize: player.jersey_size || "",
+        shirtName: shirtNamesByRegistration.get(row.id) || player.full_name || "",
         profilePhotoUrl: player.profile_photo_url || "",
         tennisVideoUrl: player.tennis_video_url || "",
         tennisVideoStatus: player.tennis_video_status || null,
@@ -1012,6 +1059,29 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         paymentCurrency: payment?.currency || "USD"
       }];
     }));
+    if (!teamError) {
+      setTeams((teamRows || []).map((team) => {
+        const members = Array.isArray(team.tournament_team_members) ? team.tournament_team_members : team.tournament_team_members ? [team.tournament_team_members] : [];
+        return {
+          id: team.id,
+          tournamentId: team.tournament_id,
+          name: team.name,
+          sortOrder: team.sort_order || 0,
+          isPublished: Boolean(team.is_published),
+          members: members.map((member) => ({
+            id: member.id,
+            teamId: member.team_id,
+            tournamentId: member.tournament_id,
+            registrationId: member.registration_id,
+            playerId: member.player_id,
+            isCaptain: Boolean(member.is_captain),
+            draftOrder: member.draft_order ?? null,
+            tierAtDraft: member.tier_at_draft ?? null,
+            shirtName: member.shirt_name_snapshot || ""
+          }))
+        };
+      }) as AdminTeam[]);
+    }
     setWaitlistedPlayers((waitlistRows || []).flatMap((row) => {
       const player = Array.isArray(row.players) ? row.players[0] : row.players;
       if (!player || !row.id) return [];
@@ -1250,6 +1320,230 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     await loadTournamentWorkspace();
   };
 
+  const createTeam = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get("teamName") || "").trim();
+    if (!name) {
+      setNotice({ type: "error", text: "Team name is required." });
+      return;
+    }
+
+    setTeamActionKey("create-team");
+    setNotice(null);
+    const nextSortOrder = teams.length ? Math.max(...teams.map((team) => team.sortOrder)) + 1 : 1;
+    const { error: teamError } = await supabase.from("tournament_teams").insert({
+      tournament_id: tournament.id,
+      name,
+      sort_order: nextSortOrder
+    });
+    setTeamActionKey(null);
+
+    if (teamError) {
+      setNotice({ type: "error", text: teamError.message });
+      return;
+    }
+
+    event.currentTarget.reset();
+    setNotice({ type: "success", text: `${name} created.` });
+    await loadTournamentWorkspace();
+  };
+
+  const renameTeam = async (team: AdminTeam, name: string) => {
+    const supabase = getSupabaseClient();
+    const nextName = name.trim();
+    if (!supabase || !tournament || !nextName) return;
+
+    setTeamActionKey(`rename:${team.id}`);
+    setNotice(null);
+    const { error: teamError } = await supabase
+      .from("tournament_teams")
+      .update({ name: nextName })
+      .eq("id", team.id)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (teamError) {
+      setNotice({ type: "error", text: teamError.message });
+      return;
+    }
+
+    setTeams((current) => current.map((item) => item.id === team.id ? { ...item, name: nextName } : item));
+    setNotice({ type: "success", text: "Team renamed." });
+  };
+
+  const deleteTeam = async (team: AdminTeam) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+    if (team.members.length && !window.confirm(`Delete ${team.name} and remove ${team.members.length} team assignment${team.members.length === 1 ? "" : "s"}?`)) return;
+
+    setTeamActionKey(`delete:${team.id}`);
+    setNotice(null);
+    const { error: teamError } = await supabase
+      .from("tournament_teams")
+      .delete()
+      .eq("id", team.id)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (teamError) {
+      setNotice({ type: "error", text: teamError.message });
+      return;
+    }
+
+    setNotice({ type: "success", text: `${team.name} deleted.` });
+    await loadTournamentWorkspace();
+  };
+
+  const toggleTeamPublished = async (team: AdminTeam) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    setTeamActionKey(`publish:${team.id}`);
+    setNotice(null);
+    const { error: teamError } = await supabase
+      .from("tournament_teams")
+      .update({ is_published: !team.isPublished })
+      .eq("id", team.id)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (teamError) {
+      setNotice({ type: "error", text: teamError.message });
+      return;
+    }
+
+    setTeams((current) => current.map((item) => item.id === team.id ? { ...item, isPublished: !team.isPublished } : item));
+    setNotice({ type: "success", text: `${team.name} is now ${team.isPublished ? "hidden from players" : "published for players"}.` });
+  };
+
+  const assignPlayerToTeam = async (player: AdminRegisteredPlayer, teamId: string) => {
+    const supabase = getSupabaseClient();
+    const team = teams.find((item) => item.id === teamId);
+    if (!supabase || !tournament || !team) return;
+
+    const existingMember = teams.flatMap((item) => item.members).find((member) => member.registrationId === player.registrationId);
+    const nextDraftOrder = existingMember?.draftOrder || (team.members.length ? Math.max(...team.members.map((member) => member.draftOrder || 0)) + 1 : 1);
+    setTeamActionKey(`assign:${player.registrationId}`);
+    setNotice(null);
+    const { error: memberError } = await supabase
+      .from("tournament_team_members")
+      .upsert({
+        tournament_id: tournament.id,
+        team_id: team.id,
+        registration_id: player.registrationId,
+        player_id: player.id,
+        is_captain: false,
+        draft_order: nextDraftOrder,
+        tier_at_draft: player.tier,
+        shirt_name_snapshot: player.shirtName || player.fullName
+      }, { onConflict: "tournament_id,registration_id" });
+    setTeamActionKey(null);
+
+    if (memberError) {
+      setNotice({ type: "error", text: memberError.message });
+      return;
+    }
+
+    setNotice({ type: "success", text: `${player.fullName} assigned to ${team.name}.` });
+    await loadTournamentWorkspace();
+  };
+
+  const removePlayerFromTeam = async (member: AdminTeamMember) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    setTeamActionKey(`remove:${member.id}`);
+    setNotice(null);
+    const { error: memberError } = await supabase
+      .from("tournament_team_members")
+      .delete()
+      .eq("id", member.id)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (memberError) {
+      setNotice({ type: "error", text: memberError.message });
+      return;
+    }
+
+    setNotice({ type: "success", text: "Player removed from team." });
+    await loadTournamentWorkspace();
+  };
+
+  const setTeamCaptain = async (team: AdminTeam, member: AdminTeamMember) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    setTeamActionKey(`captain:${member.id}`);
+    setNotice(null);
+    const currentCaptain = team.members.find((item) => item.isCaptain && item.id !== member.id);
+    if (currentCaptain) {
+      const { error: unsetError } = await supabase
+        .from("tournament_team_members")
+        .update({ is_captain: false })
+        .eq("id", currentCaptain.id)
+        .eq("tournament_id", tournament.id);
+      if (unsetError) {
+        setTeamActionKey(null);
+        setNotice({ type: "error", text: unsetError.message });
+        return;
+      }
+    }
+
+    const { error: captainError } = await supabase
+      .from("tournament_team_members")
+      .update({ is_captain: true })
+      .eq("id", member.id)
+      .eq("team_id", team.id)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (captainError) {
+      setNotice({ type: "error", text: captainError.message });
+      return;
+    }
+
+    setNotice({ type: "success", text: "Captain saved." });
+    await loadTournamentWorkspace();
+  };
+
+  const updateTeamMemberShirtName = async (player: AdminRegisteredPlayer, shirtName: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    const nextShirtName = shirtName.trim();
+    setTeamActionKey(`shirt:${player.registrationId}`);
+    setNotice(null);
+    const registrationUpdate = await supabase
+      .from("tournament_registrations")
+      .update({ shirt_name: nextShirtName || null })
+      .eq("id", player.registrationId)
+      .eq("tournament_id", tournament.id);
+
+    const memberUpdate = await supabase
+      .from("tournament_team_members")
+      .update({ shirt_name_snapshot: nextShirtName || player.fullName })
+      .eq("registration_id", player.registrationId)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (registrationUpdate.error || memberUpdate.error) {
+      setNotice({ type: "error", text: registrationUpdate.error?.message || memberUpdate.error?.message || "Could not save shirt name." });
+      return;
+    }
+
+    setRegisteredPlayers((current) => current.map((item) => item.registrationId === player.registrationId ? { ...item, shirtName: nextShirtName || item.fullName } : item));
+    setTeams((current) => current.map((team) => ({
+      ...team,
+      members: team.members.map((member) => member.registrationId === player.registrationId ? { ...member, shirtName: nextShirtName || player.fullName } : member)
+    })));
+    setNotice({ type: "success", text: "Shirt name saved." });
+  };
+
   const downloadRegisteredPlayersCsv = () => {
     if (!tournament) return;
     const headers = [
@@ -1261,6 +1555,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       "Date of birth",
       "Self evaluation",
       "Dominant hand",
+      "Shirt name",
       "Shirt size",
       "Tier",
       "Rating",
@@ -1278,6 +1573,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       player.dateOfBirth,
       player.selfEvaluation,
       player.dominantHand,
+      player.shirtName,
       player.jerseySize,
       `Tier ${player.tier}`,
       formatAdminRating(player.rating),
@@ -1292,6 +1588,54 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     const link = document.createElement("a");
     link.href = url;
     link.download = `${slugifyAdminFileName(tournament.name)}-registered-players.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadTeamsCsv = () => {
+    if (!tournament) return;
+    const playerByRegistration = new Map(registeredPlayers.map((player) => [player.registrationId, player]));
+    const headers = [
+      "Team",
+      "Captain",
+      "Player name",
+      "City",
+      "Tier",
+      "Rating",
+      "Shirt name",
+      "Shirt size",
+      "Email",
+      "Phone"
+    ];
+    const rows = teams
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .flatMap((team) => team.members
+        .slice()
+        .sort((a, b) => Number(b.isCaptain) - Number(a.isCaptain) || (a.draftOrder || 9999) - (b.draftOrder || 9999))
+        .map((member) => {
+          const player = playerByRegistration.get(member.registrationId);
+          return [
+            team.name,
+            member.isCaptain ? "Captain" : "",
+            player?.fullName || "Unknown player",
+            player?.jamaatCity || "",
+            `Tier ${member.tierAtDraft || player?.tier || ""}`.trim(),
+            player ? formatAdminRating(player.rating) : "",
+            member.shirtName || player?.shirtName || player?.fullName || "",
+            player?.jerseySize || "",
+            player?.email || "",
+            player?.phone || ""
+          ];
+        }));
+    const csv = [headers, ...rows].map((row) => row.map(escapeAdminCsvValue).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${slugifyAdminFileName(tournament.name)}-teams.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -1320,6 +1664,15 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
               >
                 <Download size={15} />
                 Download registered CSV
+              </button>
+              <button
+                className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-brand disabled:opacity-50 sm:col-span-2"
+                type="button"
+                onClick={downloadTeamsCsv}
+                disabled={!teams.some((team) => team.members.length)}
+              >
+                <Download size={15} />
+                Download teams CSV
               </button>
               <button
                 className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-4 text-xs font-medium text-[#8a4a22] disabled:opacity-50"
@@ -1398,10 +1751,24 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
             </form>
           </section>
 
-          <section className="grid gap-3 md:grid-cols-3">
+          <section className="grid gap-3 md:grid-cols-1">
             <AdminFutureCard title="Match creation" copy="Build singles, doubles, and scheduled match flows here." />
-            <AdminFutureCard title="Draft creation" copy="Prepare future draft pools and team assignments here." />
-            <AdminFutureCard title="Captain selection" copy="Choose captains and manage leadership assignments here." />
+          </section>
+
+          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
+            <AdminTeamBuilder
+              teams={teams}
+              players={registeredPlayers}
+              actionKey={teamActionKey}
+              onCreateTeam={createTeam}
+              onRenameTeam={renameTeam}
+              onDeleteTeam={deleteTeam}
+              onTogglePublished={toggleTeamPublished}
+              onAssignPlayer={assignPlayerToTeam}
+              onRemovePlayer={removePlayerFromTeam}
+              onSetCaptain={setTeamCaptain}
+              onUpdateShirtName={updateTeamMemberShirtName}
+            />
           </section>
 
           <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
@@ -1439,6 +1806,217 @@ function AdminFutureCard({ title, copy }: { title: string; copy: string }) {
       <strong className="text-lg font-medium leading-tight text-text-primary">{title}</strong>
       <em className="text-[15px] not-italic leading-relaxed text-text-secondary">{copy}</em>
     </article>
+  );
+}
+
+function AdminTeamBuilder({
+  teams,
+  players,
+  actionKey,
+  onCreateTeam,
+  onRenameTeam,
+  onDeleteTeam,
+  onTogglePublished,
+  onAssignPlayer,
+  onRemovePlayer,
+  onSetCaptain,
+  onUpdateShirtName
+}: {
+  teams: AdminTeam[];
+  players: AdminRegisteredPlayer[];
+  actionKey: string | null;
+  onCreateTeam: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  onRenameTeam: (team: AdminTeam, name: string) => Promise<void>;
+  onDeleteTeam: (team: AdminTeam) => Promise<void>;
+  onTogglePublished: (team: AdminTeam) => Promise<void>;
+  onAssignPlayer: (player: AdminRegisteredPlayer, teamId: string) => Promise<void>;
+  onRemovePlayer: (member: AdminTeamMember) => Promise<void>;
+  onSetCaptain: (team: AdminTeam, member: AdminTeamMember) => Promise<void>;
+  onUpdateShirtName: (player: AdminRegisteredPlayer, shirtName: string) => Promise<void>;
+}) {
+  const [renameValues, setRenameValues] = useState<Record<string, string>>({});
+  const [selectedTeams, setSelectedTeams] = useState<Record<string, string>>({});
+  const [shirtNames, setShirtNames] = useState<Record<string, string>>({});
+  const assignedRegistrationIds = new Set(teams.flatMap((team) => team.members.map((member) => member.registrationId)));
+  const playerByRegistration = new Map(players.map((player) => [player.registrationId, player]));
+  const orderedTeams = teams.slice().sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  const unassignedPlayers = players
+    .filter((player) => !assignedRegistrationIds.has(player.registrationId))
+    .sort((a, b) => a.tier - b.tier || a.fullName.localeCompare(b.fullName));
+  const assignedCount = assignedRegistrationIds.size;
+
+  return (
+    <div className="grid gap-4" aria-label="Team draft builder">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+        <span className="grid gap-1">
+          <span className="text-[13px] text-text-secondary">Draft workspace</span>
+          <h3 className="text-xl font-medium tracking-[-0.3px] text-text-primary">Teams and captains</h3>
+          <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Create tournament teams, assign registered players, mark captains, and keep shirt names ready for export.</p>
+        </span>
+        <span className="grid grid-cols-2 gap-2 text-center md:min-w-[220px]">
+          <b className="rounded-[14px] bg-brand-light px-3 py-2 text-[13px] font-medium text-[#3b6d11]">{assignedCount} assigned</b>
+          <b className="rounded-[14px] bg-surface px-3 py-2 text-[13px] font-medium text-text-secondary">{unassignedPlayers.length} unassigned</b>
+        </span>
+      </div>
+
+      <form className="grid gap-2 rounded-[14px] border-hairline border-line bg-surface/50 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={onCreateTeam}>
+        <label className="grid gap-2 text-[13px] text-text-secondary">
+          Team name
+          <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="teamName" placeholder="Team Green" required />
+        </label>
+        <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={actionKey === "create-team"}>
+          <Plus size={16} />
+          {actionKey === "create-team" ? "Creating..." : "Create team"}
+        </button>
+      </form>
+
+      <div className="grid gap-3">
+        {orderedTeams.map((team) => {
+          const captain = team.members.find((member) => member.isCaptain);
+          const captainPlayer = captain ? playerByRegistration.get(captain.registrationId) : null;
+          const renameValue = renameValues[team.id] ?? team.name;
+
+          return (
+            <article className="grid gap-3 rounded-[16px] border-hairline border-line bg-white p-3" key={team.id}>
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                <div className="grid gap-2">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                    <label className="grid gap-1 text-[12px] text-text-secondary">
+                      Team
+                      <input
+                        className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] font-medium text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light"
+                        value={renameValue}
+                        onChange={(event) => setRenameValues((current) => ({ ...current, [team.id]: event.target.value }))}
+                      />
+                    </label>
+                    <span className="flex flex-wrap gap-2 sm:justify-end">
+                      <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand disabled:opacity-50" type="button" onClick={() => onRenameTeam(team, renameValue)} disabled={actionKey === `rename:${team.id}` || !renameValue.trim() || renameValue.trim() === team.name}>
+                        {actionKey === `rename:${team.id}` ? "Saving..." : "Save name"}
+                      </button>
+                      <button className={team.isPublished ? "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-3 text-xs font-medium text-[#8a4a22] disabled:opacity-50" : "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand px-3 text-xs font-medium text-white disabled:opacity-50"} type="button" onClick={() => onTogglePublished(team)} disabled={actionKey === `publish:${team.id}`}>
+                        {team.isPublished ? "Unpublish" : "Publish"}
+                      </button>
+                      <button className="tap-card inline-flex min-h-9 items-center justify-center gap-1 rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-3 text-xs font-medium text-[#a32d2d] disabled:opacity-50" type="button" onClick={() => onDeleteTeam(team)} disabled={actionKey === `delete:${team.id}`}>
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className={team.isPublished ? "inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]" : "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]"}>
+                      {team.isPublished ? "Published" : "Draft"}
+                    </span>
+                    <span className="inline-flex w-max rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-text-secondary">{team.members.length} players</span>
+                    <span className={captainPlayer ? "inline-flex w-max rounded-full bg-[#e5f1ff] px-2.5 py-1 text-[12px] font-medium text-[#185fa5]" : "inline-flex w-max rounded-full bg-[#f1efe8] px-2.5 py-1 text-[12px] font-medium text-text-secondary"}>
+                      Captain: {captainPlayer?.fullName || "Not assigned"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {team.members.length ? (
+                <ul className="grid gap-2">
+                  {team.members
+                    .slice()
+                    .sort((a, b) => Number(b.isCaptain) - Number(a.isCaptain) || (a.draftOrder || 9999) - (b.draftOrder || 9999))
+                    .map((member) => {
+                      const player = playerByRegistration.get(member.registrationId);
+                      const shirtNameValue = shirtNames[member.registrationId] ?? (member.shirtName || player?.shirtName || player?.fullName || "");
+                      if (!player) return null;
+
+                      return (
+                        <li className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 xl:grid-cols-[minmax(180px,1fr)_minmax(140px,0.8fr)_minmax(180px,0.9fr)_auto] xl:items-center" key={member.id}>
+                          <div className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-3">
+                            <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+                              {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
+                            </span>
+                            <span className="grid min-w-0 gap-1">
+                              <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
+                              <em className="truncate text-[12px] not-italic text-text-secondary">{player.jamaatCity}</em>
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <span className={`inline-flex w-max rounded-full px-2.5 py-1 text-[12px] font-medium ${getAdminTierBadgeClass(member.tierAtDraft || player.tier)}`}>Tier {member.tierAtDraft || player.tier}</span>
+                            <span className="inline-flex w-max rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-text-secondary">{player.jerseySize || "No shirt size"}</span>
+                            {member.isCaptain && <span className="inline-flex w-max items-center gap-1 rounded-full bg-[#e5f1ff] px-2.5 py-1 text-[12px] font-medium text-[#185fa5]"><Crown size={13} /> Captain</span>}
+                          </div>
+                          <div className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                            <label className="grid gap-1 text-[12px] text-text-secondary">
+                              Shirt name
+                              <input
+                                className="min-h-9 rounded-[10px] border-hairline border-line bg-white px-2.5 text-[14px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
+                                value={shirtNameValue}
+                                onChange={(event) => setShirtNames((current) => ({ ...current, [member.registrationId]: event.target.value }))}
+                              />
+                            </label>
+                            <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[10px] border-hairline border-line bg-white px-3 text-[12px] font-medium text-brand disabled:opacity-50" type="button" onClick={() => onUpdateShirtName(player, shirtNameValue)} disabled={actionKey === `shirt:${member.registrationId}`}>
+                              {actionKey === `shirt:${member.registrationId}` ? "Saving..." : "Save"}
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-2 xl:justify-end">
+                            <button className={member.isCaptain ? "tap-card inline-flex min-h-9 items-center justify-center gap-1 rounded-[12px] bg-[#e5f1ff] px-3 text-xs font-medium text-[#185fa5] disabled:opacity-50" : "tap-card inline-flex min-h-9 items-center justify-center gap-1 rounded-[12px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand disabled:opacity-50"} type="button" onClick={() => onSetCaptain(team, member)} disabled={member.isCaptain || actionKey === `captain:${member.id}`}>
+                              <Crown size={14} />
+                              {member.isCaptain ? "Captain" : "Make captain"}
+                            </button>
+                            <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-3 text-xs font-medium text-[#a32d2d] disabled:opacity-50" type="button" onClick={() => onRemovePlayer(member)} disabled={actionKey === `remove:${member.id}`}>
+                              Remove
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                </ul>
+              ) : (
+                <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">No players assigned yet.</div>
+              )}
+            </article>
+          );
+        })}
+        {!orderedTeams.length && <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">Create a team to start assigning drafted players.</div>}
+      </div>
+
+      <div className="grid gap-3 rounded-[16px] border-hairline border-line bg-surface/50 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <h4 className="text-[15px] font-medium text-text-primary">Unassigned draft pool</h4>
+          <span className="rounded-full bg-white px-2.5 py-1 text-[12px] font-medium text-text-secondary">{unassignedPlayers.length} players</span>
+        </div>
+        {unassignedPlayers.length ? (
+          <ul className="grid gap-2">
+            {unassignedPlayers.map((player) => {
+              const selectedTeamId = selectedTeams[player.registrationId] || orderedTeams[0]?.id || "";
+              return (
+                <li className="grid gap-3 rounded-[14px] border-hairline border-line bg-white p-3 lg:grid-cols-[minmax(180px,1fr)_minmax(130px,0.55fr)_minmax(220px,0.8fr)] lg:items-center" key={player.registrationId}>
+                  <span className="grid min-w-0 gap-1">
+                    <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
+                    <em className="truncate text-[13px] not-italic text-text-secondary">{player.jamaatCity} · {player.jerseySize || "No shirt size"}</em>
+                  </span>
+                  <span className={`inline-flex w-max rounded-full px-2.5 py-1 text-[12px] font-medium ${getAdminTierBadgeClass(player.tier)}`}>Tier {player.tier}</span>
+                  <span className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <select
+                      className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
+                      value={selectedTeamId}
+                      onChange={(event) => setSelectedTeams((current) => ({ ...current, [player.registrationId]: event.target.value }))}
+                      disabled={!orderedTeams.length}
+                      aria-label={`Select team for ${player.fullName}`}
+                    >
+                      {!orderedTeams.length && <option value="">Create a team first</option>}
+                      {orderedTeams.map((team) => (
+                        <option value={team.id} key={team.id}>{team.name}</option>
+                      ))}
+                    </select>
+                    <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-brand px-3 text-xs font-medium text-white disabled:opacity-50" type="button" onClick={() => onAssignPlayer(player, selectedTeamId)} disabled={!selectedTeamId || actionKey === `assign:${player.registrationId}`}>
+                      {actionKey === `assign:${player.registrationId}` ? "Assigning..." : "Assign"}
+                    </button>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="rounded-[14px] border-hairline border-line bg-white p-4 text-[15px] text-text-secondary">All registered players are assigned.</div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1641,7 +2219,7 @@ function TieredRegisteredPlayers({
 		            <ul className="grid gap-2" id={`tier-${group.tier}-registered-players`}>
 		              <li className="hidden rounded-[12px] border-hairline border-line/60 bg-white/55 px-3 py-2 text-[12px] font-medium text-text-secondary xl:grid xl:grid-cols-[minmax(180px,1.2fr)_minmax(130px,0.85fr)_minmax(150px,0.9fr)_90px_minmax(210px,1fr)_minmax(150px,0.75fr)] xl:items-center xl:gap-3">
 	                <span>Name</span>
-	                <span>City, age</span>
+	                <span>City</span>
 	                <span>Tier</span>
 	                <span>Rating</span>
 	                <span>Video</span>
@@ -1722,13 +2300,12 @@ function TieredRegisteredPlayerRow({
         </span>
         <span className="grid min-w-0 gap-1">
           <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
-          <em className="text-[12px] not-italic text-text-secondary xl:hidden">Player</em>
+          <em className="text-[12px] not-italic text-text-secondary">{player.age}</em>
         </span>
       </div>
       <div className="grid gap-1">
-        <span className="text-[12px] font-medium text-text-secondary xl:hidden">City, age</span>
+        <span className="text-[12px] font-medium text-text-secondary xl:hidden">City</span>
         <strong className="truncate text-[14px] font-medium text-text-primary">{player.jamaatCity}</strong>
-        <em className="text-[13px] not-italic text-text-secondary">{player.age}</em>
         <em className="text-[13px] not-italic text-text-secondary">Self: {player.selfEvaluation}</em>
       </div>
       <div className="grid grid-cols-[minmax(120px,1fr)_auto] items-end gap-2 xl:grid-cols-[96px_auto]">
@@ -1839,6 +2416,15 @@ function getAdminVideoStatusClass(status: string | null) {
   if (status === "approved") return "inline-flex h-7 w-max items-center rounded-full bg-brand-light px-2.5 text-[12px] font-medium text-[#3b6d11]";
   if (status === "rejected") return "inline-flex h-7 w-max items-center rounded-full bg-[#fcebeb] px-2.5 text-[12px] font-medium text-[#a32d2d]";
   return "inline-flex h-7 w-max items-center rounded-full bg-[#fff4d8] px-2.5 text-[12px] font-medium text-[#8a5a00]";
+}
+
+function isAdminDraftSchemaMissing(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("shirt_name")
+    || normalized.includes("tournament_teams")
+    || normalized.includes("tournament_team_members")
+    || normalized.includes("could not find")
+    || normalized.includes("does not exist");
 }
 
 export function AdminPaymentsScreen() {
