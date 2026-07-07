@@ -53,7 +53,7 @@ type Tournament = {
 type TournamentFaq = { question: string; answer: string };
 type RegisteredPlayer = { id: string; name: string; age: string; city: string; rating: string; tennisVideoUrl: string };
 type PublishedTeamMember = { id: string; name: string; age: string; city: string; tier: string; rating: string; isCaptain: boolean; draftOrder: number | null };
-type PublishedTeam = { id: string; name: string; members: PublishedTeamMember[] };
+type PublishedTeam = { id: string; name: string; logoUrl: string; jerseyColor: string; members: PublishedTeamMember[] };
 type PaymentState = "idle" | "pending" | "failed" | "paid" | "waitlist_pending" | "waitlist_accepted" | "waitlist_rejected";
 type PaymentHistoryItem = {
   id: string;
@@ -118,6 +118,7 @@ const jamaatCityOptions = [
   "Virginia",
   "Washington, D.C."
 ];
+const DEFAULT_TEAM_COLOR = "#1a6e3c";
 const videoDescription = "Recommended for draft placement: add a Google Drive link to a short video of you playing. Please set sharing to anyone with the link can view. Include your serve, forehand, backhand, volleys, and a few rally points so captains and organizers can evaluate your level for drafts.";
 type DbProfileRow = {
   id?: string;
@@ -1842,7 +1843,7 @@ export function DrawScreen() {
       ,
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
+        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
         .eq("tournament_id", mappedTournament.id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -1869,6 +1870,8 @@ export function DrawScreen() {
       return {
         id: team.id,
         name: team.name || "Team",
+        logoUrl: team.logo_url || "",
+        jerseyColor: normalizeTeamColor(team.jersey_color),
         members: members
           .map((member) => {
             const player = Array.isArray(member.players) ? member.players[0] : member.players;
@@ -2346,19 +2349,23 @@ export function DrawScreen() {
               <div className="grid gap-3 md:grid-cols-2">
                 {publishedTeams.map((team) => {
                   const captain = team.members.find((member) => member.isCaptain);
+                  const teamTone = getTeamCardTone(team.jerseyColor);
                   return (
-                    <article className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4" key={team.id}>
-                      <div className="grid gap-2">
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                          <strong className="min-w-0 truncate text-[17px] font-medium text-text-primary">{team.name}</strong>
-                          <span className="rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-text-secondary">{team.members.length} players</span>
+                    <article className="grid gap-3 overflow-hidden rounded-[18px] border-hairline border-white/20 p-4 shadow-[0_18px_44px_rgba(12,59,32,0.12)]" key={team.id} style={{ background: teamTone.background, color: teamTone.textColor }}>
+                      <div className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3">
+                        <span className="grid h-12 w-12 place-items-center overflow-hidden rounded-[16px] border-hairline border-white/35 bg-white/[0.92] text-[14px] font-semibold text-brand shadow-[0_10px_22px_rgba(0,0,0,0.12)]">
+                          {team.logoUrl ? <img className="h-full w-full object-contain p-1.5" src={team.logoUrl} alt={`${team.name} logo`} /> : getInitials(team.name)}
+                        </span>
+                        <div className="grid min-w-0 gap-1">
+                          <strong className="min-w-0 truncate text-[18px] font-medium text-current">{team.name}</strong>
+                          <em className="truncate text-[13px] not-italic text-current opacity-75">Captain: {captain?.name || "Not assigned"}</em>
                         </div>
-                        <em className="truncate text-[13px] not-italic text-text-secondary">Captain: {captain?.name || "Not assigned"}</em>
+                        <span className="rounded-full bg-white/90 px-2.5 py-1 text-[12px] font-medium text-[#24412c]">{formatPlayerCount(team.members.length)}</span>
                       </div>
                       {team.members.length ? (
                         <ul className="grid gap-2">
                           {team.members.map((member, index) => (
-                            <li className="grid min-h-[54px] grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-white px-3 py-2" key={member.id}>
+                            <li className="grid min-h-[54px] grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-white/65 bg-white/[0.94] px-3 py-2 shadow-[0_8px_18px_rgba(0,0,0,0.06)]" key={member.id}>
                               <span className={member.isCaptain ? "grid h-8 w-8 place-items-center rounded-full bg-[#e5f1ff] text-[12px] font-medium text-[#185fa5]" : index % 3 === 0 ? "grid h-8 w-8 place-items-center rounded-full bg-[#eaf3de] text-[12px] font-medium text-[#3b6d11]" : index % 3 === 1 ? "grid h-8 w-8 place-items-center rounded-full bg-[#fde9dc] text-[12px] font-medium text-[#a94d24]" : "grid h-8 w-8 place-items-center rounded-full bg-[#f1efe8] text-[12px] font-medium text-[#5f5e5a]"}>
                                 {getInitials(member.name)}
                               </span>
@@ -2374,7 +2381,7 @@ export function DrawScreen() {
                           ))}
                         </ul>
                       ) : (
-                        <p className="rounded-[14px] border-hairline border-line bg-white p-3 text-[14px] text-text-secondary">Roster will appear here once players are assigned.</p>
+                        <p className="rounded-[14px] border-hairline border-white/65 bg-white/[0.94] p-3 text-[14px] text-text-secondary">Roster will appear here once players are assigned.</p>
                       )}
                     </article>
                   );
@@ -3259,6 +3266,41 @@ function formatRegisteredPlayerRating(value: unknown) {
 function formatRegisteredPlayerAge(dateOfBirth?: string | null, fallbackAge?: number | null) {
   const age = calculateAge(dateOfBirth) || (fallbackAge ? String(fallbackAge) : "");
   return age ? `Age ${age}` : "";
+}
+
+function formatPlayerCount(count: number) {
+  return `${count} ${count === 1 ? "player" : "players"}`;
+}
+
+function normalizeTeamColor(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return /^#[0-9a-f]{6}$/i.test(text) ? text.toLowerCase() : DEFAULT_TEAM_COLOR;
+}
+
+function adjustHexColor(value: string, amount: number) {
+  const hex = normalizeTeamColor(value).slice(1);
+  const next = [0, 2, 4].map((index) => {
+    const channel = parseInt(hex.slice(index, index + 2), 16);
+    return Math.max(0, Math.min(255, channel + amount)).toString(16).padStart(2, "0");
+  });
+  return `#${next.join("")}`;
+}
+
+function getHexLuminance(value: string) {
+  const hex = normalizeTeamColor(value).slice(1);
+  const [red, green, blue] = [0, 2, 4].map((index) => parseInt(hex.slice(index, index + 2), 16) / 255);
+  const channels = [red, green, blue].map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function getTeamCardTone(color: string) {
+  const primary = normalizeTeamColor(color);
+  const isDark = getHexLuminance(primary) < 0.42;
+  const secondary = adjustHexColor(primary, isDark ? 56 : -44);
+  return {
+    background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)`,
+    textColor: isDark ? "#ffffff" : "#16331e"
+  };
 }
 
 function getTodayDateInputValue() {
