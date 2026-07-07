@@ -2087,6 +2087,38 @@ a:focus-visible {
   }
 }
 
+.tennis-countdown-ball {
+  position: absolute;
+  top: -15px;
+  right: 1px;
+  width: 26px;
+  height: 26px;
+  background: url("/images/tennis-countdown-ball.png") center / contain no-repeat;
+  filter: drop-shadow(0 7px 8px rgba(0, 0, 0, 0.28));
+  animation: tennisBallCountdownBounce 0.72s cubic-bezier(0.2, 0.74, 0.28, 1) both;
+}
+
+@keyframes tennisBallCountdownBounce {
+  0% {
+    transform: translateY(2px) scale(0.94);
+  }
+  38% {
+    transform: translateY(-9px) scale(1.04);
+  }
+  70% {
+    transform: translateY(1px) scale(0.98);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tennis-countdown-ball {
+    animation: none;
+  }
+}
+
 @media (max-width: 699px) {
   html,
   body {

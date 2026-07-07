@@ -1,12 +1,15 @@
 "use client";
 
 import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, DollarSign, ExternalLink, Home, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
+import dynamic from "next/dynamic";
 import NextImage from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./lib/supabase";
+
+const TournamentHeroAmbience = dynamic(() => import("./tournament-hero-ambience").then((mod) => mod.TournamentHeroAmbience), { ssr: false });
 
 type Tab = "home" | "tournament" | "profile" | "admin";
 type ProfileData = {
@@ -54,6 +57,14 @@ type TournamentFaq = { question: string; answer: string };
 type RegisteredPlayer = { id: string; name: string; age: string; city: string; rating: string; tennisVideoUrl: string };
 type PublishedTeamMember = { id: string; name: string; age: string; city: string; tier: string; rating: string; isCaptain: boolean; draftOrder: number | null };
 type PublishedTeam = { id: string; name: string; logoUrl: string; jerseyColor: string; members: PublishedTeamMember[] };
+type TournamentCountdown = {
+  state: "countdown" | "today" | "started" | "date_tbd";
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  label: string;
+};
 type PaymentState = "idle" | "pending" | "failed" | "paid" | "waitlist_pending" | "waitlist_accepted" | "waitlist_rejected";
 type PaymentHistoryItem = {
   id: string;
@@ -320,15 +331,15 @@ function SkeletonHero() {
   );
 }
 
-function TournamentDetailRow({ icon, label, value, action, className = "" }: { icon: ReactNode; label: string; value: string; action?: ReactNode; className?: string }) {
+function TournamentDetailRow({ icon, label, value, action, className = "", compact = false }: { icon: ReactNode; label: string; value: string; action?: ReactNode; className?: string; compact?: boolean }) {
   return (
-    <div className={`grid grid-cols-[52px_minmax(0,1fr)] gap-3 border-t-hairline border-white/10 px-4 py-3.5 first:border-t-0 ${className}`}>
-      <span className="grid h-10 w-10 place-items-center self-center rounded-[14px] bg-[#34704a] text-[#83f0ad]">
+    <div className={`grid ${compact ? "grid-cols-[28px_minmax(0,1fr)] gap-1.5 px-2 py-2" : "grid-cols-[52px_minmax(0,1fr)] gap-3 px-4 py-3.5"} border-t-hairline border-white/10 first:border-t-0 ${className}`}>
+      <span className={`grid place-items-center self-center bg-[#34704a] text-[#83f0ad] ${compact ? "h-7 w-7 rounded-[10px]" : "h-10 w-10 rounded-[14px]"}`}>
         {icon}
       </span>
-      <span className="grid min-w-0 gap-1">
-        <span className="text-[12px] font-medium uppercase tracking-[0.08em] text-white/50">{label}</span>
-        <strong className="break-words text-[16px] font-medium leading-tight text-white">{value}</strong>
+      <span className={`grid min-w-0 ${compact ? "gap-0.5" : "gap-1"}`}>
+        <span className={`${compact ? "text-[10px]" : "text-[12px]"} font-medium uppercase tracking-[0.08em] text-white/50`}>{label}</span>
+        <strong className={`break-words font-medium leading-tight text-white ${compact ? "text-[12px]" : "text-[16px]"}`}>{value}</strong>
         {action}
       </span>
     </div>
@@ -2023,10 +2034,11 @@ export function DrawScreen() {
   }, [appSession.player?.tennis_video_url, videoLink]);
 
   useEffect(() => {
-    if (tournament?.status === "registration_closed" && registeredPlayers.length) {
+    if (tournament?.status === "registration_closed" && registeredPlayers.length && !publishedTeams.length) {
       setRegisteredPlayersOpen(true);
     }
-  }, [registeredPlayers.length, tournament?.status]);
+  }, [publishedTeams.length, registeredPlayers.length, tournament?.status]);
+  const tournamentCountdown = useTournamentCountdown(tournament?.startsOn || null);
 
   const continueRegistrationCheckout = async () => {
     const supabase = getSupabaseClient();
@@ -2211,41 +2223,43 @@ export function DrawScreen() {
           {loading && !tournament ? (
             <SkeletonHero />
           ) : (
-          <header className="relative grid overflow-hidden rounded-[22px] border-hairline border-white/20 bg-[linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] p-4 text-white shadow-[0_18px_46px_rgba(12,59,32,0.16)]">
-            <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
+	          <header className={`relative grid overflow-hidden border-hairline border-white/20 bg-[linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] text-white shadow-[0_18px_46px_rgba(12,59,32,0.16)] ${registrationClosed ? "rounded-[18px] p-2.5" : "rounded-[22px] p-4"}`}>
+            <TournamentHeroAmbience />
+            <div className="pointer-events-none absolute inset-0 -right-16 -top-6 z-0 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
                 <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
               </svg>
             </div>
-            <div className="relative grid gap-3">
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-                <span className="grid gap-2">
-                  <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] font-medium text-[#83f0ad]">
-                    {tournament?.status === "registration_open" && <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />}
-                    {tournament ? formatTournamentStatus(tournament.status) : "No tournament"}
-                  </span>
-                  <h1 className={registrationClosed ? "max-w-[760px] text-[21px] font-medium leading-[1.12] tracking-[-0.2px] text-white md:text-[24px]" : "max-w-[760px] text-[24px] font-medium leading-[1.1] tracking-[-0.3px] text-white md:text-[30px]"}>{tournament ? tournament.name : "No live tournament"}</h1>
-                </span>
-                {registrationClosed && tournament && (
-                  <span className="rounded-[16px] border-hairline border-white/10 bg-white/10 px-3 py-2 text-right">
-                    <em className="block text-[12px] not-italic text-white/60">Tournament starts in</em>
-                    <strong className="block text-[15px] font-medium text-white">{formatDaysUntilStart(tournament)}</strong>
+		            <div className={`relative z-10 grid ${registrationClosed ? "gap-2" : "gap-3"}`}>
+	              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+	                <span className={`grid min-w-0 ${registrationClosed ? "gap-1" : "gap-2"}`}>
+	                  <span className={registrationClosed ? "inline-flex w-max items-center gap-1.5 text-[11px] font-normal text-white/60" : "inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] font-medium text-[#83f0ad]"}>
+	                    {tournament?.status === "registration_open" && <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />}
+	                    {tournament ? formatTournamentStatus(tournament.status) : "No tournament"}
+	                  </span>
+		                  <h1 className={registrationClosed ? "min-w-0 max-w-full truncate whitespace-nowrap text-[14px] font-medium leading-tight text-white md:text-[17px]" : "max-w-[760px] text-[24px] font-medium leading-[1.1] tracking-[-0.3px] text-white md:text-[30px]"}>{tournament ? tournament.name : "No live tournament"}</h1>
+	                </span>
+	                {registrationClosed && tournament && (
+		                  <span className="grid w-full gap-1.5 rounded-[13px] border-hairline border-white/10 bg-white/[0.08] px-2.5 py-1.5 text-left sm:w-auto sm:grid-cols-[max-content_auto] sm:items-center">
+		                    <em className="block whitespace-nowrap text-[11px] not-italic leading-tight text-white/60">Tournament starts in</em>
+                    <TournamentStartCountdown countdown={tournamentCountdown} />
                   </span>
                 )}
               </div>
               {tournament && (
-                <div className={registrationClosed ? "grid overflow-hidden rounded-[18px] border-hairline border-white/14 bg-white/[0.10] md:grid-cols-2" : "grid overflow-hidden rounded-[20px] border-hairline border-white/14 bg-white/[0.10] md:grid-cols-2"}>
-                  <TournamentDetailRow className="md:border-t-0" icon={<Calendar size={18} />} label="Dates" value={formatTournamentDates(tournament)} />
-                  {!registrationClosed && <TournamentDetailRow className="md:border-l-hairline md:border-l-white/10 md:border-t-0" icon={<DollarSign size={20} />} label="Entry fee" value={formatCurrency(tournament.registrationFeeCents, "USD")} />}
-                  <TournamentDetailRow
-                    className={registrationClosed ? "md:border-l-hairline md:border-l-white/10 md:border-t-0" : "md:col-span-2"}
-                    icon={<MapPin size={20} />}
-                    label="Venue"
-                    value={tournament.venueName || "Venue TBD"}
-                    action={(
-                      <a className="tap-card inline-flex w-max items-center gap-1.5 text-[14px] font-medium text-[#83f0ad]" href={tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueName || "")}`} target="_blank" rel="noreferrer">
-                        <ExternalLink size={14} />
+		                <div className={registrationClosed ? "grid grid-cols-2 overflow-hidden rounded-[13px] border-hairline border-white/14 bg-white/[0.08]" : "grid overflow-hidden rounded-[20px] border-hairline border-white/14 bg-white/[0.10] md:grid-cols-2"}>
+		                  <TournamentDetailRow compact={registrationClosed} className={registrationClosed ? "!border-t-0" : "md:border-t-0"} icon={<Calendar size={registrationClosed ? 14 : 18} />} label="Dates" value={formatTournamentDates(tournament)} />
+	                  {!registrationClosed && <TournamentDetailRow className="md:border-l-hairline md:border-l-white/10 md:border-t-0" icon={<DollarSign size={20} />} label="Entry fee" value={formatCurrency(tournament.registrationFeeCents, "USD")} />}
+	                  <TournamentDetailRow
+	                    compact={registrationClosed}
+	                    className={registrationClosed ? "!border-t-0 border-l-hairline border-l-white/10" : "md:col-span-2"}
+		                    icon={<MapPin size={registrationClosed ? 14 : 20} />}
+	                    label="Venue"
+	                    value={tournament.venueName || "Venue TBD"}
+	                    action={(
+		                      <a className={`tap-card inline-flex w-max items-center gap-1 font-medium text-[#83f0ad] ${registrationClosed ? "text-[11px]" : "text-[14px]"}`} href={tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueName || "")}`} target="_blank" rel="noreferrer">
+	                        <ExternalLink size={registrationClosed ? 12 : 14} />
                         Open in maps
                       </a>
                     )}
@@ -2253,19 +2267,19 @@ export function DrawScreen() {
                 </div>
               )}
               {registrationClosed && tournament && (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  <span className="rounded-[16px] bg-white/[0.10] px-3 py-2">
-                    <em className="block text-[12px] not-italic text-white/60">Registered</em>
-                    <strong className="block text-[15px] font-medium text-white">{registeredPlayerCountLabel}</strong>
-                  </span>
-                  <span className="rounded-[16px] bg-white/[0.10] px-3 py-2">
-                    <em className="block text-[12px] not-italic text-white/60">Published teams</em>
-                    <strong className="block text-[15px] font-medium text-white">{publishedTeams.length}</strong>
-                  </span>
-                  {registered && (
-                    <span className="rounded-[16px] bg-white/[0.10] px-3 py-2 sm:col-span-1">
-                      <em className="block text-[12px] not-italic text-white/60">Your status</em>
-                      <strong className="block text-[15px] font-medium text-[#C9E84A]">Registered</strong>
+	                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+	                  <span className="rounded-[12px] bg-white/[0.08] px-2.5 py-1.5">
+	                    <em className="block text-[11px] not-italic text-white/60">Registered</em>
+	                    <strong className="block text-[13px] font-medium text-white">{registeredPlayerCountLabel}</strong>
+	                  </span>
+	                  <span className="rounded-[12px] bg-white/[0.08] px-2.5 py-1.5">
+	                    <em className="block text-[11px] not-italic text-white/60">Published teams</em>
+	                    <strong className="block text-[13px] font-medium text-white">{publishedTeams.length}</strong>
+	                  </span>
+	                  {registered && (
+	                    <span className="rounded-[12px] bg-white/[0.08] px-2.5 py-1.5 sm:col-span-1">
+	                      <em className="block text-[11px] not-italic text-white/60">Your status</em>
+	                      <strong className="block text-[13px] font-medium text-[#C9E84A]">Registered</strong>
                     </span>
                   )}
                 </div>
@@ -2338,50 +2352,45 @@ export function DrawScreen() {
           )}
 
           {!!publishedTeams.length && (
-            <section className="grid gap-3" aria-label="Published tournament team rosters">
+            <section className="grid gap-2.5" aria-label="Published tournament team rosters">
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-                <span className="grid gap-1">
-                  <h2 className="text-[16px] font-medium text-text-primary">Team rosters</h2>
-                  <em className="text-[13px] not-italic text-text-secondary">Published draft teams and captains.</em>
+                <span className="grid gap-0.5">
+                  <h2 className="text-[15px] font-medium text-text-primary">Team rosters</h2>
+                  <em className="text-[12px] not-italic text-text-secondary">Published draft teams and captains.</em>
                 </span>
-                <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{publishedTeams.length} teams</span>
+                <span className="rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">{publishedTeams.length} teams</span>
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-2.5 md:grid-cols-2">
                 {publishedTeams.map((team) => {
-                  const captain = team.members.find((member) => member.isCaptain);
                   const teamTone = getTeamCardTone(team.jerseyColor);
                   return (
-                    <article className="grid gap-3 overflow-hidden rounded-[18px] border-hairline border-white/20 p-4 shadow-[0_18px_44px_rgba(12,59,32,0.12)]" key={team.id} style={{ background: teamTone.background, color: teamTone.textColor }}>
-                      <div className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3">
-                        <span className="grid h-12 w-12 place-items-center overflow-hidden rounded-[16px] border-hairline border-white/35 bg-white/[0.92] text-[14px] font-semibold text-brand shadow-[0_10px_22px_rgba(0,0,0,0.12)]">
-                          {team.logoUrl ? <img className="h-full w-full object-contain p-1.5" src={team.logoUrl} alt={`${team.name} logo`} /> : getInitials(team.name)}
-                        </span>
-                        <div className="grid min-w-0 gap-1">
-                          <strong className="min-w-0 truncate text-[18px] font-medium text-current">{team.name}</strong>
-                          <em className="truncate text-[13px] not-italic text-current opacity-75">Captain: {captain?.name || "Not assigned"}</em>
-                        </div>
-                        <span className="rounded-full bg-white/90 px-2.5 py-1 text-[12px] font-medium text-[#24412c]">{formatPlayerCount(team.members.length)}</span>
+                    <article className="grid gap-2 overflow-hidden rounded-[16px] border-hairline border-white/20 p-3 shadow-[0_10px_24px_rgba(12,59,32,0.10)]" key={team.id} style={{ background: teamTone.background, color: teamTone.textColor }}>
+                      <div className="grid grid-cols-[46px_minmax(0,1fr)_auto] items-center gap-2.5">
+                        {team.logoUrl ? (
+                          <img className="h-11 w-11 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)]" src={team.logoUrl} alt={`${team.name} logo`} />
+                        ) : (
+                          <span className="grid h-11 w-11 place-items-center rounded-full bg-white/18 text-[13px] font-semibold text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)]">{getInitials(team.name)}</span>
+                        )}
+                        <strong className="min-w-0 truncate text-[15px] font-semibold text-current">{team.name}</strong>
+                        <span className="rounded-full bg-white/85 px-2 py-0.5 text-[11px] font-medium text-[#24412c]">{formatPlayerCount(team.members.length)}</span>
                       </div>
                       {team.members.length ? (
-                        <ul className="grid gap-2">
-                          {team.members.map((member, index) => (
-                            <li className="grid min-h-[54px] grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-white/65 bg-white/[0.94] px-3 py-2 shadow-[0_8px_18px_rgba(0,0,0,0.06)]" key={member.id}>
-                              <span className={member.isCaptain ? "grid h-8 w-8 place-items-center rounded-full bg-[#e5f1ff] text-[12px] font-medium text-[#185fa5]" : index % 3 === 0 ? "grid h-8 w-8 place-items-center rounded-full bg-[#eaf3de] text-[12px] font-medium text-[#3b6d11]" : index % 3 === 1 ? "grid h-8 w-8 place-items-center rounded-full bg-[#fde9dc] text-[12px] font-medium text-[#a94d24]" : "grid h-8 w-8 place-items-center rounded-full bg-[#f1efe8] text-[12px] font-medium text-[#5f5e5a]"}>
-                                {getInitials(member.name)}
+                        <ul className="overflow-hidden rounded-[12px] border-hairline border-white/45 bg-white/[0.88]">
+                          {team.members.map((member) => (
+                            <li className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t-hairline border-black/[0.06] px-2.5 py-1.5 first:border-t-0" key={member.id}>
+                              <span className="grid min-w-0 gap-0.5">
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                  <strong className="min-w-0 truncate text-[13px] font-medium text-text-primary">{member.name}</strong>
+                                  {member.isCaptain && <b className="shrink-0 rounded-full bg-[#e5f1ff] px-1.5 py-0.5 text-[10px] font-medium leading-none text-[#185fa5]">Captain</b>}
+                                </span>
+                                <em className="truncate text-[11px] not-italic text-text-secondary">{member.city}{member.age ? ` · ${member.age}` : ""}</em>
                               </span>
-                              <span className="grid min-w-0 gap-1">
-                                <strong className="truncate text-[14px] font-medium text-text-primary">{member.name}</strong>
-                                <em className="truncate text-[12px] not-italic text-text-secondary">{member.city}{member.age ? ` · ${member.age}` : ""}</em>
-                              </span>
-                              <span className="grid justify-items-end gap-1">
-                                {member.isCaptain && <b className="rounded-full bg-[#e5f1ff] px-2 py-0.5 text-[11px] font-medium text-[#185fa5]">Captain</b>}
-                                <em className="text-[12px] not-italic text-text-secondary">{member.tier}</em>
-                              </span>
+                              <em className="shrink-0 text-[11px] not-italic text-text-secondary">{member.tier}</em>
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="rounded-[14px] border-hairline border-white/65 bg-white/[0.94] p-3 text-[14px] text-text-secondary">Roster will appear here once players are assigned.</p>
+                        <p className="rounded-[12px] border-hairline border-white/45 bg-white/[0.88] px-2.5 py-2 text-[12px] text-text-secondary">Drafted players will appear here once assigned.</p>
                       )}
                     </article>
                   );
@@ -2390,26 +2399,25 @@ export function DrawScreen() {
             </section>
           )}
 
-          <section className="overflow-hidden rounded-[18px] border-hairline border-line bg-card">
-            <button className="tap-card grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 text-left" type="button" onClick={() => setRegisteredPlayersOpen((current) => !current)} aria-expanded={registeredPlayersOpen} aria-controls="registered-players-panel">
-              <span className="grid gap-1">
-                <strong className="text-[16px] font-medium text-text-primary">Registered players</strong>
-                <em className="text-[13px] not-italic text-text-secondary">{tournament?.maxPlayers ? `${registeredPlayers.length} of ${tournament.maxPlayers} spots filled` : registeredPlayerCountLabel}</em>
+          <section className="overflow-hidden rounded-[16px] border-hairline border-line bg-card">
+            <button className="tap-card grid min-h-12 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3.5 text-left" type="button" onClick={() => setRegisteredPlayersOpen((current) => !current)} aria-expanded={registeredPlayersOpen} aria-controls="registered-players-panel">
+              <span className="grid gap-0.5">
+                <strong className="text-[15px] font-medium text-text-primary">Registered players</strong>
+                <em className="text-[12px] not-italic text-text-secondary">{tournament?.maxPlayers ? `${registeredPlayers.length} of ${tournament.maxPlayers} spots filled` : registeredPlayerCountLabel}</em>
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">
                 {registeredPlayers.length}
-                <ChevronDown size={16} className={`transition-transform ${registeredPlayersOpen ? "rotate-180" : ""}`} />
+                <ChevronDown size={15} className={`transition-transform ${registeredPlayersOpen ? "rotate-180" : ""}`} />
               </span>
             </button>
             {registeredPlayersOpen && (
-              <div className="grid gap-3 border-t-hairline border-line p-3 md:grid-cols-2" id="registered-players-panel">
+              <div className="grid gap-2 border-t-hairline border-line p-2.5 md:grid-cols-2" id="registered-players-panel">
                 {registeredPlayers.slice(0, 10).map((player, index) => (
-                  <article className="grid min-h-[60px] grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-white px-3 py-3" key={player.name}>
-                    <span className={index % 5 === 0 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fde9dc] text-[13px] font-medium text-[#a94d24]" : index % 5 === 1 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#e5f1ff] text-[13px] font-medium text-[#185fa5]" : index % 5 === 2 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fbe7ef] text-[13px] font-medium text-[#aa3f6b]" : "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#f1efe8] text-[13px] font-medium text-[#5f5e5a]"}>{getInitials(player.name)}</span>
-                    <div className="grid min-w-0 gap-1">
-                      <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
-                      {player.age && <em className="truncate text-[12px] not-italic text-text-secondary">{player.age}</em>}
-                      <em className="truncate text-[13px] not-italic text-text-secondary">{player.city}</em>
+                  <article className="grid min-h-[50px] grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[12px] border-hairline border-line bg-white px-2.5 py-2" key={player.name}>
+                    <span className={index % 5 === 0 ? "grid h-[30px] w-[30px] place-items-center rounded-full bg-[#fde9dc] text-[12px] font-medium text-[#a94d24]" : index % 5 === 1 ? "grid h-[30px] w-[30px] place-items-center rounded-full bg-[#e5f1ff] text-[12px] font-medium text-[#185fa5]" : index % 5 === 2 ? "grid h-[30px] w-[30px] place-items-center rounded-full bg-[#eaf3de] text-[12px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "grid h-[30px] w-[30px] place-items-center rounded-full bg-[#fbe7ef] text-[12px] font-medium text-[#aa3f6b]" : "grid h-[30px] w-[30px] place-items-center rounded-full bg-[#f1efe8] text-[12px] font-medium text-[#5f5e5a]"}>{getInitials(player.name)}</span>
+                    <div className="grid min-w-0 gap-0.5">
+                      <strong className="truncate text-[14px] font-medium text-text-primary">{player.name}</strong>
+                      <em className="truncate text-[12px] not-italic text-text-secondary">{[player.city, player.age].filter(Boolean).join(" · ")}</em>
                       {player.tennisVideoUrl && (
                         <a className="inline-flex w-max items-center gap-1.5 text-[12px] font-medium text-[#185fa5]" href={player.tennisVideoUrl} target="_blank" rel="noreferrer" title="View playing video" aria-label={`${player.name} playing video`}>
                           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#e5f1ff]">
@@ -2419,8 +2427,8 @@ export function DrawScreen() {
                         </a>
                       )}
                     </div>
-                    <span className="grid justify-items-end gap-1">
-                      <strong className="text-[15px] font-medium leading-none text-brand">{player.rating}</strong>
+                    <span className="grid justify-items-end gap-0.5">
+                      <strong className="text-[14px] font-medium leading-none text-brand">{player.rating}</strong>
                       <em className="text-[12px] not-italic leading-none text-text-secondary">rating</em>
                     </span>
                   </article>
@@ -3393,6 +3401,75 @@ function formatDaysUntilStart(tournament: Tournament) {
   return `${days} days`;
 }
 
+function useTournamentCountdown(startsOn: string | null) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setNow(Date.now());
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [startsOn]);
+
+  return getTournamentCountdown(startsOn, now);
+}
+
+function getTournamentCountdown(startsOn: string | null, nowMs: number): TournamentCountdown {
+  if (!startsOn) {
+    return createCountdownLabel("date_tbd", "Date TBD");
+  }
+
+  const start = new Date(`${startsOn}T00:00:00`);
+  if (Number.isNaN(start.getTime())) {
+    return createCountdownLabel("date_tbd", "Date TBD");
+  }
+
+  const now = new Date(nowMs);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+
+  if (start.getTime() === today.getTime()) {
+    return createCountdownLabel("today", "Starts today");
+  }
+
+  if (start.getTime() < today.getTime()) {
+    return createCountdownLabel("started", "Tournament started");
+  }
+
+  const totalSeconds = Math.max(0, Math.floor((start.getTime() - nowMs) / 1000));
+  if (totalSeconds === 0) {
+    return createCountdownLabel("today", "Starts today");
+  }
+
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return {
+    state: "countdown",
+    days,
+    hours,
+    minutes,
+    seconds,
+    label: ""
+  };
+}
+
+function createCountdownLabel(state: TournamentCountdown["state"], label: string): TournamentCountdown {
+  return {
+    state,
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+    label
+  };
+}
+
+function formatCountdownValue(value: number) {
+  return value < 10 ? `0${value}` : String(value);
+}
+
 function getRegistrationButtonLabel({
   registered,
   paying,
@@ -3483,6 +3560,36 @@ function TournamentActionStatusCard({ tournament, paymentState, registrationOpen
       <span className="text-[12px] text-current opacity-55">{status.label}</span>
       <strong className="block text-[13px] font-medium text-current opacity-90">{status.value}</strong>
     </article>
+  );
+}
+
+function TournamentStartCountdown({ countdown }: { countdown: TournamentCountdown }) {
+  if (countdown.state !== "countdown") {
+    return <strong className="block text-[15px] font-medium text-white">{countdown.label}</strong>;
+  }
+
+  return (
+    <span className="grid gap-1">
+      <span className="grid grid-cols-4 gap-1.5 text-center">
+        <CountdownUnit value={countdown.days} label={countdown.days === 1 ? "day" : "days"} />
+        <CountdownUnit value={countdown.hours} label={countdown.hours === 1 ? "hour" : "hours"} />
+        <CountdownUnit value={countdown.minutes} label="min" />
+        <span className="relative grid min-w-[42px] gap-0.5 rounded-[12px] bg-white/12 px-2 py-1.5">
+          <span className="tennis-countdown-ball" key={countdown.seconds} aria-hidden="true" />
+          <strong className="text-[15px] font-medium leading-none text-white">{formatCountdownValue(countdown.seconds)}</strong>
+          <em className="text-[10px] not-italic leading-none text-white/60">sec</em>
+        </span>
+      </span>
+    </span>
+  );
+}
+
+function CountdownUnit({ value, label }: { value: number; label: string }) {
+  return (
+    <span className="grid min-w-[42px] gap-0.5 rounded-[12px] bg-white/12 px-2 py-1.5">
+      <strong className="text-[15px] font-medium leading-none text-white">{formatCountdownValue(value)}</strong>
+      <em className="text-[10px] not-italic leading-none text-white/60">{label}</em>
+    </span>
   );
 }
 
