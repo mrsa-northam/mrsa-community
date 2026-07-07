@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Crown, Download, Home, Pencil, Plus, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Crown, Download, Home, ImagePlus, Pencil, Plus, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import { getSupabaseClient } from "../lib/supabase";
 
 type AdminTab = "overview" | "tournaments" | "players" | "payments" | "claims";
@@ -93,6 +93,8 @@ type AdminTeam = {
   name: string;
   sortOrder: number;
   isPublished: boolean;
+  logoUrl: string;
+  jerseyColor: string;
   members: AdminTeamMember[];
 };
 type AdminInterestedPlayer = {
@@ -204,6 +206,16 @@ const adminJamaatCityOptions = [
 ];
 const adminJerseySizes = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
 const adminDominantHands = ["Right", "Left", "Both"];
+const TEAM_LOGO_BUCKET = "team-logos";
+const DEFAULT_TEAM_COLOR = "#1a6e3c";
+const TEAM_LOGO_MAX_BYTES = 1024 * 1024;
+const TEAM_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
+const TEAM_LOGO_EXTENSIONS: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/svg+xml": "svg"
+};
 
 function AdminBrandMark({ light = false }: { light?: boolean }) {
   return (
@@ -999,7 +1011,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .limit(500),
       supabase
         .from("tournament_teams")
-        .select("id, tournament_id, name, sort_order, is_published, tournament_team_members(id, team_id, tournament_id, registration_id, player_id, is_captain, draft_order, tier_at_draft, shirt_name_snapshot)")
+        .select("id, tournament_id, name, sort_order, is_published, logo_url, jersey_color, tournament_team_members(id, team_id, tournament_id, registration_id, player_id, is_captain, draft_order, tier_at_draft, shirt_name_snapshot)")
         .eq("tournament_id", tournamentId)
         .order("sort_order", { ascending: true })
         .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
@@ -1068,6 +1080,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
           name: team.name,
           sortOrder: team.sort_order || 0,
           isPublished: Boolean(team.is_published),
+          logoUrl: team.logo_url || "",
+          jerseyColor: normalizeTeamColor(team.jersey_color),
           members: members.map((member) => ({
             id: member.id,
             teamId: member.team_id,
@@ -1325,21 +1339,51 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     const supabase = getSupabaseClient();
     if (!supabase || !tournament) return;
 
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const name = String(form.get("teamName") || "").trim();
+    const jerseyColor = normalizeTeamColor(form.get("jerseyColor"));
+    const logoFile = form.get("teamLogo") instanceof File ? form.get("teamLogo") as File : null;
+    const logoError = validateTeamLogoFile(logoFile);
     if (!name) {
       setNotice({ type: "error", text: "Team name is required." });
+      return;
+    }
+    if (logoError) {
+      setNotice({ type: "error", text: logoError });
       return;
     }
 
     setTeamActionKey("create-team");
     setNotice(null);
     const nextSortOrder = teams.length ? Math.max(...teams.map((team) => team.sortOrder)) + 1 : 1;
-    const { error: teamError } = await supabase.from("tournament_teams").insert({
+    const { data: createdTeam, error: teamError } = await supabase.from("tournament_teams").insert({
       tournament_id: tournament.id,
       name,
-      sort_order: nextSortOrder
-    });
+      sort_order: nextSortOrder,
+      jersey_color: jerseyColor
+    }).select("id").single();
+
+    let logoUploadError = "";
+    if (!teamError && createdTeam?.id && logoFile?.size) {
+      const path = getTeamLogoStoragePath(tournament.id, createdTeam.id, logoFile);
+      const upload = await supabase.storage.from(TEAM_LOGO_BUCKET).upload(path, logoFile, {
+        cacheControl: "3600",
+        contentType: logoFile.type,
+        upsert: false
+      });
+      if (upload.error) {
+        logoUploadError = upload.error.message;
+      } else {
+        const { data: publicUrlData } = supabase.storage.from(TEAM_LOGO_BUCKET).getPublicUrl(path);
+        const update = await supabase
+          .from("tournament_teams")
+          .update({ logo_url: publicUrlData.publicUrl })
+          .eq("id", createdTeam.id)
+          .eq("tournament_id", tournament.id);
+        logoUploadError = update.error?.message || "";
+      }
+    }
     setTeamActionKey(null);
 
     if (teamError) {
@@ -1347,8 +1391,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       return;
     }
 
-    event.currentTarget.reset();
-    setNotice({ type: "success", text: `${name} created.` });
+    formElement.reset();
+    setNotice(logoUploadError ? { type: "error", text: `${name} was created, but the logo could not be saved: ${logoUploadError}` } : { type: "success", text: `${name} created.` });
     await loadTournamentWorkspace();
   };
 
@@ -1373,6 +1417,93 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
 
     setTeams((current) => current.map((item) => item.id === team.id ? { ...item, name: nextName } : item));
     setNotice({ type: "success", text: "Team renamed." });
+  };
+
+  const updateTeamColor = async (team: AdminTeam, color: string) => {
+    const supabase = getSupabaseClient();
+    const jerseyColor = normalizeTeamColor(color);
+    if (!supabase || !tournament) return;
+
+    setTeamActionKey(`color:${team.id}`);
+    setNotice(null);
+    const { error: teamError } = await supabase
+      .from("tournament_teams")
+      .update({ jersey_color: jerseyColor })
+      .eq("id", team.id)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (teamError) {
+      setNotice({ type: "error", text: teamError.message });
+      return;
+    }
+
+    setTeams((current) => current.map((item) => item.id === team.id ? { ...item, jerseyColor } : item));
+    setNotice({ type: "success", text: "Jersey color saved." });
+  };
+
+  const replaceTeamLogo = async (team: AdminTeam, file: File) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    const logoError = validateTeamLogoFile(file);
+    if (logoError) {
+      setNotice({ type: "error", text: logoError });
+      return;
+    }
+
+    setTeamActionKey(`logo:${team.id}`);
+    setNotice(null);
+    const path = getTeamLogoStoragePath(tournament.id, team.id, file);
+    const upload = await supabase.storage.from(TEAM_LOGO_BUCKET).upload(path, file, {
+      cacheControl: "3600",
+      contentType: file.type,
+      upsert: false
+    });
+
+    if (upload.error) {
+      setTeamActionKey(null);
+      setNotice({ type: "error", text: upload.error.message });
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage.from(TEAM_LOGO_BUCKET).getPublicUrl(path);
+    const { error: teamError } = await supabase
+      .from("tournament_teams")
+      .update({ logo_url: publicUrlData.publicUrl })
+      .eq("id", team.id)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (teamError) {
+      setNotice({ type: "error", text: teamError.message });
+      return;
+    }
+
+    setTeams((current) => current.map((item) => item.id === team.id ? { ...item, logoUrl: publicUrlData.publicUrl } : item));
+    setNotice({ type: "success", text: "Team logo saved." });
+  };
+
+  const removeTeamLogo = async (team: AdminTeam) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    setTeamActionKey(`remove-logo:${team.id}`);
+    setNotice(null);
+    const { error: teamError } = await supabase
+      .from("tournament_teams")
+      .update({ logo_url: null })
+      .eq("id", team.id)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (teamError) {
+      setNotice({ type: "error", text: teamError.message });
+      return;
+    }
+
+    setTeams((current) => current.map((item) => item.id === team.id ? { ...item, logoUrl: "" } : item));
+    setNotice({ type: "success", text: "Team logo removed." });
   };
 
   const deleteTeam = async (team: AdminTeam) => {
@@ -1762,6 +1893,9 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
               actionKey={teamActionKey}
               onCreateTeam={createTeam}
               onRenameTeam={renameTeam}
+              onUpdateTeamColor={updateTeamColor}
+              onReplaceTeamLogo={replaceTeamLogo}
+              onRemoveTeamLogo={removeTeamLogo}
               onDeleteTeam={deleteTeam}
               onTogglePublished={toggleTeamPublished}
               onAssignPlayer={assignPlayerToTeam}
@@ -1815,6 +1949,9 @@ function AdminTeamBuilder({
   actionKey,
   onCreateTeam,
   onRenameTeam,
+  onUpdateTeamColor,
+  onReplaceTeamLogo,
+  onRemoveTeamLogo,
   onDeleteTeam,
   onTogglePublished,
   onAssignPlayer,
@@ -1827,6 +1964,9 @@ function AdminTeamBuilder({
   actionKey: string | null;
   onCreateTeam: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   onRenameTeam: (team: AdminTeam, name: string) => Promise<void>;
+  onUpdateTeamColor: (team: AdminTeam, color: string) => Promise<void>;
+  onReplaceTeamLogo: (team: AdminTeam, file: File) => Promise<void>;
+  onRemoveTeamLogo: (team: AdminTeam) => Promise<void>;
   onDeleteTeam: (team: AdminTeam) => Promise<void>;
   onTogglePublished: (team: AdminTeam) => Promise<void>;
   onAssignPlayer: (player: AdminRegisteredPlayer, teamId: string) => Promise<void>;
@@ -1835,6 +1975,7 @@ function AdminTeamBuilder({
   onUpdateShirtName: (player: AdminRegisteredPlayer, shirtName: string) => Promise<void>;
 }) {
   const [renameValues, setRenameValues] = useState<Record<string, string>>({});
+  const [teamColors, setTeamColors] = useState<Record<string, string>>({});
   const [selectedTeams, setSelectedTeams] = useState<Record<string, string>>({});
   const [shirtNames, setShirtNames] = useState<Record<string, string>>({});
   const assignedRegistrationIds = new Set(teams.flatMap((team) => team.members.map((member) => member.registrationId)));
@@ -1859,10 +2000,23 @@ function AdminTeamBuilder({
         </span>
       </div>
 
-      <form className="grid gap-2 rounded-[14px] border-hairline border-line bg-surface/50 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={onCreateTeam}>
+      <form className="grid gap-2 rounded-[14px] border-hairline border-line bg-surface/50 p-3 lg:grid-cols-[minmax(180px,1fr)_150px_minmax(190px,0.9fr)_auto] lg:items-end" onSubmit={onCreateTeam}>
         <label className="grid gap-2 text-[13px] text-text-secondary">
           Team name
           <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="teamName" placeholder="Team Green" required />
+        </label>
+        <label className="grid gap-2 text-[13px] text-text-secondary">
+          Jersey color
+          <span className="grid min-h-11 grid-cols-[44px_minmax(0,1fr)] items-center gap-2 rounded-[14px] border-hairline border-line bg-white px-2.5">
+            <input className="h-8 w-8 rounded-[10px] border-0 bg-transparent p-0" name="jerseyColor" type="color" defaultValue={DEFAULT_TEAM_COLOR} aria-label="Jersey color" />
+            <span className="truncate text-[14px] text-text-primary">Pick color</span>
+          </span>
+        </label>
+        <label className="grid gap-2 text-[13px] text-text-secondary">
+          Logo
+          <span className="grid min-h-11 items-center rounded-[14px] border-hairline border-line bg-white px-3 text-[13px] text-text-secondary">
+            <input className="w-full text-[13px] file:mr-3 file:rounded-[10px] file:border-0 file:bg-brand-light file:px-3 file:py-1.5 file:text-[12px] file:font-medium file:text-[#3b6d11]" name="teamLogo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" />
+          </span>
         </label>
         <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={actionKey === "create-team"}>
           <Plus size={16} />
@@ -1875,12 +2029,23 @@ function AdminTeamBuilder({
           const captain = team.members.find((member) => member.isCaptain);
           const captainPlayer = captain ? playerByRegistration.get(captain.registrationId) : null;
           const renameValue = renameValues[team.id] ?? team.name;
+          const teamColor = teamColors[team.id] ?? team.jerseyColor;
+          const onLogoChange = (event: ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) void onReplaceTeamLogo(team, file);
+          };
 
           return (
             <article className="grid gap-3 rounded-[16px] border-hairline border-line bg-white p-3" key={team.id}>
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-                <div className="grid gap-2">
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="grid gap-3">
+                  <div className="grid gap-3 md:grid-cols-[58px_minmax(0,1fr)] md:items-start">
+                    <span className="relative grid h-14 w-14 place-items-center overflow-hidden rounded-[16px] border-hairline border-line bg-surface text-[15px] font-medium text-brand" style={{ boxShadow: `inset 0 -18px 32px ${normalizeTeamColor(team.jerseyColor)}24` }}>
+                      {team.logoUrl ? <img className="h-full w-full object-contain p-1.5" src={team.logoUrl} alt={`${team.name} logo`} /> : getAdminInitials(team.name)}
+                    </span>
+                    <div className="grid gap-2">
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                     <label className="grid gap-1 text-[12px] text-text-secondary">
                       Team
                       <input
@@ -1901,6 +2066,39 @@ function AdminTeamBuilder({
                         Delete
                       </button>
                     </span>
+                      </div>
+                      <div className="grid gap-2 rounded-[14px] border-hairline border-line bg-surface/45 p-2 lg:grid-cols-[minmax(170px,0.8fr)_minmax(190px,1fr)_auto] lg:items-end">
+                        <label className="grid gap-1 text-[12px] text-text-secondary">
+                          Jersey color
+                          <span className="grid min-h-10 grid-cols-[38px_minmax(0,1fr)] items-center gap-2 rounded-[12px] border-hairline border-line bg-white px-2">
+                            <input
+                              className="h-7 w-7 rounded-[8px] border-0 bg-transparent p-0"
+                              type="color"
+                              value={normalizeTeamColor(teamColor)}
+                              onChange={(event) => setTeamColors((current) => ({ ...current, [team.id]: event.target.value }))}
+                              aria-label={`${team.name} jersey color`}
+                            />
+                            <span className="truncate text-[13px] font-medium text-text-primary">{normalizeTeamColor(teamColor)}</span>
+                          </span>
+                        </label>
+                        <span className="grid gap-1 text-[12px] text-text-secondary">
+                          Logo
+                          <label className="tap-card inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-[12px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand">
+                            <ImagePlus size={14} />
+                            {team.logoUrl ? "Replace logo" : "Upload logo"}
+                            <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" onChange={onLogoChange} />
+                          </label>
+                        </span>
+                        <span className="flex flex-wrap gap-2 lg:justify-end">
+                          <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand disabled:opacity-50" type="button" onClick={() => onUpdateTeamColor(team, teamColor)} disabled={actionKey === `color:${team.id}` || normalizeTeamColor(teamColor) === team.jerseyColor}>
+                            {actionKey === `color:${team.id}` ? "Saving..." : "Save color"}
+                          </button>
+                          <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-3 text-xs font-medium text-[#a32d2d] disabled:opacity-50" type="button" onClick={() => onRemoveTeamLogo(team)} disabled={!team.logoUrl || actionKey === `remove-logo:${team.id}`}>
+                            Remove logo
+                          </button>
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <span className={team.isPublished ? "inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]" : "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]"}>
@@ -2421,6 +2619,8 @@ function getAdminVideoStatusClass(status: string | null) {
 function isAdminDraftSchemaMissing(message: string) {
   const normalized = message.toLowerCase();
   return normalized.includes("shirt_name")
+    || normalized.includes("logo_url")
+    || normalized.includes("jersey_color")
     || normalized.includes("tournament_teams")
     || normalized.includes("tournament_team_members")
     || normalized.includes("could not find")
@@ -2891,6 +3091,29 @@ function calculateAdminAge(dateOfBirth?: string | null) {
   const birthdayThisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
   if (today < birthdayThisYear) age -= 1;
   return age >= 0 ? String(age) : "";
+}
+
+function normalizeTeamColor(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return /^#[0-9a-f]{6}$/i.test(text) ? text.toLowerCase() : DEFAULT_TEAM_COLOR;
+}
+
+function validateTeamLogoFile(file: File | null) {
+  if (!file || !file.size) return "";
+  if (!TEAM_LOGO_MIME_TYPES.has(file.type)) return "Logo must be PNG, JPG, WebP, or SVG.";
+  if (file.size > TEAM_LOGO_MAX_BYTES) return "Logo must be 1 MB or smaller.";
+  return "";
+}
+
+function getTeamLogoExtension(file: File) {
+  const mimeExtension = TEAM_LOGO_EXTENSIONS[file.type];
+  if (mimeExtension) return mimeExtension;
+  const extension = file.name.split(".").pop()?.toLowerCase() || "png";
+  return extension === "jpeg" ? "jpg" : extension;
+}
+
+function getTeamLogoStoragePath(tournamentId: string, teamId: string, file: File) {
+  return `${tournamentId}/${teamId}-${Date.now()}.${getTeamLogoExtension(file)}`;
 }
 
 function formatAdminClaimStatus(status: string) {
