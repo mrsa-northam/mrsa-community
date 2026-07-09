@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
   const { data: player } = await admin
     .from("players")
-    .select("id, auth_user_id")
+    .select("id, auth_user_id, full_name, jersey_name")
     .eq("id", playerId)
     .maybeSingle();
 
@@ -62,7 +62,8 @@ export async function GET(request: NextRequest) {
       tournament_id: tournamentId,
       player_id: playerId,
       status: "registered",
-      payment_status: "paid"
+      payment_status: "paid",
+      shirt_name: player.jersey_name || null
     }, { onConflict: "tournament_id,player_id" }).select("id").single();
 
     await admin

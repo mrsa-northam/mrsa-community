@@ -28,6 +28,7 @@ type AdminPlayer = {
   self_assessment: string | null;
   dominant_hand?: string | null;
   jersey_size?: string | null;
+  jersey_name?: string | null;
   tennis_video_url?: string | null;
   tennis_video_status?: string | null;
   tier: number;
@@ -482,7 +483,7 @@ export function AdminPlayersScreen() {
 
     let request = supabase
       .from("players")
-      .select("id, auth_user_id, full_name, email, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tennis_video_status, tier, rating, claim_status, tournaments_played, matches_played")
+      .select("id, auth_user_id, full_name, email, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, jersey_name, tennis_video_url, tennis_video_status, tier, rating, claim_status, tournaments_played, matches_played")
       .order("full_name")
       .limit(80);
 
@@ -542,6 +543,7 @@ export function AdminPlayersScreen() {
         self_assessment: String(form.get("selfAssessment") || "").trim() || null,
         dominant_hand: String(form.get("dominantHand") || "").trim() || null,
         jersey_size: String(form.get("jerseySize") || "").trim() || null,
+        jersey_name: String(form.get("jerseyName") || "").trim() || null,
         tier: tierValue
       })
       .eq("id", player.id);
@@ -677,6 +679,7 @@ export function AdminPlayersScreen() {
                       ))}
                     </select>
                   </label>
+                  <AdminEditableField label="Jersey name" name="jerseyName" defaultValue={player.jersey_name || ""} placeholder={player.full_name} />
                   <label className="grid gap-2 text-[13px] text-text-secondary">
                     <span className="inline-flex items-center gap-1.5"><Pencil size={12} /> Tier</span>
                     <select className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" name="tier" defaultValue={player.tier || 4}>
@@ -967,7 +970,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .maybeSingle(),
       supabase
         .from("tournament_registrations")
-        .select("id, tournament_id, payment_status, players(id, full_name, email, phone, jamaat_city, age, date_of_birth, dominant_hand, jersey_size, profile_photo_url, tennis_video_url, tennis_video_status, self_assessment, tier, rating)")
+        .select("id, tournament_id, payment_status, players(id, full_name, email, phone, jamaat_city, age, date_of_birth, dominant_hand, jersey_size, jersey_name, profile_photo_url, tennis_video_url, tennis_video_status, self_assessment, tier, rating)")
         .eq("tournament_id", tournamentId)
         .neq("status", "cancelled")
         .in("payment_status", ["paid", "waived"])
@@ -1057,7 +1060,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         dateOfBirth: player.date_of_birth || "",
         dominantHand: player.dominant_hand || "",
         jerseySize: player.jersey_size || "",
-        shirtName: shirtNamesByRegistration.get(row.id) || player.full_name || "",
+        shirtName: shirtNamesByRegistration.get(row.id) || player.jersey_name || player.full_name || "",
         profilePhotoUrl: player.profile_photo_url || "",
         tennisVideoUrl: player.tennis_video_url || "",
         tennisVideoStatus: player.tennis_video_status || null,
@@ -1655,6 +1658,11 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       .eq("id", player.registrationId)
       .eq("tournament_id", tournament.id);
 
+    const playerUpdate = await supabase
+      .from("players")
+      .update({ jersey_name: nextShirtName || null })
+      .eq("id", player.id);
+
     const memberUpdate = await supabase
       .from("tournament_team_members")
       .update({ shirt_name_snapshot: nextShirtName || player.fullName })
@@ -1662,8 +1670,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       .eq("tournament_id", tournament.id);
     setTeamActionKey(null);
 
-    if (registrationUpdate.error || memberUpdate.error) {
-      setNotice({ type: "error", text: registrationUpdate.error?.message || memberUpdate.error?.message || "Could not save shirt name." });
+    if (registrationUpdate.error || playerUpdate.error || memberUpdate.error) {
+      setNotice({ type: "error", text: registrationUpdate.error?.message || playerUpdate.error?.message || memberUpdate.error?.message || "Could not save shirt name." });
       return;
     }
 
@@ -2619,6 +2627,7 @@ function getAdminVideoStatusClass(status: string | null) {
 function isAdminDraftSchemaMissing(message: string) {
   const normalized = message.toLowerCase();
   return normalized.includes("shirt_name")
+    || normalized.includes("jersey_name")
     || normalized.includes("logo_url")
     || normalized.includes("jersey_color")
     || normalized.includes("tournament_teams")

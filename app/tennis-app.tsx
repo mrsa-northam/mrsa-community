@@ -1,10 +1,10 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, DollarSign, ExternalLink, Home, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, DollarSign, ExternalLink, Home, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import NextImage from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChangeEvent, createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./lib/supabase";
@@ -26,6 +26,7 @@ type ProfileData = {
   tournamentsPlayed: string;
   matchesPlayed: string;
   jerseySize: string;
+  jerseyName: string;
   tennisVideo: string;
 };
 
@@ -55,6 +56,7 @@ type Tournament = {
 };
 type TournamentFaq = { question: string; answer: string };
 type RegisteredPlayer = { id: string; name: string; age: string; city: string; rating: string; tennisVideoUrl: string };
+type TournamentProfileReminder = { missingPhoto: boolean; missingJerseyName: boolean };
 type PublishedTeamMember = { id: string; name: string; age: string; city: string; tier: string; rating: string; isCaptain: boolean; draftOrder: number | null };
 type PublishedTeam = { id: string; name: string; logoUrl: string; jerseyColor: string; members: PublishedTeamMember[] };
 type TournamentCountdown = {
@@ -131,6 +133,12 @@ const jamaatCityOptions = [
 ];
 const DEFAULT_TEAM_COLOR = "#1a6e3c";
 const videoDescription = "Recommended for draft placement: add a Google Drive link to a short video of you playing. Please set sharing to anyone with the link can view. Include your serve, forehand, backhand, volleys, and a few rally points so captains and organizers can evaluate your level for drafts.";
+const memberPageClass = "min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary";
+const memberMainClass = "mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8";
+const memberHeroClass = "relative grid overflow-hidden rounded-[18px] border-hairline border-white/20 bg-[linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] p-4 text-white shadow-[0_18px_46px_rgba(12,59,32,0.16)] md:p-5";
+const memberHeroEyebrowClass = "text-[12px] font-medium text-white/58";
+const memberHeroTitleClass = "max-w-[680px] text-[20px] font-medium leading-[1.12] tracking-[-0.2px] text-white md:text-[24px]";
+const memberHeroBodyClass = "max-w-[620px] text-[13px] not-italic leading-relaxed text-white/68 md:text-[14px]";
 type DbProfileRow = {
   id?: string;
   auth_user_id?: string | null;
@@ -143,6 +151,7 @@ type DbProfileRow = {
   self_assessment?: string | null;
   dominant_hand?: string | null;
   jersey_size?: string | null;
+  jersey_name?: string | null;
   tier?: number | string | null;
   rating?: number | string | null;
   tournaments_played?: number | string | null;
@@ -190,6 +199,7 @@ const initialProfile: ProfileData = {
   tournamentsPlayed: "0",
   matchesPlayed: "0",
   jerseySize: "",
+  jerseyName: "",
   tennisVideo: ""
 };
 
@@ -394,6 +404,21 @@ function buildProfileCompletionPath(playerId: string | undefined, nextPath?: str
   return `/profile/new?${params.toString()}`;
 }
 
+function buildTournamentProfileEditPath(tournamentId: string) {
+  const params = new URLSearchParams({
+    edit: "tournamentProfile",
+    next: "/tournaments",
+    tournament: tournamentId
+  });
+  return `/profile?${params.toString()}`;
+}
+
+function getTournamentProfileReminder(profile: DbProfileRow | null | undefined, shirtName: string): TournamentProfileReminder | null {
+  const missingPhoto = !profile?.profile_photo_url?.trim();
+  const missingJerseyName = !profile?.jersey_name?.trim() && !shirtName.trim();
+  return missingPhoto || missingJerseyName ? { missingPhoto, missingJerseyName } : null;
+}
+
 function buildPlayerCheckPath(nextPath?: string | null, reason?: "rejected", playerName?: string | null, adminNote?: string | null) {
   const params = new URLSearchParams({ next: normalizeNextPath(nextPath) });
   if (reason) params.set("claim", reason);
@@ -454,7 +479,7 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
     const [{ data: player }, { data: rejectedClaim }, { data: isAdmin }] = await Promise.all([
       supabase
         .from("players")
-	        .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played, claim_status, claim_requested_by")
+	        .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, jersey_name, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played, claim_status, claim_requested_by")
         .or(`auth_user_id.eq.${user.id},claim_requested_by.eq.${user.id}`)
         .limit(1)
         .maybeSingle(),
@@ -629,10 +654,10 @@ export function LoginScreen({ nextPath }: { nextPath?: string }) {
 
   return (
     <AppFrame withNav={false}>
-      <div className="min-h-dvh bg-[#f4f1ea] font-sans text-text-primary">
-        <main className="mx-auto grid min-h-dvh w-full max-w-[440px] content-center px-4 py-4 md:max-w-[470px] md:py-5">
-          <section className="overflow-hidden rounded-hero border-hairline border-line bg-white shadow-[0_24px_80px_rgba(24,24,26,0.11)]">
-            <div className="relative overflow-hidden bg-brand px-6 pb-6 pt-6 text-white md:pb-7 md:pt-7">
+      <div className={memberPageClass}>
+        <main className="mx-auto grid min-h-dvh w-full max-w-[420px] content-center px-4 py-4 md:max-w-[440px] md:py-5">
+          <section className="overflow-hidden rounded-[18px] border-hairline border-line bg-white shadow-[0_18px_46px_rgba(12,59,32,0.10)]">
+            <div className="relative overflow-hidden bg-[linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] px-5 pb-5 pt-5 text-white">
               <div className="pointer-events-none absolute inset-0 text-white opacity-[0.07]" aria-hidden="true">
                 <svg className="h-full w-full scale-125" viewBox="0 0 340 220" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <rect x="22" y="18" width="296" height="184" stroke="currentColor" strokeWidth="1.1" />
@@ -640,22 +665,22 @@ export function LoginScreen({ nextPath }: { nextPath?: string }) {
                 </svg>
               </div>
               <div className="relative z-10 grid justify-items-center gap-4 text-center">
-                <span className="grid h-32 w-32 place-items-center rounded-full bg-white shadow-[0_18px_45px_rgba(0,0,0,0.18)] ring-1 ring-white/75 md:h-36 md:w-36">
-                  <span className="relative h-24 w-24 shrink-0 overflow-hidden md:h-28 md:w-28">
+                <span className="grid h-24 w-24 place-items-center rounded-full bg-white shadow-[0_12px_30px_rgba(0,0,0,0.14)] ring-1 ring-white/75 md:h-28 md:w-28">
+                  <span className="relative h-16 w-16 shrink-0 overflow-hidden md:h-20 md:w-20">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/brand/mrsa-logo.svg" alt="MRSA" className="h-full w-full object-contain" />
                   </span>
                 </span>
                 <div className="grid gap-2">
-                  <h1 className="max-w-[320px] text-[32px] font-medium leading-[1.05] text-white md:text-[36px]">Sign in to your MRSA profile</h1>
+                  <h1 className="max-w-[300px] text-[24px] font-medium leading-[1.08] text-white md:text-[28px]">Sign in to your MRSA profile</h1>
                 </div>
               </div>
             </div>
 
-            <div className="relative z-10 grid gap-5 bg-white px-6 py-6 md:px-8 md:py-7">
+            <div className="relative z-10 grid gap-4 bg-white px-5 py-5 md:px-6">
               <div className="grid gap-1 text-center">
-                <h2 className="text-h1 text-text-primary">Welcome</h2>
-                <p className="text-body text-text-secondary">First time? Use an email you prefer to set up your profile. Already signed up? Sign in with the same email and stay logged in to skip authentication next time.</p>
+                <h2 className="text-[18px] font-medium text-text-primary">Welcome</h2>
+                <p className="text-[14px] leading-relaxed text-text-secondary">First time? Use an email you prefer to set up your profile. Already signed up? Sign in with the same email.</p>
               </div>
               <form className="grid gap-4" onSubmit={sendOtp}>
                 <label className="grid gap-2 text-caption text-text-secondary" htmlFor="email">
@@ -761,10 +786,10 @@ export function OtpScreen({ email = "player@mrsa.com", nextPath }: { email?: str
 
   return (
     <AppFrame withNav={false}>
-      <div className="min-h-dvh bg-[#f4f1ea] font-sans text-text-primary">
-        <main className="mx-auto grid min-h-dvh w-full max-w-[440px] content-center px-4 py-6 md:max-w-[470px]">
-          <section className="overflow-hidden rounded-hero border-hairline border-line bg-white shadow-[0_24px_80px_rgba(24,24,26,0.11)]">
-            <div className="relative overflow-hidden bg-brand px-6 pb-8 pt-7 text-white">
+      <div className={memberPageClass}>
+        <main className="mx-auto grid min-h-dvh w-full max-w-[420px] content-center px-4 py-6 md:max-w-[440px]">
+          <section className="overflow-hidden rounded-[18px] border-hairline border-line bg-white shadow-[0_18px_46px_rgba(12,59,32,0.10)]">
+            <div className="relative overflow-hidden bg-[linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] px-5 pb-5 pt-5 text-white">
               <div className="pointer-events-none absolute inset-0 text-white opacity-[0.07]" aria-hidden="true">
                 <svg className="h-full w-full scale-125" viewBox="0 0 340 220" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <rect x="22" y="18" width="296" height="184" stroke="currentColor" strokeWidth="1.1" />
@@ -772,21 +797,21 @@ export function OtpScreen({ email = "player@mrsa.com", nextPath }: { email?: str
                 </svg>
               </div>
               <div className="relative z-10 grid justify-items-center gap-4 text-center">
-                <span className="grid h-40 w-40 place-items-center rounded-full bg-white shadow-[0_18px_45px_rgba(0,0,0,0.18)] ring-1 ring-white/75 md:h-44 md:w-44">
-                  <span className="relative h-32 w-32 shrink-0 overflow-hidden md:h-36 md:w-36">
+                <span className="grid h-24 w-24 place-items-center rounded-full bg-white shadow-[0_12px_30px_rgba(0,0,0,0.14)] ring-1 ring-white/75 md:h-28 md:w-28">
+                  <span className="relative h-16 w-16 shrink-0 overflow-hidden md:h-20 md:w-20">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/brand/mrsa-logo.svg" alt="MRSA" className="h-full w-full object-contain" />
                   </span>
                 </span>
                 <div className="grid gap-2">
-                  <h1 className="max-w-[320px] text-[30px] font-medium leading-[1.05] text-white md:text-[34px]">Enter your one-time code</h1>
+                  <h1 className="max-w-[300px] text-[24px] font-medium leading-[1.08] text-white md:text-[28px]">Enter your one-time code</h1>
                 </div>
               </div>
             </div>
 
-            <div className="relative z-10 grid gap-4 bg-white px-6 py-5 md:px-8 md:py-6">
+            <div className="relative z-10 grid gap-4 bg-white px-5 py-5 md:px-6">
               <div className="grid gap-1 text-center">
-                <p className="truncate text-body text-text-secondary">Code has been sent to {email}</p>
+                <p className="truncate text-[14px] leading-relaxed text-text-secondary">Code has been sent to {email}</p>
               </div>
               <form className="grid gap-3" onSubmit={verifyOtp}>
                 <input type="hidden" name="email" value={email} />
@@ -970,8 +995,8 @@ export function PlayerCheckScreen({
 
   return (
     <AppFrame withNav={false}>
-      <div className="min-h-dvh bg-page font-sans text-text-primary">
-        <header className="border-b-hairline border-surface bg-white/95 px-4 py-3">
+      <div className={memberPageClass}>
+        <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/75 px-4 py-2.5 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
           <div className="mx-auto flex w-full max-w-shell items-center justify-center">
             <Link className="inline-flex" href="/" aria-label="MRSA home">
               <BrandMark />
@@ -979,26 +1004,26 @@ export function PlayerCheckScreen({
           </div>
         </header>
 
-        <main className="mx-auto grid min-h-[calc(100dvh-59px)] w-full max-w-[980px] content-center px-4 py-5 md:px-6 md:py-8">
-          <section className="grid min-w-0 overflow-hidden rounded-[24px] border-hairline border-line bg-card shadow-[0_24px_80px_rgba(24,24,26,0.10)] md:min-h-[620px] md:grid-cols-[0.9fr_1.1fr]">
-            <div className="relative min-h-[260px] min-w-0 overflow-hidden bg-brand p-5 text-white md:min-h-0 md:p-10">
+        <main className="mx-auto grid w-full max-w-[980px] gap-4 px-4 py-5 pb-24 md:px-6 md:py-6">
+          <section className="grid min-w-0 overflow-hidden rounded-[18px] border-hairline border-line bg-card shadow-[0_18px_46px_rgba(12,59,32,0.10)] md:grid-cols-[0.85fr_1.15fr]">
+            <div className="relative min-h-[210px] min-w-0 overflow-hidden bg-[linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] p-4 text-white md:min-h-0 md:p-6">
               <div className="pointer-events-none absolute inset-0 text-white opacity-[0.08]" aria-hidden="true">
                 <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
                   <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
                 </svg>
               </div>
-              <div className="absolute inset-x-0 bottom-0 h-44 bg-[radial-gradient(circle_at_66%_58%,rgba(214,242,65,0.86)_0,rgba(214,242,65,0.86)_36px,transparent_37px),linear-gradient(18deg,transparent_0_42%,rgba(255,255,255,0.35)_43%,rgba(255,255,255,0.35)_45%,transparent_46%),radial-gradient(ellipse_at_55%_70%,rgba(255,255,255,0.28)_0,rgba(255,255,255,0.13)_34%,transparent_58%)] opacity-80" aria-hidden="true" />
+              <div className="absolute inset-x-0 bottom-0 h-32 bg-[radial-gradient(circle_at_66%_58%,rgba(214,242,65,0.46)_0,rgba(214,242,65,0.46)_28px,transparent_29px),radial-gradient(ellipse_at_55%_70%,rgba(255,255,255,0.18)_0,rgba(255,255,255,0.10)_34%,transparent_58%)] opacity-80" aria-hidden="true" />
               <div className="relative z-10 grid h-full min-w-0 content-center gap-3 md:gap-4">
                 <OnboardingStep step={2} total={3} label="Find profile" />
-                <h1 className="max-w-[420px] text-[32px] font-medium leading-[1.08] tracking-[-0.4px] text-white md:text-[40px]">Returning player?</h1>
-                <p className="max-w-[340px] text-sm leading-relaxed text-white/70">Search past MRSA player profiles and continue with your existing tournament history.</p>
+                <h1 className="max-w-[420px] text-[24px] font-medium leading-[1.08] tracking-[-0.2px] text-white md:text-[28px]">Returning player?</h1>
+                <p className={memberHeroBodyClass}>Search past MRSA player profiles and continue with your existing tournament history.</p>
               </div>
             </div>
 
-            <div className="grid min-w-0 content-start gap-5 bg-white p-5 md:p-8">
+            <div className="grid min-w-0 content-start gap-4 bg-white p-4 md:p-5">
               <div className="grid min-w-0 gap-2">
-                <h2 className="text-[30px] font-medium leading-tight tracking-[-0.4px] text-text-primary">Find your profile</h2>
+                <h2 className="text-[20px] font-medium leading-tight tracking-[-0.2px] text-text-primary">Find your profile</h2>
                 <p className="text-sm leading-relaxed text-text-secondary">If you played before, type your name and select the matching profile to claim.</p>
               </div>
 
@@ -1063,7 +1088,7 @@ export function PlayerCheckScreen({
                 </div>
               )}
 
-              <div className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4">
+              <div className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3">
                 <p className="text-[15px] text-text-secondary">New or first time players can create a new MRSA profile.</p>
                 <Link className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-4 text-sm font-medium text-white" href={`/profile/new?next=${encodeURIComponent(destinationPath)}`}>First time player</Link>
               </div>
@@ -1131,7 +1156,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
 
       const { data } = await supabase
         .from("players")
-        .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, jersey_size, tennis_video_url, tennis_video_status, claim_status, claim_requested_by")
+        .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, jersey_size, jersey_name, tennis_video_url, tennis_video_status, claim_status, claim_requested_by")
         .eq("id", claimPlayerId || appSession.player?.id)
         .maybeSingle();
       if (data) {
@@ -1176,6 +1201,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
       jamaat_city: selectedJamaatCity,
       self_assessment: String(form.get("selfAssessment") || "").trim(),
       jersey_size: String(form.get("jerseySize") || "").trim(),
+      jersey_name: String(form.get("jerseyName") || "").trim() || undefined,
       tennis_video_url: String(form.get("tennisVideo") || "").trim(),
       tennis_video_status: hasPlayerVideoLink(String(form.get("tennisVideo") || "")) ? "pending" : null
     };
@@ -1222,8 +1248,8 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
 
   return (
     <AppFrame withNav={false}>
-      <div className="min-h-dvh bg-page font-sans text-text-primary">
-        <header className="border-b-hairline border-surface bg-white/95 px-4 py-3">
+      <div className={memberPageClass}>
+        <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/75 px-4 py-2.5 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
           <div className="mx-auto flex w-full max-w-shell items-center justify-center">
             <Link className="inline-flex" href="/" aria-label="MRSA home">
               <BrandMark />
@@ -1231,8 +1257,8 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
           </div>
         </header>
 
-        <main className="mx-auto grid w-full max-w-shell gap-5 px-4 py-5 pb-10 md:px-6 lg:px-8">
-          <section className="relative grid min-h-[220px] overflow-hidden rounded-[22px] bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] md:items-center md:gap-8 lg:p-6">
+        <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-24 md:px-6 lg:px-8">
+          <section className={`${memberHeroClass} md:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] md:items-center md:gap-5`}>
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -1241,13 +1267,13 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
             </div>
             <div className="relative grid gap-3">
               <OnboardingStep step={3} total={3} label={claimPlayerId ? "Complete claim" : "Create profile"} />
-              <h1 className="max-w-[640px] text-3xl font-medium leading-[1.08] tracking-[-0.4px] text-white">{isCompletingExistingProfile ? "Complete your profile." : claimPlayerId ? "Complete your profile." : "New MRSA player."}</h1>
-              <p className="max-w-[560px] text-sm leading-relaxed text-white/65">{isCompletingExistingProfile && missingSummary ? `Please add ${missingSummary} before continuing.` : claimPlayerId ? "Add the required details so admin can review your profile claim and connect your history." : `Create your profile once. New players start at Tier ${startingTennisTier} with a ${startingTennisRating.toFixed(3)} rating.`}</p>
+              <h1 className={memberHeroTitleClass}>{isCompletingExistingProfile ? "Complete your profile." : claimPlayerId ? "Complete your profile." : "New MRSA player."}</h1>
+              <p className={memberHeroBodyClass}>{isCompletingExistingProfile && missingSummary ? `Please add ${missingSummary} before continuing.` : claimPlayerId ? "Add the required details so admin can review your profile claim and connect your history." : `Create your profile once. New players start at Tier ${startingTennisTier} with a ${startingTennisRating.toFixed(3)} rating.`}</p>
             </div>
-            <div className="relative mt-4 grid gap-2 rounded-[18px] border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
-              <span className="text-[13px] text-white/60">{isCompletingExistingProfile ? "Missing required fields" : claimPlayerId ? "Claimed profile" : "Assigned after signup"}</span>
-              <strong className="text-[20px] font-medium text-white">{isCompletingExistingProfile && missingSummary ? missingSummary : claimPlayerId ? "Existing tier and rating kept" : `Tier ${startingTennisTier} · Rating ${startingTennisRating.toFixed(3)}`}</strong>
-              <em className="text-[14px] not-italic text-white/60">{isCompletingExistingProfile ? "Your profile is saved after these are added." : claimPlayerId ? "Admin can approve or reject this claim." : "0 tournaments played · 0 matches played"}</em>
+            <div className="relative mt-3 grid gap-1.5 rounded-[14px] border-hairline border-white/10 bg-white/[0.08] p-3 md:mt-0">
+              <span className={memberHeroEyebrowClass}>{isCompletingExistingProfile ? "Missing required fields" : claimPlayerId ? "Claimed profile" : "Assigned after signup"}</span>
+              <strong className="text-[16px] font-medium text-white">{isCompletingExistingProfile && missingSummary ? missingSummary : claimPlayerId ? "Existing tier and rating kept" : `Tier ${startingTennisTier} · Rating ${startingTennisRating.toFixed(3)}`}</strong>
+              <em className="text-[13px] not-italic text-white/60">{isCompletingExistingProfile ? "Your profile is saved after these are added." : claimPlayerId ? "Admin can approve or reject this claim." : "0 tournaments played · 0 matches played"}</em>
             </div>
           </section>
 
@@ -1294,6 +1320,10 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
                     <option key={size}>{size}</option>
                   ))}
                 </select>
+              </label>
+              <label className="grid gap-2 text-[13px] text-text-secondary">
+                Jersey name optional
+                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="jerseyName" type="text" placeholder="Name for shirt roster" defaultValue={claimedProfile?.jersey_name || ""} />
               </label>
               <label className="grid gap-2 text-[13px] text-text-secondary">
                 Profile photo optional
@@ -1501,6 +1531,7 @@ async function createNewPlayerProfile(
 	    jamaat_city: string;
     self_assessment: string;
     jersey_size: string;
+    jersey_name?: string;
     tennis_video_url: string;
     tennis_video_status?: string | null;
     profile_photo_url?: string;
@@ -1672,10 +1703,10 @@ export function HomeScreen() {
 
   return (
     <AppFrame active="home">
-      <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
+      <div className={memberPageClass}>
         <AppTopBar />
 
-        <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+        <main className={memberMainClass}>
           <PageGreeting subtitle={`Did you know? ${homeFunFact}`} />
           {needsVideoLink && (
             <form className="grid gap-3 rounded-[18px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-4" onSubmit={saveDashboardVideoLink}>
@@ -1702,7 +1733,7 @@ export function HomeScreen() {
               </button>
             </form>
           )}
-          <section className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_80%_22%,rgba(76,222,140,0.14)_0,transparent_28%),linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] p-4 text-white shadow-[0_18px_46px_rgba(12,59,32,0.16)] md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-4 md:p-5">
+          <section className={`${memberHeroClass} md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-4`}>
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -1716,8 +1747,8 @@ export function HomeScreen() {
               </span>
               <span className="grid gap-1">
                 {upcomingTournament?.name && <span className="text-[12px] text-white/56">{upcomingTournament.name}</span>}
-                <h1 className="max-w-[680px] text-[18px] font-medium leading-[1.22] tracking-[-0.2px] text-white">{homeTournamentCopy.title}</h1>
-                <em className="max-w-[620px] text-[14px] not-italic leading-relaxed text-white/70">{homeTournamentCopy.description}</em>
+                <h1 className="max-w-[680px] text-[17px] font-medium leading-[1.22] tracking-[-0.2px] text-white">{homeTournamentCopy.title}</h1>
+                <em className={memberHeroBodyClass}>{homeTournamentCopy.description}</em>
               </span>
             </div>
             <Link className="tap-card relative mt-4 inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-[#C9E84A] px-4 text-[14px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] md:mt-0" href="/tournaments">
@@ -1737,7 +1768,7 @@ export function HomeScreen() {
             </div>
             <div className="grid gap-2">
               {topPlayers.map((player, index) => (
-                <article className="grid min-h-[62px] grid-cols-[24px_38px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-white/84 p-3 shadow-[0_8px_24px_rgba(24,24,26,0.05)] backdrop-blur" key={player.id}>
+                <article className="grid min-h-[58px] grid-cols-[24px_36px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[12px] border-hairline border-line bg-white/84 p-2.5 shadow-[0_6px_18px_rgba(24,24,26,0.04)] backdrop-blur" key={player.id}>
                   <span className={index < 3 ? "text-center text-[14px] font-medium text-[#b8860b]" : "text-center text-[14px] font-medium text-text-muted"}>{index + 1}</span>
                   <Avatar className={index % 5 === 0 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#fde9dc] text-[12px] font-medium text-[#a94d24]" : index % 5 === 1 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#e5f1ff] text-[12px] font-medium text-[#185fa5]" : index % 5 === 2 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[12px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#fbe7ef] text-[12px] font-medium text-[#aa3f6b]" : "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#f1efe8] text-[12px] font-medium text-[#5f5e5a]"} name={player.name} photoUrl={player.profilePhotoUrl} ariaLabel={`${player.name} profile photo`} />
                   <span className="grid min-w-0 gap-1">
@@ -1780,6 +1811,7 @@ export function DrawScreen() {
   const [pastLoaded, setPastLoaded] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [paymentState, setPaymentState] = useState<PaymentState>("idle");
+  const [registrationShirtName, setRegistrationShirtName] = useState("");
   const [paying, setPaying] = useState(false);
   const [reconcilingPayment, setReconcilingPayment] = useState(false);
   const [showVideoPrompt, setShowVideoPrompt] = useState(false);
@@ -1817,6 +1849,7 @@ export function DrawScreen() {
       setTournament(null);
       setRegisteredPlayers([]);
       setPublishedTeams([]);
+      setRegistrationShirtName("");
       setLoading(false);
       return;
     }
@@ -1835,7 +1868,7 @@ export function DrawScreen() {
       appSession.player?.id
         ? supabase
             .from("tournament_registrations")
-            .select("id, status, payment_status, waitlist_status")
+            .select("id, status, payment_status, waitlist_status, shirt_name")
             .eq("tournament_id", mappedTournament.id)
             .eq("player_id", appSession.player.id)
             .maybeSingle()
@@ -1905,6 +1938,7 @@ export function DrawScreen() {
       const myPlayer = { id: appSession.player.id };
       const paidRegistration = Boolean(myPlayer && registrations.some((row) => row.player_id === myPlayer.id));
       setRegistered(paidRegistration);
+      setRegistrationShirtName(myRegistration?.shirt_name || "");
       const waitlistStatus = myRegistration?.status === "waitlisted" ? myRegistration.waitlist_status : null;
       setPaymentState(
         paidRegistration ? "paid"
@@ -2214,6 +2248,7 @@ export function DrawScreen() {
     const canPayForTournament = Boolean(registrationOpen || waitlistAccepted);
     const needsTournamentVideoLink = needsPlayerVideoUpload(appSession.player?.tennis_video_url, appSession.player?.tennis_video_status);
     const registeredPlayerCountLabel = `${registeredPlayers.length} ${registeredPlayers.length === 1 ? "player" : "players"}`;
+    const tournamentProfileReminder = tournament ? getTournamentProfileReminder(appSession.player, registrationShirtName) : null;
 
   return (
     <AppFrame active="tournament">
@@ -2344,6 +2379,24 @@ export function DrawScreen() {
             <StatusMessage tone={paymentState === "failed" ? "error" : paymentState === "pending" ? "warning" : "success"}>
               {message}
             </StatusMessage>
+          )}
+
+          {tournament && tournamentProfileReminder && (
+            <section className="grid gap-3 rounded-[16px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-3.5 shadow-[0_10px_24px_rgba(138,74,34,0.06)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <span className="grid min-w-0 gap-1">
+                <strong className="text-[15px] font-medium text-[#8a4a22]">Your tournament profile is incomplete</strong>
+                <em className="text-[13px] not-italic leading-relaxed text-[#8a4a22]/85">
+                  {tournamentProfileReminder.missingPhoto && tournamentProfileReminder.missingJerseyName
+                    ? "Add your profile photo and jersey name now so your team card, shirt name, and roster details are ready before the tournament."
+                    : tournamentProfileReminder.missingPhoto
+                      ? "Add your profile photo now so your team card and roster details are ready before the tournament."
+                      : "Add your jersey name now so your shirt name and roster details are ready before the tournament."}
+                </em>
+              </span>
+              <Link className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.14)]" href={buildTournamentProfileEditPath(tournament.id)}>
+                Update now
+              </Link>
+            </section>
           )}
 
         <section className="grid gap-4">
@@ -2631,15 +2684,15 @@ export function RegisteredPlayersScreen() {
 
   return (
     <AppFrame active="tournament">
-      <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
+      <div className={memberPageClass}>
         <AppTopBar />
 
-        <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+        <main className={memberMainClass}>
           <Link className="tap-card grid h-9 w-9 place-items-center rounded-full border-hairline border-line bg-white/80 text-brand shadow-[0_8px_22px_rgba(24,24,26,0.06)] backdrop-blur" href="/tournaments" aria-label="Back to tournament">
             <ArrowLeft size={16} />
           </Link>
           <PageGreeting subtitle="Here's what's coming up" />
-          <section className="relative grid overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] lg:p-6">
+          <section className={memberHeroClass}>
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -2647,8 +2700,8 @@ export function RegisteredPlayersScreen() {
               </svg>
             </div>
             <div className="relative grid gap-3">
-              <span className="text-[13px] text-white/60">Registered players</span>
-              <h1 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-white">{tournament?.name || "Tournament"}</h1>
+              <span className={memberHeroEyebrowClass}>Registered players</span>
+              <h1 className={memberHeroTitleClass}>{tournament?.name || "Tournament"}</h1>
               <p className="text-xs text-white/55">{registeredPlayers.length} players registered</p>
             </div>
           </section>
@@ -2674,7 +2727,7 @@ export function RegisteredPlayersScreen() {
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {visibleRegisteredPlayers.map((player, index) => (
-                <article className="grid min-h-[60px] grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3" key={player.id}>
+                <article className="grid min-h-[56px] grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[12px] border-hairline border-line bg-card px-2.5 py-2.5" key={player.id}>
                   <span className={index % 5 === 0 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fde9dc] text-[13px] font-medium text-[#a94d24]" : index % 5 === 1 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#e5f1ff] text-[13px] font-medium text-[#185fa5]" : index % 5 === 2 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fbe7ef] text-[13px] font-medium text-[#aa3f6b]" : "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#f1efe8] text-[13px] font-medium text-[#5f5e5a]"}>{getInitials(player.name)}</span>
                   <div className="grid min-w-0 gap-1">
                     <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
@@ -2747,14 +2800,14 @@ export function PlayersScreen() {
 
   return (
     <AppFrame active="profile">
-      <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
+      <div className={memberPageClass}>
         <AppTopBar />
-        <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+        <main className={memberMainClass}>
           <Link className="tap-card grid h-9 w-9 place-items-center rounded-full border-hairline border-line bg-white/80 text-brand shadow-[0_8px_22px_rgba(24,24,26,0.06)] backdrop-blur" href="/dashboard" aria-label="Back to dashboard">
             <ArrowLeft size={16} />
           </Link>
           <PageGreeting subtitle="The MRSA leaderboard" />
-          <section className="relative grid min-h-[190px] overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] lg:p-6">
+          <section className={memberHeroClass}>
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -2762,9 +2815,9 @@ export function PlayersScreen() {
               </svg>
             </div>
             <div className="relative grid content-center gap-3">
-              <span className="text-[13px] text-white/60">Players</span>
-              <h1 className="max-w-[680px] text-3xl font-medium leading-[1.08] tracking-[-0.4px] text-white md:text-[42px]">All players</h1>
-              <p className="max-w-[620px] text-[15px] leading-relaxed text-white/68">Browse MRSA players by profile, rating, and Jamaat / city.</p>
+              <span className={memberHeroEyebrowClass}>Players</span>
+              <h1 className={memberHeroTitleClass}>All players</h1>
+              <p className={memberHeroBodyClass}>Browse MRSA players by profile, rating, and Jamaat / city.</p>
             </div>
           </section>
 
@@ -2775,8 +2828,8 @@ export function PlayersScreen() {
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {players.map((player) => (
-                <article className="grid min-h-[76px] grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 rounded-[16px] border-hairline border-line bg-card p-3 shadow-[0_8px_20px_rgba(24,24,26,0.04)]" key={player.id}>
-                  <Avatar className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-brand-light text-[13px] font-medium text-[#3b6d11]" name={player.name} photoUrl={player.profilePhotoUrl} ariaLabel={`${player.name} profile photo`} />
+                <article className="grid min-h-[64px] grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[12px] border-hairline border-line bg-card p-2.5 shadow-[0_6px_18px_rgba(24,24,26,0.035)]" key={player.id}>
+                  <Avatar className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-brand-light text-[12px] font-medium text-[#3b6d11]" name={player.name} photoUrl={player.profilePhotoUrl} ariaLabel={`${player.name} profile photo`} />
                   <span className="grid min-w-0 gap-1">
                     <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
                     <em className="truncate text-[13px] not-italic text-text-secondary">{player.city}</em>
@@ -2799,8 +2852,8 @@ export function AboutScreen() {
 
   return (
     <AppFrame active={isAuthenticated ? "home" : undefined} withNav={isAuthenticated}>
-      <div className="min-h-dvh bg-page pb-28 font-sans text-text-primary">
-        <header className="sticky top-0 z-30 border-b-hairline border-surface bg-white/95 px-4 py-3 backdrop-blur">
+      <div className={memberPageClass}>
+        <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/75 px-4 py-2.5 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-shell items-center justify-between">
             <BrandMark />
             <Link className="grid h-9 w-9 place-items-center rounded-full border-hairline border-line bg-card text-brand" href={isAuthenticated ? "/dashboard" : "/"} aria-label={isAuthenticated ? "Back to dashboard" : "Back to sign in"}>
@@ -2809,9 +2862,9 @@ export function AboutScreen() {
           </div>
         </header>
 
-        <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+        <main className={memberMainClass}>
           {isAuthenticated && <PageGreeting subtitle="Ready for the courts?" />}
-          <section className="relative grid min-h-[220px] overflow-hidden rounded-hero bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(250px,320px)] md:items-center md:gap-8 lg:p-6">
+          <section className={`${memberHeroClass} md:grid-cols-[minmax(0,1fr)_minmax(220px,280px)] md:items-center md:gap-5`}>
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -2819,13 +2872,13 @@ export function AboutScreen() {
               </svg>
             </div>
             <div className="relative grid gap-3">
-              <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-caption text-white/75">About MRSA</span>
-              <h1 className="max-w-[680px] text-display text-white md:text-[40px]">Mumineen Racquet Sports Association</h1>
-              <p className="max-w-[620px] text-body text-white/72">A North America-wide community bringing together women through a shared passion for racquet sports — tennis, TT, badminton, and pickleball.</p>
+              <span className="inline-flex w-max items-center rounded-full bg-white/12 px-2.5 py-1 text-[12px] font-medium text-white/75">About MRSA</span>
+              <h1 className={memberHeroTitleClass}>Mumineen Racquet Sports Association</h1>
+              <p className={memberHeroBodyClass}>A North America-wide community bringing together women through a shared passion for racquet sports — tennis, TT, badminton, and pickleball.</p>
             </div>
-            <div className="relative mt-5 grid gap-3 rounded-surface border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
-              <span className="text-caption text-white/55">Events</span>
-              <strong className="text-h1 text-white">1</strong>
+            <div className="relative mt-3 grid gap-1.5 rounded-[14px] border-hairline border-white/10 bg-white/[0.08] p-3 md:mt-0">
+              <span className={memberHeroEyebrowClass}>Events</span>
+              <strong className="text-[18px] font-medium text-white">1</strong>
             </div>
           </section>
         </main>
@@ -2836,6 +2889,7 @@ export function AboutScreen() {
 
 export function PlayerScreen() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const appSession = useProtectedRoute("/profile", true);
   const [isEditing, setIsEditing] = useState(false);
   const [editFocusField, setEditFocusField] = useState<keyof ProfileData>("fullName");
@@ -2844,9 +2898,15 @@ export function PlayerScreen() {
   const [showPayments, setShowPayments] = useState(false);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [tournamentProfileSaved, setTournamentProfileSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const editableFieldRefs = useRef<Partial<Record<keyof ProfileData, HTMLElement>>>({});
+  const tournamentProfileMode = searchParams.get("edit") === "tournamentProfile";
+  const focusedTournamentId = searchParams.get("tournament") || "";
+  const returnPath = normalizeNextPath(searchParams.get("next"));
 
   const signOut = async () => {
     const supabase = getSupabaseClient();
@@ -2857,6 +2917,7 @@ export function PlayerScreen() {
   };
 
   const updateProfile = (field: keyof ProfileData, value: string) => {
+    if (field === "jerseyName") setTournamentProfileSaved(false);
     setProfile((current) => ({ ...current, [field]: value }));
   };
 
@@ -2899,7 +2960,7 @@ export function PlayerScreen() {
 
       const { data } = await supabase
         .from("players")
-        .select("id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played")
+        .select("id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, jersey_name, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played")
         .eq("auth_user_id", appSession.userId)
         .maybeSingle();
 
@@ -2939,7 +3000,7 @@ export function PlayerScreen() {
     const supabase = getSupabaseClient();
     if (!supabase || !profile.id) {
       setIsEditing(false);
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -2954,6 +3015,7 @@ export function PlayerScreen() {
         self_assessment: profile.selfEvaluation,
         jamaat_city: profile.jamaatCity,
         jersey_size: profile.jerseySize,
+        jersey_name: profile.jerseyName.trim() || null,
         tennis_video_url: profile.tennisVideo,
         tennis_video_status: hasPlayerVideoLink(profile.tennisVideo) ? "pending" : null,
         tennis_video_reviewed_at: null,
@@ -2961,16 +3023,39 @@ export function PlayerScreen() {
         tennis_video_rejection_note: null
       })
       .eq("id", profile.id);
-    setSaving(false);
 
     if (error) {
+      setSaving(false);
       setMessage(getFriendlyError(error));
-      return;
+      return false;
+    }
+
+    if (profile.jerseyName.trim() || focusedTournamentId) {
+      const { data: session } = await supabase.auth.getSession();
+      const syncResponse = await fetch("/api/profile/tournament-details", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.session?.access_token || ""}`
+        },
+        body: JSON.stringify({
+          jerseyName: profile.jerseyName,
+          tournamentId: focusedTournamentId || undefined
+        })
+      });
+      const syncResult = await syncResponse.json().catch(() => ({}));
+      if (!syncResponse.ok) {
+        setSaving(false);
+        setMessage(syncResult.error || "Profile saved, but the tournament shirt name could not sync.");
+        return false;
+      }
     }
 
     setIsEditing(false);
     await appSession.refresh();
+    setSaving(false);
     setMessage("Profile saved.");
+    return true;
   };
 
   const updateProfilePhoto = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -2981,32 +3066,69 @@ export function PlayerScreen() {
     const user = appSession.user;
     if (!user) return;
 
+    setUploadingPhoto(true);
     setMessage("Compressing and uploading photo...");
     const photoUrl = await uploadCompressedProfilePhoto(user.id, file);
     if (!photoUrl) {
+      setUploadingPhoto(false);
       setMessage("Could not upload photo.");
       return;
     }
 
     const { error } = await supabase.from("players").update({ profile_photo_url: photoUrl }).eq("id", profile.id);
+    setUploadingPhoto(false);
     if (error) {
       setMessage(getFriendlyError(error));
       return;
     }
 
     setProfile((current) => ({ ...current, profilePhotoUrl: photoUrl }));
+    setTournamentProfileSaved(false);
     await appSession.refresh();
     setMessage("Photo updated.");
   };
 
+  const removeProfilePhoto = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !profile.id || removingPhoto) return;
+
+    setRemovingPhoto(true);
+    setMessage("");
+    const { error } = await supabase.from("players").update({ profile_photo_url: null }).eq("id", profile.id);
+    setRemovingPhoto(false);
+
+    if (error) {
+      setMessage(getFriendlyError(error));
+      return;
+    }
+
+    setProfile((current) => ({ ...current, profilePhotoUrl: "" }));
+    setTournamentProfileSaved(false);
+    await appSession.refresh();
+    setMessage("Photo removed.");
+  };
+
+  const saveTournamentProfile = async () => {
+    if (!profile.profilePhotoUrl || !profile.jerseyName.trim()) {
+      setTournamentProfileSaved(false);
+      setMessage("Add your profile photo and jersey name before saving your tournament profile.");
+      return;
+    }
+    const saved = await saveProfile();
+    if (saved) setTournamentProfileSaved(true);
+  };
+
+  const tournamentProfileComplete = Boolean(profile.profilePhotoUrl && profile.jerseyName.trim());
+  const showTournamentProfileComplete = tournamentProfileMode && tournamentProfileComplete && tournamentProfileSaved;
+
   return (
     <AppFrame active="profile">
-      <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
+      <div className={memberPageClass}>
         <AppTopBar avatarName={profile.fullName} avatarPhotoUrl={profile.profilePhotoUrl} />
 
-        <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
+        <main className={memberMainClass}>
           <PageGreeting subtitle="Manage your player profile" />
-          <section className="relative grid min-h-[220px] grid-cols-[minmax(0,1fr)_auto] items-start gap-4 overflow-hidden rounded-[24px] border-hairline border-white/20 bg-[radial-gradient(circle_at_82%_18%,rgba(76,222,140,0.22)_0,transparent_28%),linear-gradient(135deg,#0c3b20_0%,#14572f_52%,#1a6e3c_100%)] p-5 pb-16 text-white shadow-[0_24px_70px_rgba(12,59,32,0.22)] md:gap-6 lg:p-6 lg:pb-16">
+          <section className={`${memberHeroClass} min-h-[150px] grid-cols-[minmax(0,1fr)_auto] items-start gap-3 pb-12 md:gap-5 md:pb-12`}>
           <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
             <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -3014,23 +3136,86 @@ export function PlayerScreen() {
             </svg>
           </div>
           <div className="relative grid gap-3">
-            <span className="text-[13px] text-white/60">Player profile</span>
-            <h1 className="text-3xl font-medium leading-none tracking-[-0.4px] text-white">{profile.fullName}</h1>
+            <span className={memberHeroEyebrowClass}>Player profile</span>
+            <h1 className="max-w-[620px] text-[22px] font-medium leading-tight tracking-[-0.2px] text-white md:text-[26px]">{profile.fullName}</h1>
           </div>
           <div className="relative justify-self-end">
-            <Avatar className="relative grid h-24 w-24 place-items-center overflow-hidden rounded-full border-hairline border-white/35 bg-white/16 text-2xl font-medium text-white shadow-[0_18px_44px_rgba(0,0,0,0.14)] backdrop-blur md:h-28 md:w-28" name={profile.fullName} photoUrl={profile.profilePhotoUrl} ariaLabel={`${profile.fullName} profile photo`} />
-            <label className="absolute bottom-1 right-1 grid h-6 w-6 cursor-pointer place-items-center rounded-full border-hairline border-white/80 bg-white text-brand shadow-[0_8px_18px_rgba(0,0,0,0.16)] transition active:scale-95" aria-label="Change profile photo" title="Change profile photo">
-              <Pencil size={11} />
-              <input className="sr-only" type="file" accept="image/*" onChange={updateProfilePhoto} />
-            </label>
+            <Avatar className="relative grid h-16 w-16 place-items-center overflow-hidden rounded-full border-hairline border-white/35 bg-white/16 text-lg font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.14)] backdrop-blur md:h-20 md:w-20" name={profile.fullName} photoUrl={profile.profilePhotoUrl} ariaLabel={`${profile.fullName} profile photo`} />
+            {!tournamentProfileMode && (
+              <label className="absolute bottom-1 right-1 grid h-6 w-6 cursor-pointer place-items-center rounded-full border-hairline border-white/80 bg-white text-brand shadow-[0_8px_18px_rgba(0,0,0,0.16)] transition active:scale-95" aria-label="Change profile photo" title="Change profile photo">
+                <Pencil size={11} />
+                <input className="sr-only" type="file" accept="image/*" onChange={updateProfilePhoto} />
+              </label>
+            )}
+            {!tournamentProfileMode && profile.profilePhotoUrl && (
+              <button className="absolute bottom-1 left-1 grid h-6 w-6 place-items-center rounded-full border-hairline border-white/80 bg-[#fff5f5] text-[#a32d2d] shadow-[0_8px_18px_rgba(0,0,0,0.16)] transition active:scale-95 disabled:opacity-60" type="button" onClick={removeProfilePhoto} disabled={removingPhoto} aria-label="Remove profile photo" title="Remove profile photo">
+                <Trash2 size={11} />
+              </button>
+            )}
           </div>
-          <div className="absolute bottom-5 left-5 flex flex-wrap gap-2 lg:bottom-6 lg:left-6">
+          <div className="absolute bottom-4 left-4 flex flex-wrap gap-2 md:bottom-5 md:left-5">
             <span className="rounded-full bg-white/12 px-3 py-1 text-[13px] text-white/85">Rating {profile.rating}</span>
             <span className="rounded-full bg-white/12 px-3 py-1 text-[13px] text-white/85">{profile.jamaatCity}</span>
           </div>
         </section>
 
         <section className="grid gap-4">
+          {tournamentProfileMode && !showTournamentProfileComplete && (
+            <section className="grid gap-3 rounded-[18px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-4">
+              <span className="grid gap-1">
+                <strong className="text-[16px] font-medium text-[#8a4a22]">Finish your tournament profile</strong>
+                <em className="text-[13px] not-italic leading-relaxed text-[#8a4a22]/85">Add your profile photo and jersey name so your team card, shirt name, and roster details are ready before the tournament.</em>
+              </span>
+              <div className="grid gap-3 rounded-[14px] border-hairline border-[#f2dccb] bg-white p-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+                <Avatar className="relative grid h-16 w-16 place-items-center overflow-hidden rounded-full bg-brand-light text-[17px] font-medium text-[#3b6d11]" name={profile.fullName} photoUrl={profile.profilePhotoUrl} ariaLabel={`${profile.fullName} profile photo`} />
+                <span className="grid gap-2">
+                  <strong className="text-[14px] font-medium text-text-primary">{profile.profilePhotoUrl ? "Profile photo added" : "Profile photo missing"}</strong>
+                  <span className="flex flex-wrap gap-2">
+                    <label className="tap-card inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-3 text-[13px] font-medium text-white shadow-[0_10px_22px_rgba(12,59,32,0.12)]">
+                      <Pencil size={13} />
+                      {uploadingPhoto ? "Uploading..." : profile.profilePhotoUrl ? "Replace photo" : "Upload photo"}
+                      <input className="sr-only" type="file" accept="image/*" onChange={updateProfilePhoto} disabled={uploadingPhoto} />
+                    </label>
+                    {profile.profilePhotoUrl && (
+                      <button className="tap-card inline-flex min-h-9 items-center justify-center gap-2 rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-3 text-[13px] font-medium text-[#a32d2d] disabled:opacity-60" type="button" onClick={removeProfilePhoto} disabled={removingPhoto}>
+                        <Trash2 size={13} />
+                        {removingPhoto ? "Removing..." : "Remove"}
+                      </button>
+                    )}
+                  </span>
+                </span>
+              </div>
+              <label className="grid gap-2 text-[13px] text-[#8a4a22]">
+                Jersey name
+                <input
+                  className="min-h-10 rounded-[12px] border-hairline border-[#f2dccb] bg-white px-3 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
+                  value={profile.jerseyName}
+                  onChange={(event) => updateProfile("jerseyName", event.target.value)}
+                  placeholder="Name for shirt roster"
+                />
+              </label>
+              <div className="grid gap-2 sm:grid-cols-[auto_auto]">
+                <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_10px_22px_rgba(12,59,32,0.12)] disabled:opacity-60" type="button" onClick={saveTournamentProfile} disabled={saving || uploadingPhoto || removingPhoto}>
+                  {saving ? "Saving..." : "Save tournament profile"}
+                </button>
+                <Link className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] border-hairline border-[#f2dccb] bg-white px-4 text-[13px] font-medium text-[#8a4a22]" href={returnPath}>
+                  Back to tournament
+                </Link>
+              </div>
+            </section>
+          )}
+          {showTournamentProfileComplete && (
+            <section className="grid gap-3 rounded-[18px] border-hairline border-[#dbe8cd] bg-brand-light p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <span className="grid gap-1">
+                <strong className="text-[16px] font-medium text-[#27500a]">Tournament profile complete</strong>
+                <em className="text-[13px] not-italic leading-relaxed text-[#3b6d11]">Your profile photo and jersey name are saved for tournament roster details.</em>
+              </span>
+              <Link className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_10px_22px_rgba(12,59,32,0.12)]" href={returnPath}>
+                Back to tournament
+              </Link>
+            </section>
+          )}
+
 	          <div className="flex flex-wrap gap-2" aria-label="Profile summary">
 	            <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] text-[#3b6d11]">{profile.selfEvaluation}</span>
 	            <span className="rounded-full bg-[#e5f1ff] px-3 py-1 text-[13px] text-[#185fa5]">{profile.jamaatCity}</span>
@@ -3053,15 +3238,15 @@ export function PlayerScreen() {
           </div>
 
 	          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Player performance stats">
-	            <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"><span className="text-[13px] text-text-secondary">Rating</span><strong className="text-[20px] font-medium text-text-primary">{profile.rating}</strong></article>
-	            <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"><span className="text-[13px] text-text-secondary">Tournaments</span><strong className="text-[20px] font-medium text-text-primary">{profile.tournamentsPlayed}</strong></article>
-	            <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"><span className="text-[13px] text-text-secondary">Matches</span><strong className="text-[20px] font-medium text-text-primary">{profile.matchesPlayed}</strong></article>
-	            <button className="grid gap-2 rounded-[14px] border-hairline border-white/20 bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-4 text-left text-white shadow-[0_14px_30px_rgba(12,59,32,0.18)] transition active:scale-[0.99]" type="button" onClick={() => setShowPayments(true)} aria-haspopup="dialog">
+	            <article className="grid gap-1.5 rounded-[12px] border-hairline border-line bg-card p-3"><span className="text-[12px] text-text-secondary">Rating</span><strong className="text-[17px] font-medium text-text-primary">{profile.rating}</strong></article>
+	            <article className="grid gap-1.5 rounded-[12px] border-hairline border-line bg-card p-3"><span className="text-[12px] text-text-secondary">Tournaments</span><strong className="text-[17px] font-medium text-text-primary">{profile.tournamentsPlayed}</strong></article>
+	            <article className="grid gap-1.5 rounded-[12px] border-hairline border-line bg-card p-3"><span className="text-[12px] text-text-secondary">Matches</span><strong className="text-[17px] font-medium text-text-primary">{profile.matchesPlayed}</strong></article>
+	            <button className="grid gap-1.5 rounded-[12px] border-hairline border-white/20 bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-3 text-left text-white shadow-[0_10px_24px_rgba(12,59,32,0.14)] transition active:scale-[0.99]" type="button" onClick={() => setShowPayments(true)} aria-haspopup="dialog">
 	              <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-[13px] text-white/72">
 	                Payments
 	                <ArrowRight size={15} className="text-white" />
 	              </span>
-	              <strong className="text-[20px] font-medium text-white">{paymentHistory.length}</strong>
+	              <strong className="text-[17px] font-medium text-white">{paymentHistory.length}</strong>
 	            </button>
 	          </div>
 
@@ -3119,6 +3304,18 @@ export function PlayerScreen() {
                 inputRef={(node) => { if (node) editableFieldRefs.current.jerseySize = node; }}
                 helper={<button className="font-medium text-brand" type="button" onClick={() => setSizeGuideOpen(true)}>Size guide</button>}
               />
+              {!tournamentProfileMode && (
+                <ProfileField
+                  label="Jersey Name"
+                  value={profile.jerseyName}
+                  displayValue={profile.jerseyName || "Not set"}
+                  editing={isEditing}
+                  onEdit={() => startProfileEdit("jerseyName")}
+                  onChange={(value) => updateProfile("jerseyName", value)}
+                  inputRef={(node) => { if (node) editableFieldRefs.current.jerseyName = node; }}
+                  helper={<span>This is the name organizers use for shirt orders and tournament roster exports.</span>}
+                />
+              )}
               <ProfileField
                 label="Tennis video Google Drive link recommended"
                 value={profile.tennisVideo}
@@ -3143,7 +3340,12 @@ export function PlayerScreen() {
               </div>
             )}
           </div>
-          {message && <StatusMessage tone={message === "Profile saved." || message === "Photo updated." ? "success" : message.includes("upload") || message.includes("Compressing") ? "info" : "error"}>{message}</StatusMessage>}
+          {message && !tournamentProfileSaved && <StatusMessage tone={message === "Profile saved." || message === "Photo updated." || message === "Photo removed." ? "success" : message.includes("upload") || message.includes("Compressing") ? "info" : "error"}>{message}</StatusMessage>}
+          {tournamentProfileMode && message === "Profile saved." && (
+            <Link className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-sm font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.18)]" href={returnPath}>
+              Back to tournament
+            </Link>
+          )}
 
           <div className="grid pt-6">
             <button
@@ -3209,6 +3411,7 @@ function mapProfile(row: DbProfileRow): ProfileData {
     tournamentsPlayed: String(row.tournaments_played || 0),
     matchesPlayed: String(row.matches_played || 0),
     jerseySize: row.jersey_size || "",
+    jerseyName: row.jersey_name || "",
     tennisVideo: hasPlayerVideoLink(row.tennis_video_url) ? row.tennis_video_url || "" : ""
   };
 }
@@ -3850,13 +4053,13 @@ function ProfileField({
   max?: string;
 }) {
   return (
-    <article className={editing ? "grid gap-2 rounded-[14px] border-hairline border-[#bdd7aa] bg-white p-4 shadow-[0_8px_20px_rgba(12,59,32,0.04)]" : "grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4"}>
+    <article className={editing ? "grid gap-2 rounded-[12px] border-hairline border-[#bdd7aa] bg-white p-3 shadow-[0_6px_18px_rgba(12,59,32,0.035)]" : "grid gap-2 rounded-[12px] border-hairline border-line bg-card p-3"}>
       <span className="text-[13px] text-text-secondary">{label}</span>
       {editing ? (
-        <input ref={inputRef} className="min-h-11 rounded-[12px] border-hairline border-brand bg-white px-3 text-[16px] text-text-primary outline-none transition ring-2 ring-brand-light placeholder:text-text-muted focus:border-brand focus:ring-4 focus:ring-brand-light" value={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} type={inputType} max={max} />
+        <input ref={inputRef} className="min-h-10 rounded-[10px] border-hairline border-brand bg-white px-3 text-[15px] text-text-primary outline-none transition ring-2 ring-brand-light placeholder:text-text-muted focus:border-brand focus:ring-4 focus:ring-brand-light" value={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} type={inputType} max={max} />
       ) : (
         <button className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-left" type="button" onClick={onEdit}>
-          <strong className="break-words text-[17px] font-medium text-text-primary">{displayValue || value || "Not set"}</strong>
+          <strong className="break-words text-[15px] font-medium text-text-primary">{displayValue || value || "Not set"}</strong>
           <Pencil className="text-text-muted" size={14} aria-hidden="true" />
         </button>
       )}
