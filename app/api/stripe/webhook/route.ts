@@ -17,11 +17,18 @@ async function markCheckoutPaid(
 
   if (!playerId || !tournamentId) return;
 
+  const { data: player } = await admin
+    .from("players")
+    .select("full_name, jersey_name")
+    .eq("id", playerId)
+    .maybeSingle();
+
   const { data: registration } = await admin.from("tournament_registrations").upsert({
     tournament_id: tournamentId,
     player_id: playerId,
     status: "registered",
-    payment_status: "paid"
+    payment_status: "paid",
+    shirt_name: player?.jersey_name || null
   }, { onConflict: "tournament_id,player_id" }).select("id").single();
 
   await admin

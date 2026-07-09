@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   const [{ data: player }, { data: tournament }] = await Promise.all([
     admin
       .from("players")
-      .select("id, full_name, phone, email")
+      .select("id, full_name, phone, email, jersey_name")
       .eq("auth_user_id", userData.user.id)
       .maybeSingle(),
     admin
@@ -84,7 +84,8 @@ export async function POST(request: NextRequest) {
       player_id: player.id,
       status: "registered",
       payment_status: "waived",
-      waitlist_status: acceptedWaitlist ? "accepted" : "none"
+      waitlist_status: acceptedWaitlist ? "accepted" : "none",
+      shirt_name: player.jersey_name || null
     }, { onConflict: "tournament_id,player_id" });
     return NextResponse.json({ registered: true });
   }
