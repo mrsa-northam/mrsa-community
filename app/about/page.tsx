@@ -932,11 +932,10 @@ function AboutBottomNav({ paused }: { paused: boolean }) {
 
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-50 grid grid-cols-3 border-t-hairline border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.82))] px-4 pt-3 shadow-[0_-18px_44px_rgba(24,24,26,0.08)] backdrop-blur-2xl transition-[transform,opacity] duration-[250ms] ease-in-out motion-reduce:transition-none ${visible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"}`}
+      className={`fixed inset-x-0 bottom-0 z-50 grid grid-cols-2 border-t-hairline border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.82))] px-4 pt-3 shadow-[0_-18px_44px_rgba(24,24,26,0.08)] backdrop-blur-2xl transition-[transform,opacity] duration-[250ms] ease-in-out motion-reduce:transition-none ${visible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"}`}
       style={{ paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}
       aria-label="About page navigation"
     >
-      <AboutNavLink href="/dashboard" label="Home" icon="home" />
       <AboutNavLink href="/tournaments" label="Tournament" icon="trophy" />
       <AboutNavLink href="/profile" label="Profile" icon="profile" />
     </nav>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, DollarSign, ExternalLink, Home, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, Clock, DollarSign, ExternalLink, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -11,7 +11,7 @@ import { getSupabaseClient } from "./lib/supabase";
 
 const TournamentHeroAmbience = dynamic(() => import("./tournament-hero-ambience").then((mod) => mod.TournamentHeroAmbience), { ssr: false });
 
-type Tab = "home" | "tournament" | "profile" | "admin";
+type Tab = "tournament" | "profile" | "admin";
 type ProfileData = {
   id?: string;
   profilePhotoUrl?: string;
@@ -56,9 +56,27 @@ type Tournament = {
 };
 type TournamentFaq = { question: string; answer: string };
 type RegisteredPlayer = { id: string; name: string; age: string; city: string; rating: string; tennisVideoUrl: string };
-type TournamentProfileReminder = { missingPhoto: boolean; missingJerseyName: boolean };
-type PublishedTeamMember = { id: string; name: string; age: string; city: string; tier: string; rating: string; isCaptain: boolean; draftOrder: number | null };
-type PublishedTeam = { id: string; name: string; logoUrl: string; jerseyColor: string; members: PublishedTeamMember[] };
+type TournamentProfileReminder = { missingPhoto: boolean; missingJerseyName: boolean; missingJerseySize: boolean };
+type PublishedTeamMember = { id: string; playerId: string; name: string; age: string; city: string; tier: string; rating: string; isCaptain: boolean; draftOrder: number | null };
+type PublishedTeam = { id: string; name: string; sortOrder: number; logoUrl: string; jerseyColor: string; members: PublishedTeamMember[] };
+type ScheduleNote = { id: string; title: string; body: string; sortOrder: number };
+type ScheduleItem = {
+  id: string;
+  itemType: "match" | "event";
+  dayNumber: number;
+  dayLabel: string;
+  timeLabel: string;
+  podLabel: string;
+  courtLabel: string;
+  phase: string;
+  matchLabel: string;
+  teamASortOrder: number | null;
+  teamBSortOrder: number | null;
+  teamALabel: string;
+  teamBLabel: string;
+  detail: string;
+  sortOrder: number;
+};
 type TournamentCountdown = {
   state: "countdown" | "today" | "started" | "date_tbd";
   days: number;
@@ -284,7 +302,7 @@ function AppTopBar({
   return (
     <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-2.5 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
       <div className="mx-auto grid w-full max-w-shell grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center">
-        <Link className="tap-card inline-flex min-w-0 justify-self-start" href="/dashboard" aria-label="MRSA home">
+        <Link className="tap-card inline-flex min-w-0 justify-self-start" href="/tournaments" aria-label="MRSA tournament">
           <BrandMark />
         </Link>
         <span aria-hidden="true" />
@@ -394,7 +412,7 @@ function OnboardingStep({ step, total, label }: { step: number; total: number; l
 function normalizeNextPath(nextPath?: string | null) {
   if (!nextPath) return "/tournaments";
   if (nextPath.startsWith("/tournaments")) return "/tournaments";
-  if (nextPath.startsWith("/dashboard")) return "/dashboard";
+  if (nextPath.startsWith("/dashboard")) return "/tournaments";
   return "/tournaments";
 }
 
@@ -416,7 +434,8 @@ function buildTournamentProfileEditPath(tournamentId: string) {
 function getTournamentProfileReminder(profile: DbProfileRow | null | undefined, shirtName: string): TournamentProfileReminder | null {
   const missingPhoto = !profile?.profile_photo_url?.trim();
   const missingJerseyName = !profile?.jersey_name?.trim() && !shirtName.trim();
-  return missingPhoto || missingJerseyName ? { missingPhoto, missingJerseyName } : null;
+  const missingJerseySize = !profile?.jersey_size?.trim();
+  return missingPhoto || missingJerseyName || missingJerseySize ? { missingPhoto, missingJerseyName, missingJerseySize } : null;
 }
 
 function buildPlayerCheckPath(nextPath?: string | null, reason?: "rejected", playerName?: string | null, adminNote?: string | null) {
@@ -1702,7 +1721,7 @@ export function HomeScreen() {
   const homeTournamentCopy = getHomeTournamentCopy(upcomingTournament, homeTournamentStatus);
 
   return (
-    <AppFrame active="home">
+    <AppFrame active="tournament">
       <div className={memberPageClass}>
         <AppTopBar />
 
@@ -1914,6 +1933,7 @@ export function DrawScreen() {
       return {
         id: team.id,
         name: team.name || "Team",
+        sortOrder: team.sort_order || 0,
         logoUrl: team.logo_url || "",
         jerseyColor: normalizeTeamColor(team.jersey_color),
         members: members
@@ -1921,6 +1941,7 @@ export function DrawScreen() {
             const player = Array.isArray(member.players) ? member.players[0] : member.players;
             return {
               id: member.id,
+              playerId: player?.id || "",
               name: player?.full_name || "Player",
               age: formatRegisteredPlayerAge(player?.date_of_birth, player?.age),
               city: player?.jamaat_city || "MRSA",
@@ -2248,7 +2269,7 @@ export function DrawScreen() {
     const canPayForTournament = Boolean(registrationOpen || waitlistAccepted);
     const needsTournamentVideoLink = needsPlayerVideoUpload(appSession.player?.tennis_video_url, appSession.player?.tennis_video_status);
     const registeredPlayerCountLabel = `${registeredPlayers.length} ${registeredPlayers.length === 1 ? "player" : "players"}`;
-    const tournamentProfileReminder = tournament ? getTournamentProfileReminder(appSession.player, registrationShirtName) : null;
+    const tournamentProfileReminder = tournament && registered ? getTournamentProfileReminder(appSession.player, registrationShirtName) : null;
 
   return (
     <AppFrame active="tournament">
@@ -2387,10 +2408,12 @@ export function DrawScreen() {
                 <strong className="text-[15px] font-medium text-[#8a4a22]">Your tournament profile is incomplete</strong>
                 <em className="text-[13px] not-italic leading-relaxed text-[#8a4a22]/85">
                   {tournamentProfileReminder.missingPhoto && tournamentProfileReminder.missingJerseyName
-                    ? "Add your profile photo and jersey name now so your team card, shirt name, and roster details are ready before the tournament."
+                    ? "Add your profile photo, jersey name, and jersey size now so your team card, shirt name, and roster details are ready before the tournament."
                     : tournamentProfileReminder.missingPhoto
                       ? "Add your profile photo now so your team card and roster details are ready before the tournament."
-                      : "Add your jersey name now so your shirt name and roster details are ready before the tournament."}
+                      : tournamentProfileReminder.missingJerseyName
+                        ? "Add your jersey name now so your shirt name and roster details are ready before the tournament."
+                        : "Add your jersey size now so your shirt order and roster details are ready before the tournament."}
                 </em>
               </span>
               <Link className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.14)]" href={buildTournamentProfileEditPath(tournament.id)}>
@@ -2402,6 +2425,19 @@ export function DrawScreen() {
         <section className="grid gap-4">
           {!tournament && (
             <StatusMessage tone="info">No live tournament found.</StatusMessage>
+          )}
+
+          {tournament && (
+            <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 shadow-[0_10px_24px_rgba(12,59,32,0.05)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <span className="grid gap-1">
+                <strong className="text-[16px] font-medium text-text-primary">Schedule has been posted</strong>
+                <em className="text-[13px] not-italic leading-relaxed text-text-secondary">View round-robin pods, bracket rounds, finals, and organizer notes in one schedule page.</em>
+              </span>
+              <Link className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.14)]" href="/tournaments/schedule">
+                View schedule
+                <ArrowRight size={14} />
+              </Link>
+            </section>
           )}
 
           {!!publishedTeams.length && (
@@ -2586,6 +2622,234 @@ export function DrawScreen() {
             </section>
           </div>
         )}
+      </div>
+    </AppFrame>
+  );
+}
+
+export function TournamentScheduleScreen() {
+  const appSession = useProtectedRoute("/tournaments/schedule", true);
+  const searchParams = useSearchParams();
+  const [teams, setTeams] = useState<PublishedTeam[]>([]);
+  const [items, setItems] = useState<ScheduleItem[]>([]);
+  const [notes, setNotes] = useState<ScheduleNote[]>([]);
+  const [filter, setFilter] = useState<"all" | "day1" | "day2" | "my">("all");
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const loadSchedule = useCallback(async () => {
+    if (!appSession.ready || !appSession.userId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setMessage("Supabase env vars are missing.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: tournamentData, error } = await supabase
+      .from("tournaments")
+      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
+      .in("status", ["draft", "registration_open", "registration_closed", "live"])
+      .order("starts_on", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      setMessage(getFriendlyError(error));
+      setLoading(false);
+      return;
+    }
+    if (!tournamentData) {
+      setTeams([]);
+      setItems([]);
+      setNotes([]);
+      setLoading(false);
+      return;
+    }
+
+    const mappedTournament = mapTournament(tournamentData);
+
+    const [teamsResult, itemsResult, notesResult] = await Promise.all([
+      supabase
+        .from("tournament_teams")
+        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
+        .eq("tournament_id", mappedTournament.id)
+        .eq("is_published", true)
+        .order("sort_order", { ascending: true })
+        .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
+        .limit(40),
+      supabase
+        .from("tournament_schedule_items")
+        .select("id, item_type, day_number, day_label, time_label, pod_label, court_label, phase, match_label, team_a_sort_order, team_b_sort_order, team_a_label, team_b_label, detail, sort_order")
+        .eq("tournament_id", mappedTournament.id)
+        .eq("is_published", true)
+        .order("day_number", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .limit(200),
+      supabase
+        .from("tournament_schedule_notes")
+        .select("id, title, body, sort_order")
+        .eq("tournament_id", mappedTournament.id)
+        .eq("is_published", true)
+        .order("sort_order", { ascending: true })
+        .limit(40)
+    ]);
+
+    if (teamsResult.error || itemsResult.error || notesResult.error) {
+      setMessage(getFriendlyError(teamsResult.error || itemsResult.error || notesResult.error));
+      setLoading(false);
+      return;
+    }
+
+    setTeams((teamsResult.data || []).map((team) => {
+      const members = Array.isArray(team.tournament_team_members) ? team.tournament_team_members : team.tournament_team_members ? [team.tournament_team_members] : [];
+      return {
+        id: team.id,
+        name: team.name || "Team",
+        sortOrder: team.sort_order || 0,
+        logoUrl: team.logo_url || "",
+        jerseyColor: normalizeTeamColor(team.jersey_color),
+        members: members.map((member) => {
+          const player = Array.isArray(member.players) ? member.players[0] : member.players;
+          return {
+            id: member.id,
+            playerId: player?.id || "",
+            name: player?.full_name || "Player",
+            age: formatRegisteredPlayerAge(player?.date_of_birth, player?.age),
+            city: player?.jamaat_city || "MRSA",
+            tier: member.tier_at_draft ? `Tier ${member.tier_at_draft}` : "Tier TBD",
+            rating: formatRegisteredPlayerRating(player?.rating),
+            isCaptain: Boolean(member.is_captain),
+            draftOrder: member.draft_order ?? null
+          };
+        })
+      };
+    }));
+
+    setItems((itemsResult.data || []).map((item) => ({
+      id: item.id,
+      itemType: item.item_type === "event" ? "event" : "match",
+      dayNumber: item.day_number || 1,
+      dayLabel: item.day_label || `Day ${item.day_number || 1}`,
+      timeLabel: item.time_label || "",
+      podLabel: item.pod_label || "",
+      courtLabel: item.court_label || "",
+      phase: item.phase || "",
+      matchLabel: item.match_label || "",
+      teamASortOrder: item.team_a_sort_order ?? null,
+      teamBSortOrder: item.team_b_sort_order ?? null,
+      teamALabel: item.team_a_label || "",
+      teamBLabel: item.team_b_label || "",
+      detail: item.detail || "",
+      sortOrder: item.sort_order || 0
+    })));
+    setNotes((notesResult.data || []).map((note) => ({
+      id: note.id,
+      title: note.title || "Note",
+      body: note.body || "",
+      sortOrder: note.sort_order || 0
+    })));
+    setLoading(false);
+  }, [appSession.ready, appSession.userId]);
+
+  useEffect(() => {
+    loadSchedule();
+  }, [loadSchedule]);
+
+  useEffect(() => {
+    const nextFilter = searchParams.get("filter");
+    if (nextFilter === "my") setFilter("my");
+  }, [searchParams]);
+
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+
+  const assignedTeam = getScheduleAssignedTeam(teams, appSession.player);
+  const visibleItems = items.filter((item) => {
+    if (filter === "day1") return item.dayNumber === 1;
+    if (filter === "day2") return item.dayNumber === 2;
+    if (filter === "my") return assignedTeam ? isScheduleItemForTeam(item, assignedTeam) : false;
+    return true;
+  });
+  const groupedItems = groupScheduleItems(visibleItems);
+  const filterTabs = [
+    { id: "all" as const, label: "All" },
+    { id: "day1" as const, label: "Day 1" },
+    { id: "day2" as const, label: "Day 2" },
+    { id: "my" as const, label: "My team" }
+  ];
+
+  return (
+    <AppFrame active="tournament">
+      <div className={memberPageClass}>
+        <AppTopBar />
+        <main className={memberMainClass}>
+          <section className="grid grid-cols-[34px_minmax(0,1fr)] items-center gap-3">
+            <Link className="tap-card grid h-8 w-8 place-items-center rounded-full border-hairline border-line bg-white text-brand shadow-[0_8px_18px_rgba(24,24,26,0.06)]" href="/tournaments" aria-label="Back to tournament">
+              <ArrowLeft size={15} />
+            </Link>
+            <div className="grid min-w-0 gap-1">
+              <h1 className="truncate text-[22px] font-medium leading-tight tracking-[-0.2px] text-text-primary">Schedule</h1>
+              <p className="text-[13px] leading-relaxed text-text-secondary">{assignedTeam ? `Your team: ${assignedTeam.name}` : "Full schedule, team-wise matches, and organizer notes."}</p>
+            </div>
+          </section>
+
+          {message && <StatusMessage tone="error">{message}</StatusMessage>}
+
+          <section className="overflow-hidden rounded-[16px] border-hairline border-line bg-card">
+            <button className="tap-card grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left sm:px-5" type="button" onClick={() => setNotesOpen((current) => !current)} aria-expanded={notesOpen} aria-controls="schedule-considerations">
+              <span className="grid gap-0.5">
+                <strong className="text-[15px] font-medium text-text-primary">Considerations and match rules</strong>
+                <em className="text-[12px] not-italic text-text-secondary">Court availability, matchup rules, finals format, and timed match rules.</em>
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">
+                {notes.length}
+                <ChevronDown size={15} className={`transition-transform ${notesOpen ? "rotate-180" : ""}`} />
+              </span>
+            </button>
+            {notesOpen && (
+              <div className="grid gap-2.5 border-t-hairline border-line p-4 sm:p-5" id="schedule-considerations">
+                {notes.map((note) => (
+                  <article className="grid gap-1.5 rounded-[14px] border-hairline border-line bg-white p-3.5 sm:p-4" key={note.id}>
+                    <strong className="text-[14px] font-medium text-text-primary">{note.title}</strong>
+                    <p className="text-[13px] leading-relaxed text-text-secondary">{note.body}</p>
+                  </article>
+                ))}
+                {!loading && !notes.length && <StatusMessage tone="info">Schedule considerations will appear here when posted.</StatusMessage>}
+              </div>
+            )}
+          </section>
+
+          <div className="grid grid-cols-4 gap-1.5 rounded-[16px] border-hairline border-line bg-white p-1.5">
+            {filterTabs.map((tab) => (
+              <button className={filter === tab.id ? "tap-card inline-flex min-h-9 min-w-0 items-center justify-center rounded-[12px] bg-brand px-1.5 text-center text-[12px] font-medium leading-none text-white sm:text-[13px]" : "tap-card inline-flex min-h-9 min-w-0 items-center justify-center rounded-[12px] px-1.5 text-center text-[12px] font-medium leading-none text-text-secondary sm:text-[13px]"} type="button" onClick={() => setFilter(tab.id)} key={tab.id}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {filter === "my" && !assignedTeam && (
+            <StatusMessage tone="warning">No team assignment found yet. Your team schedule will appear here once rosters are published.</StatusMessage>
+          )}
+
+          <section className="grid gap-4" aria-label="Tournament schedule">
+            {Object.entries(groupedItems).map(([dayLabel, dayItems]) => (
+              <section className="grid gap-2.5" key={dayLabel}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-[16px] font-medium text-text-primary">{dayLabel}</h2>
+                  <span className="rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">{dayItems.length} items</span>
+                </div>
+                <div className="grid gap-2.5">
+                  {dayItems.map((item) => (
+                    <ScheduleItemCard item={item} teams={teams} key={item.id} />
+                  ))}
+                </div>
+              </section>
+            ))}
+            {loading && Array.from({ length: 5 }).map((_, index) => <SkeletonRow key={index} />)}
+            {!loading && !visibleItems.length && <StatusMessage tone="info">No schedule items match this view.</StatusMessage>}
+          </section>
+        </main>
       </div>
     </AppFrame>
   );
@@ -2851,7 +3115,7 @@ export function AboutScreen() {
   const isAuthenticated = Boolean(appSession.ready && appSession.userId && appSession.profileComplete);
 
   return (
-    <AppFrame active={isAuthenticated ? "home" : undefined} withNav={isAuthenticated}>
+    <AppFrame active={isAuthenticated ? "tournament" : undefined} withNav={isAuthenticated}>
       <div className={memberPageClass}>
         <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/75 px-4 py-2.5 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-shell items-center justify-between">
@@ -3109,16 +3373,16 @@ export function PlayerScreen() {
   };
 
   const saveTournamentProfile = async () => {
-    if (!profile.profilePhotoUrl || !profile.jerseyName.trim()) {
+    if (!profile.profilePhotoUrl || !profile.jerseyName.trim() || !profile.jerseySize.trim()) {
       setTournamentProfileSaved(false);
-      setMessage("Add your profile photo and jersey name before saving your tournament profile.");
+      setMessage("Add your profile photo, jersey name, and jersey size before saving your tournament profile.");
       return;
     }
     const saved = await saveProfile();
     if (saved) setTournamentProfileSaved(true);
   };
 
-  const tournamentProfileComplete = Boolean(profile.profilePhotoUrl && profile.jerseyName.trim());
+  const tournamentProfileComplete = Boolean(profile.profilePhotoUrl && profile.jerseyName.trim() && profile.jerseySize.trim());
   const showTournamentProfileComplete = tournamentProfileMode && tournamentProfileComplete && tournamentProfileSaved;
 
   return (
@@ -3164,7 +3428,7 @@ export function PlayerScreen() {
             <section className="grid gap-3 rounded-[18px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-4">
               <span className="grid gap-1">
                 <strong className="text-[16px] font-medium text-[#8a4a22]">Finish your tournament profile</strong>
-                <em className="text-[13px] not-italic leading-relaxed text-[#8a4a22]/85">Add your profile photo and jersey name so your team card, shirt name, and roster details are ready before the tournament.</em>
+                <em className="text-[13px] not-italic leading-relaxed text-[#8a4a22]/85">Add your profile photo, jersey name, and jersey size so your team card, shirt name, and roster details are ready before the tournament.</em>
               </span>
               <div className="grid gap-3 rounded-[14px] border-hairline border-[#f2dccb] bg-white p-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
                 <Avatar className="relative grid h-16 w-16 place-items-center overflow-hidden rounded-full bg-brand-light text-[17px] font-medium text-[#3b6d11]" name={profile.fullName} photoUrl={profile.profilePhotoUrl} ariaLabel={`${profile.fullName} profile photo`} />
@@ -3194,6 +3458,18 @@ export function PlayerScreen() {
                   placeholder="Name for shirt roster"
                 />
               </label>
+              <label className="grid gap-2 text-[13px] text-[#8a4a22]">
+                Jersey size
+                <select
+                  className="min-h-10 rounded-[12px] border-hairline border-[#f2dccb] bg-white px-3 text-[15px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light"
+                  value={profile.jerseySize}
+                  onChange={(event) => updateProfile("jerseySize", event.target.value)}
+                >
+                  {["XS", "S", "M", "L", "XL", "2XL", "3XL"].map((size) => (
+                    <option value={size} key={size}>{size}</option>
+                  ))}
+                </select>
+              </label>
               <div className="grid gap-2 sm:grid-cols-[auto_auto]">
                 <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_10px_22px_rgba(12,59,32,0.12)] disabled:opacity-60" type="button" onClick={saveTournamentProfile} disabled={saving || uploadingPhoto || removingPhoto}>
                   {saving ? "Saving..." : "Save tournament profile"}
@@ -3208,7 +3484,7 @@ export function PlayerScreen() {
             <section className="grid gap-3 rounded-[18px] border-hairline border-[#dbe8cd] bg-brand-light p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <span className="grid gap-1">
                 <strong className="text-[16px] font-medium text-[#27500a]">Tournament profile complete</strong>
-                <em className="text-[13px] not-italic leading-relaxed text-[#3b6d11]">Your profile photo and jersey name are saved for tournament roster details.</em>
+                <em className="text-[13px] not-italic leading-relaxed text-[#3b6d11]">Your profile photo, jersey name, and jersey size are saved for tournament roster details.</em>
               </span>
               <Link className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_10px_22px_rgba(12,59,32,0.12)]" href={returnPath}>
                 Back to tournament
@@ -3796,6 +4072,90 @@ function CountdownUnit({ value, label }: { value: number; label: string }) {
   );
 }
 
+function ScheduleItemCard({ item, teams }: { item: ScheduleItem; teams: PublishedTeam[] }) {
+  const teamA = item.teamASortOrder ? teams.find((team) => team.sortOrder === item.teamASortOrder) : null;
+  const teamB = item.teamBSortOrder ? teams.find((team) => team.sortOrder === item.teamBSortOrder) : null;
+  const teamALabel = teamA?.name || item.teamALabel;
+  const teamBLabel = teamB?.name || item.teamBLabel;
+  const teamAColor = teamA?.jerseyColor || "#eaf3de";
+  const teamBColor = teamB?.jerseyColor || "#e5f1ff";
+
+  if (item.itemType === "event") {
+    return (
+      <article className="grid gap-2 rounded-[16px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-3 sm:grid-cols-[92px_minmax(0,1fr)] sm:items-center">
+        <span className="inline-flex w-max items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[12px] font-medium text-[#8a4a22]">
+          <Clock size={13} />
+          {item.timeLabel}
+        </span>
+        <span className="grid gap-1">
+          <strong className="text-[15px] font-medium text-text-primary">{item.matchLabel}</strong>
+          {item.detail && <em className="text-[13px] not-italic leading-relaxed text-text-secondary">{item.detail}</em>}
+        </span>
+      </article>
+    );
+  }
+
+  return (
+    <article className="grid gap-3 rounded-[16px] border-hairline border-line bg-card p-3 shadow-[0_8px_20px_rgba(24,24,26,0.04)] lg:grid-cols-[100px_minmax(0,1fr)_minmax(120px,0.35fr)] lg:items-center">
+      <span className="grid gap-1">
+        <strong className="text-[14px] font-medium text-brand">{item.timeLabel}</strong>
+        <em className="text-[12px] not-italic text-text-secondary">{[item.podLabel, item.courtLabel].filter(Boolean).join(" · ") || "Courts TBD"}</em>
+      </span>
+      <span className="grid gap-2">
+        <span className="flex flex-wrap items-center gap-2">
+          {item.phase && <b className="rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">{item.phase}</b>}
+          {item.detail && <em className="text-[12px] not-italic text-text-secondary">{item.detail}</em>}
+        </span>
+        <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+          <ScheduleTeamPill label={teamALabel} color={teamAColor} logoUrl={teamA?.logoUrl || ""} isFinalized={Boolean(teamA)} />
+          <em className="text-[12px] not-italic text-text-muted">vs</em>
+          <ScheduleTeamPill label={teamBLabel} color={teamBColor} logoUrl={teamB?.logoUrl || ""} isFinalized={Boolean(teamB)} />
+        </span>
+      </span>
+      <em className="text-[12px] not-italic leading-relaxed text-text-secondary lg:text-right">{item.matchLabel}</em>
+    </article>
+  );
+}
+
+function ScheduleTeamPill({ label, color, logoUrl, isFinalized }: { label: string; color: string; logoUrl: string; isFinalized: boolean }) {
+  const teamTone = getTeamCardTone(color);
+  const pillStyle = isFinalized
+    ? { background: teamTone.background, color: teamTone.textColor, borderColor: "rgba(255,255,255,0.28)" }
+    : undefined;
+  return (
+    <span className={isFinalized ? "grid min-h-9 min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-full border-hairline px-2 py-1 shadow-[0_8px_18px_rgba(12,59,32,0.12)]" : "grid min-h-9 min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-full border-hairline border-line bg-white px-2 py-1"} style={pillStyle}>
+      {logoUrl ? (
+        <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-white/90 p-1 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]">
+          <img className="block h-full max-h-full w-full max-w-full object-contain" src={logoUrl} alt="" aria-hidden="true" />
+        </span>
+      ) : (
+        <span className="grid h-7 w-7 place-items-center rounded-full text-[10px] font-medium text-white" style={{ backgroundColor: normalizeTeamColor(color) }}>{getInitials(label || "Team")}</span>
+      )}
+      <strong className={isFinalized ? "truncate text-[13px] font-medium text-current" : "truncate text-[13px] font-medium text-text-primary"}>{label || "TBD"}</strong>
+    </span>
+  );
+}
+
+function groupScheduleItems(items: ScheduleItem[]) {
+  return items.reduce<Record<string, ScheduleItem[]>>((groups, item) => {
+    groups[item.dayLabel] = groups[item.dayLabel] || [];
+    groups[item.dayLabel].push(item);
+    return groups;
+  }, {});
+}
+
+function isScheduleItemForTeam(item: ScheduleItem, team: PublishedTeam) {
+  return item.teamASortOrder === team.sortOrder || item.teamBSortOrder === team.sortOrder;
+}
+
+function getScheduleAssignedTeam(teams: PublishedTeam[], player: DbProfileRow | null) {
+  const directTeam = teams.find((team) => team.members.some((member) => member.playerId && member.playerId === player?.id));
+  if (directTeam) return directTeam;
+  const canUseMoizPreview = player?.full_name?.trim().toLowerCase() === "mohammed segval";
+  if (!canUseMoizPreview) return null;
+  return teams.find((team) => team.members.some((member) => member.name.trim().toLowerCase() === "moiz broachwala")) || null;
+}
+
 function getHomeTournamentCopy(tournament: Tournament | null, paymentState: PaymentState) {
   if (!tournament) {
     return {
@@ -4070,7 +4430,6 @@ function ProfileField({
 
 function BottomNav({ active, showAdmin }: { active: Tab; showAdmin: boolean }) {
   const tabs = [
-    { id: "home" as const, href: "/dashboard", label: "Home", icon: Home },
     { id: "tournament" as const, href: "/tournaments", label: "Tournament", icon: Trophy },
     { id: "profile" as const, href: "/profile", label: "Profile", icon: UsersRound },
     ...(showAdmin ? [{ id: "admin" as const, href: "/admin", label: "Admin", icon: Shield }] : [])
