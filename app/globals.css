@@ -5856,3 +5856,90 @@ body,
   max-height: 85vh;
   max-height: 85dvh;
 }
+
+.schedule-court-divider {
+  position: relative;
+  min-height: 76px;
+}
+
+.schedule-court-divider::before {
+  position: absolute;
+  inset: 3px 50%;
+  width: 1px;
+  content: "";
+  background: rgba(12, 59, 32, 0.22);
+  transform: translateX(-50%);
+}
+
+.schedule-court-divider::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 32px;
+  height: 54px;
+  content: "";
+  border: 1px solid rgba(12, 59, 32, 0.18);
+  border-right: 0;
+  border-left: 0;
+  transform: translate(-50%, -50%);
+}
+
+.schedule-court-label {
+  position: relative;
+  z-index: 1;
+  display: inline-grid;
+  min-width: 44px;
+  min-height: 34px;
+  place-items: center;
+  padding: 6px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-brand);
+  text-align: center;
+  background:
+    linear-gradient(90deg, transparent calc(50% - 0.5px), rgba(12, 59, 32, 0.16) calc(50% - 0.5px), rgba(12, 59, 32, 0.16) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(0deg, transparent calc(50% - 0.5px), rgba(12, 59, 32, 0.14) calc(50% - 0.5px), rgba(12, 59, 32, 0.14) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(90deg, transparent 23%, rgba(12, 59, 32, 0.1) 23%, rgba(12, 59, 32, 0.1) calc(23% + 1px), transparent calc(23% + 1px), transparent 77%, rgba(12, 59, 32, 0.1) 77%, rgba(12, 59, 32, 0.1) calc(77% + 1px), transparent calc(77% + 1px)),
+    #ffffff;
+  border: 0.5px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 6px 14px rgba(24, 24, 26, 0.06);
+}
+
+.schedule-court-label::before {
+  position: absolute;
+  inset: 5px;
+  content: "";
+  border: 0.5px solid rgba(12, 59, 32, 0.14);
+  border-radius: 3px;
+}
+
+@media (max-width: 639px) {
+  .schedule-court-divider {
+    min-height: 34px;
+  }
+
+  .schedule-court-divider::before {
+    inset: 50% 2px auto;
+    width: auto;
+    height: 1px;
+    transform: translateY(-50%);
+  }
+
+  .schedule-court-divider::after {
+    width: 72px;
+    height: 22px;
+    border: 1px solid rgba(12, 59, 32, 0.18);
+    border-top: 0;
+    border-bottom: 0;
+  }
+
+  .schedule-court-label {
+    min-width: 40px;
+    min-height: 30px;
+    padding: 5px 6px;
+    font-size: 12px;
+  }
+}

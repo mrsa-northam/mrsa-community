@@ -76,6 +76,9 @@ type AdminRegisteredPlayer = {
   paymentStatus: string | null;
   paymentAmountCents: number;
   paymentCurrency: string;
+  draftStatus: "drafted" | "not_drafted";
+  draftedTeamName: string;
+  refundStatus: string;
 };
 type AdminTeamMember = {
   id: string;
@@ -972,8 +975,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .from("tournament_registrations")
         .select("id, tournament_id, payment_status, players(id, full_name, email, phone, jamaat_city, age, date_of_birth, dominant_hand, jersey_size, jersey_name, profile_photo_url, tennis_video_url, tennis_video_status, self_assessment, tier, rating)")
         .eq("tournament_id", tournamentId)
-        .neq("status", "cancelled")
-        .in("payment_status", ["paid", "waived"])
+        .in("status", ["registered", "checked_in", "cancelled"])
+        .in("payment_status", ["paid", "waived", "refunded"])
         .order("registered_at", { ascending: true })
         .limit(500),
       supabase
@@ -996,7 +999,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .select("id, player_id, registration_id, status, amount_cents, currency, occurred_at")
         .eq("tournament_id", tournamentId)
         .eq("entry_type", "charge")
-        .eq("status", "paid")
+        .in("status", ["paid", "refunded"])
         .order("occurred_at", { ascending: false })
         .limit(120)
     ]);
@@ -1041,6 +1044,18 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         paymentsByPlayer.set(payment.player_id, payment);
       }
     });
+    const draftByRegistration = new Map<string, { teamName: string; isPublished: boolean }>();
+    (teamRows || []).forEach((team) => {
+      const members = Array.isArray(team.tournament_team_members) ? team.tournament_team_members : team.tournament_team_members ? [team.tournament_team_members] : [];
+      members.forEach((member) => {
+        if (member.registration_id) {
+          draftByRegistration.set(member.registration_id, {
+            teamName: team.name || "Team",
+            isPublished: Boolean(team.is_published)
+          });
+        }
+      });
+    });
     const registeredPlayerIds = new Set((registrations || []).flatMap((row) => {
       const player = Array.isArray(row.players) ? row.players[0] : row.players;
       return player?.id ? [player.id] : [];
@@ -1049,6 +1064,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       const player = Array.isArray(row.players) ? row.players[0] : row.players;
       if (!player || !row.id || !row.tournament_id) return [];
       const payment = paymentsByRegistration.get(row.id) || paymentsByPlayer.get(player.id) || null;
+      const draft = draftByRegistration.get(row.id) || null;
+      const normalizedPaymentStatus = row.payment_status || payment?.status || null;
       return [{
         id: player.id,
         registrationId: row.id,
@@ -1069,9 +1086,18 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         tier: Number(player.tier || 4),
         rating: player.rating,
         paymentId: payment?.id || null,
-        paymentStatus: row.payment_status || payment?.status || null,
+        paymentStatus: normalizedPaymentStatus,
         paymentAmountCents: payment?.amount_cents || 0,
-        paymentCurrency: payment?.currency || "USD"
+        paymentCurrency: payment?.currency || "USD",
+        draftStatus: draft ? "drafted" : "not_drafted",
+        draftedTeamName: draft?.teamName || "",
+        refundStatus: normalizedPaymentStatus === "refunded"
+          ? "Refunded"
+          : normalizedPaymentStatus === "paid"
+            ? "Not refunded"
+            : normalizedPaymentStatus === "waived"
+              ? "Waived"
+              : normalizedPaymentStatus || "Unknown"
       }];
     }));
     if (!teamError) {
@@ -1698,7 +1724,10 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       "Shirt size",
       "Tier",
       "Rating",
+      "Draft status",
+      "Drafted team",
       "Payment status",
+      "Refund status",
       "Payment amount",
       "Video status",
       "Video link"
@@ -1716,7 +1745,10 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       player.jerseySize,
       `Tier ${player.tier}`,
       formatAdminRating(player.rating),
+      player.draftStatus === "drafted" ? "Drafted" : "Not drafted",
+      player.draftedTeamName,
       player.paymentStatus || "",
+      player.refundStatus,
       player.paymentAmountCents ? formatAdminCurrency(player.paymentAmountCents, player.paymentCurrency) : "",
       player.tennisVideoUrl ? formatAdminVideoStatus(player.tennisVideoStatus) : "No video",
       player.tennisVideoUrl
@@ -1910,6 +1942,16 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
               onRemovePlayer={removePlayerFromTeam}
               onSetCaptain={setTeamCaptain}
               onUpdateShirtName={updateTeamMemberShirtName}
+            />
+          </section>
+
+          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
+            <UndraftedPlayersList
+              players={registeredPlayers.filter((player) => player.draftStatus === "not_drafted")}
+              onRemoveAndRefund={removeAndRefundRegisteredPlayer}
+              removingPlayerKey={removingPlayerKey}
+              confirmRemoveKey={confirmRemoveKey}
+              onCancelRemove={() => setConfirmRemoveKey(null)}
             />
           </section>
 
@@ -2367,6 +2409,92 @@ function WaitlistedPlayersList({ players, onReview, saving }: { players: AdminWa
   );
 }
 
+function UndraftedPlayersList({
+  players,
+  onRemoveAndRefund,
+  removingPlayerKey,
+  confirmRemoveKey,
+  onCancelRemove
+}: {
+  players: AdminRegisteredPlayer[];
+  onRemoveAndRefund: (player: AdminRegisteredPlayer) => Promise<void>;
+  removingPlayerKey: string | null;
+  confirmRemoveKey: string | null;
+  onCancelRemove: () => void;
+}) {
+  const refundedCount = players.filter((player) => player.refundStatus === "Refunded").length;
+  const needsRefundCount = players.filter((player) => player.refundStatus !== "Refunded" && player.paymentStatus === "paid").length;
+
+  return (
+    <div className="grid gap-3" aria-label="Undrafted players and refund status">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+        <span className="grid gap-1">
+          <h3 className="text-[16px] font-medium text-text-primary">Undrafted players</h3>
+          <em className="text-[13px] not-italic leading-relaxed text-text-secondary">Players who registered but were not assigned to a published draft team.</em>
+        </span>
+        <span className="flex flex-wrap gap-2 md:justify-end">
+          <b className="rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]">{players.length} undrafted</b>
+          <b className="rounded-full bg-[#fcebeb] px-2.5 py-1 text-[12px] font-medium text-[#a32d2d]">{refundedCount} refunded</b>
+          {!!needsRefundCount && <b className="rounded-full bg-white px-2.5 py-1 text-[12px] font-medium text-[#a32d2d] ring-1 ring-[#f2c8c8]">{needsRefundCount} needs refund</b>}
+        </span>
+      </div>
+      {players.length ? (
+        <ul className="grid gap-2">
+          {players
+            .slice()
+            .sort((a, b) => Number(a.refundStatus === "Refunded") - Number(b.refundStatus === "Refunded") || a.fullName.localeCompare(b.fullName))
+            .map((player) => {
+              const playerKey = `${player.tournamentId}:${player.id}`;
+              const confirmingRemove = confirmRemoveKey === playerKey;
+              const removing = removingPlayerKey === playerKey;
+              return (
+                <li className="grid gap-3 rounded-[14px] border-hairline border-line bg-white px-3 py-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" key={player.registrationId}>
+                  <div className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-3">
+                    <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#fff4d8] text-[13px] font-medium text-[#8a5a00]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+                      {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
+                    </span>
+                    <span className="grid min-w-0 gap-1">
+                      <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
+                      <em className="truncate text-[13px] not-italic text-text-secondary">{player.jamaatCity} · {player.email || "No email"} · {player.phone || "No phone"}</em>
+                      <span className="flex flex-wrap gap-1.5">
+                        <b className="rounded-full bg-[#fff4d8] px-2 py-0.5 text-[11px] font-medium text-[#8a5a00]">Not drafted</b>
+                        <b className={player.refundStatus === "Refunded" ? "rounded-full bg-[#fcebeb] px-2 py-0.5 text-[11px] font-medium text-[#a32d2d]" : "rounded-full bg-brand-light px-2 py-0.5 text-[11px] font-medium text-[#3b6d11]"}>{player.refundStatus}</b>
+                        <b className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-text-secondary">{player.paymentAmountCents ? formatAdminCurrency(player.paymentAmountCents, player.paymentCurrency) : "No amount"}</b>
+                      </span>
+                    </span>
+                  </div>
+                  <div className="grid gap-2 md:justify-items-end">
+                    {confirmingRemove && <em className="max-w-[190px] text-[12px] not-italic leading-snug text-[#a32d2d] md:text-right">Do you wanna remove them and refund them?</em>}
+                    <span className="flex flex-wrap gap-2 md:justify-end">
+                      {player.refundStatus !== "Refunded" && (
+                        <button
+                          className={confirmingRemove ? "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] bg-[#a32d2d] px-3 text-[12px] font-medium text-white disabled:opacity-60" : "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-3 text-[12px] font-medium text-[#a32d2d] disabled:opacity-60"}
+                          type="button"
+                          onClick={() => onRemoveAndRefund(player)}
+                          disabled={removing || !player.paymentId}
+                        >
+                          {removing ? "Refunding..." : confirmingRemove ? "Remove and Refund" : "Refund"}
+                        </button>
+                      )}
+                      {confirmingRemove && (
+                        <button className="tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] bg-surface px-3 text-[12px] font-medium text-text-secondary" type="button" onClick={onCancelRemove}>
+                          Cancel
+                        </button>
+                      )}
+                    </span>
+                    {!player.paymentId && player.refundStatus !== "Refunded" && <small className="text-[12px] leading-snug text-text-muted md:text-right">No Stripe payment found.</small>}
+                  </div>
+                </li>
+              );
+            })}
+        </ul>
+      ) : (
+        <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">Every registered player is currently drafted.</div>
+      )}
+    </div>
+  );
+}
+
 function TieredRegisteredPlayers({
   players,
   onTierChange,
@@ -2391,7 +2519,7 @@ function TieredRegisteredPlayers({
   const [collapsedTiers, setCollapsedTiers] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: true, 4: true });
 
   if (!players.length) {
-    return <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">No paid or waived registrations yet.</div>;
+    return <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">No paid, waived, or refunded registrations yet.</div>;
   }
 
   const grouped = [1, 2, 3, 4].map((tier) => ({
@@ -2423,11 +2551,12 @@ function TieredRegisteredPlayers({
 	          </button>
 	          {!collapsed && group.players.length ? (
 		            <ul className="grid gap-2" id={`tier-${group.tier}-registered-players`}>
-		              <li className="hidden rounded-[12px] border-hairline border-line/60 bg-white/55 px-3 py-2 text-[12px] font-medium text-text-secondary xl:grid xl:grid-cols-[minmax(180px,1.2fr)_minmax(130px,0.85fr)_minmax(150px,0.9fr)_90px_minmax(210px,1fr)_minmax(150px,0.75fr)] xl:items-center xl:gap-3">
+		              <li className="hidden rounded-[12px] border-hairline border-line/60 bg-white/55 px-3 py-2 text-[12px] font-medium text-text-secondary xl:grid xl:grid-cols-[minmax(180px,1.15fr)_minmax(130px,0.8fr)_minmax(150px,0.85fr)_80px_minmax(150px,0.85fr)_minmax(190px,1fr)_minmax(150px,0.75fr)] xl:items-center xl:gap-3">
 	                <span>Name</span>
 	                <span>City</span>
 	                <span>Tier</span>
 	                <span>Rating</span>
+	                <span>Draft / refund</span>
 	                <span>Video</span>
 	                <span>Action</span>
 	              </li>
@@ -2499,7 +2628,7 @@ function TieredRegisteredPlayerRow({
   const hasTierChange = pendingTier !== player.tier;
 
   return (
-    <li className="grid min-h-[64px] gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3 xl:grid-cols-[minmax(180px,1.2fr)_minmax(130px,0.85fr)_minmax(150px,0.9fr)_90px_minmax(210px,1fr)_minmax(150px,0.75fr)] xl:items-center" key={player.id}>
+    <li className="grid min-h-[64px] gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3 xl:grid-cols-[minmax(180px,1.15fr)_minmax(130px,0.8fr)_minmax(150px,0.85fr)_80px_minmax(150px,0.85fr)_minmax(190px,1fr)_minmax(150px,0.75fr)] xl:items-center" key={player.id}>
       <div className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-3">
         <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
           {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
@@ -2541,6 +2670,13 @@ function TieredRegisteredPlayerRow({
       <div className="grid gap-1 xl:justify-items-start">
         <span className="text-[12px] font-medium text-text-secondary xl:hidden">Rating</span>
         <strong className="text-[15px] font-medium leading-none text-brand">{formatAdminRating(player.rating)}</strong>
+      </div>
+      <div className="grid gap-1 xl:justify-items-start">
+        <span className="text-[12px] font-medium text-text-secondary xl:hidden">Draft / refund</span>
+        <span className={player.draftStatus === "drafted" ? "inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]" : "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]"}>
+          {player.draftStatus === "drafted" ? `Drafted${player.draftedTeamName ? ` · ${player.draftedTeamName}` : ""}` : "Not drafted"}
+        </span>
+        <em className={player.refundStatus === "Refunded" ? "text-[12px] not-italic text-[#a32d2d]" : "text-[12px] not-italic text-text-secondary"}>{player.refundStatus}</em>
       </div>
       <div className="grid gap-1 xl:justify-items-start">
         <span className="text-[12px] font-medium text-text-secondary xl:hidden">Video</span>
