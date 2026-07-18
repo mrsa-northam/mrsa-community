@@ -59,6 +59,9 @@ type RegisteredPlayer = { id: string; name: string; age: string; city: string; r
 type TournamentProfileReminder = { missingPhoto: boolean; missingJerseyName: boolean; missingJerseySize: boolean };
 type PublishedTeamMember = { id: string; playerId: string; name: string; age: string; city: string; tier: string; rating: string; isCaptain: boolean; draftOrder: number | null };
 type PublishedTeam = { id: string; name: string; sortOrder: number; logoUrl: string; jerseyColor: string; members: PublishedTeamMember[] };
+type PublishedTeamPlayerRow = { id?: string | null; full_name?: string | null; jamaat_city?: string | null; age?: number | null; date_of_birth?: string | null; rating?: number | string | null };
+type PublishedTeamMemberRow = { id?: string | null; is_captain?: boolean | null; draft_order?: number | null; tier_at_draft?: number | null; players?: PublishedTeamPlayerRow | PublishedTeamPlayerRow[] | null };
+type PublishedTeamRow = { id?: string | null; name?: string | null; sort_order?: number | null; logo_url?: string | null; jersey_color?: string | null; tournament_team_members?: PublishedTeamMemberRow | PublishedTeamMemberRow[] | null };
 type ScheduleNote = { id: string; title: string; body: string; sortOrder: number };
 type ScheduleItem = {
   id: string;
@@ -79,6 +82,7 @@ type ScheduleItem = {
 };
 type PlayerScheduleMatch = {
   id: string;
+  tournamentId: string;
   dayNumber: number;
   dayLabel: string;
   timeLabel: string;
@@ -90,14 +94,32 @@ type PlayerScheduleMatch = {
   tierRule: string;
   teamName: string;
   opposingTeamName: string;
+  teamColor: string;
+  opposingTeamColor: string;
+  teamLogoUrl: string;
+  opposingTeamLogoUrl: string;
   playerSideNames: string[];
   partnerNames: string[];
   opponentNames: string[];
+  score: MatchScore | null;
   matchId: string;
   sortOrder: number;
 };
+type MatchScore = {
+  id: string;
+  scheduleMatchId: string;
+  sideASet1: number | null;
+  sideBSet1: number | null;
+  sideASet2: number | null;
+  sideBSet2: number | null;
+  sideASet3: number | null;
+  sideBSet3: number | null;
+  winnerSide: "A" | "B" | "";
+  submittedAt: string;
+};
 type TeamCourtScheduleMatch = {
   id: string;
+  tournamentId: string;
   dayNumber: number;
   dayLabel: string;
   timeLabel: string;
@@ -109,6 +131,7 @@ type TeamCourtScheduleMatch = {
   teamBName: string;
   playersA: string[];
   playersB: string[];
+  score: MatchScore | null;
   sortOrder: number;
 };
 type TeamCourtScheduleBlock = {
@@ -121,6 +144,7 @@ type TeamCourtScheduleBlock = {
 };
 type PlayerScheduleMatchRow = {
   id: string;
+  tournament_id: string | null;
   day_number: number | null;
   day_label: string | null;
   time_label: string | null;
@@ -146,6 +170,27 @@ type PlayerScheduleParticipantRow = {
   slot: number | null;
   source_player_name: string | null;
 };
+type MatchScoreRow = {
+  id: string;
+  schedule_match_id: string;
+  side_a_set1: number | null;
+  side_b_set1: number | null;
+  side_a_set2: number | null;
+  side_b_set2: number | null;
+  side_a_set3: number | null;
+  side_b_set3: number | null;
+  winner_side: string | null;
+  submitted_at: string | null;
+};
+type ScoreDraft = {
+  sideASet1: string;
+  sideBSet1: string;
+  sideASet2: string;
+  sideBSet2: string;
+  sideASet3: string;
+  sideBSet3: string;
+};
+type ScoreEntryWindow = { canEdit: boolean; label: string };
 type TournamentCountdown = {
   state: "countdown" | "today" | "started" | "date_tbd";
   days: number;
@@ -2698,6 +2743,7 @@ export function DrawScreen() {
 
 export function TournamentScheduleScreen() {
   const appSession = useProtectedRoute("/tournaments/schedule", true);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [teams, setTeams] = useState<PublishedTeam[]>([]);
   const [items, setItems] = useState<ScheduleItem[]>([]);
@@ -2706,6 +2752,7 @@ export function TournamentScheduleScreen() {
   const [notes, setNotes] = useState<ScheduleNote[]>([]);
   const [filter, setFilter] = useState<"matches" | "team" | "day1" | "day2">("matches");
   const [notesOpen, setNotesOpen] = useState(false);
+  const [openDayScheduleBlocks, setOpenDayScheduleBlocks] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -2743,7 +2790,7 @@ export function TournamentScheduleScreen() {
 
     const mappedTournament = mapTournament(tournamentData);
 
-    const [teamsResult, itemsResult, notesResult, scheduleMatchesResult, schedulePlayersResult] = await Promise.all([
+    const [teamsResult, itemsResult, notesResult, scheduleMatchesResult, schedulePlayersResult, scoresResult] = await Promise.all([
       supabase
         .from("tournament_teams")
         .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
@@ -2769,7 +2816,7 @@ export function TournamentScheduleScreen() {
         .limit(40),
       supabase
         .from("tournament_schedule_matches")
-        .select("id, day_number, day_label, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
+        .select("id, tournament_id, day_number, day_label, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
         .eq("tournament_id", mappedTournament.id)
         .eq("is_published", true)
         .order("day_number", { ascending: true })
@@ -2779,12 +2826,18 @@ export function TournamentScheduleScreen() {
         .from("tournament_schedule_match_players")
         .select("id, schedule_match_id, team_id, player_id, side, slot, source_player_name")
         .eq("tournament_id", mappedTournament.id)
-        .limit(1200)
+        .limit(1200),
+      supabase
+        .from("tournament_match_scores")
+        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+        .eq("tournament_id", mappedTournament.id)
+        .limit(400)
     ]);
 
     const playerScheduleSchemaMissing = isScheduleSchemaMissing(scheduleMatchesResult.error?.message || schedulePlayersResult.error?.message || "");
-    if (teamsResult.error || itemsResult.error || notesResult.error || (!playerScheduleSchemaMissing && (scheduleMatchesResult.error || schedulePlayersResult.error))) {
-      setMessage(getFriendlyError(teamsResult.error || itemsResult.error || notesResult.error || scheduleMatchesResult.error || schedulePlayersResult.error));
+    const scoreSchemaMissing = isScoreSchemaMissing(scoresResult.error?.message || "");
+    if (teamsResult.error || itemsResult.error || notesResult.error || (!playerScheduleSchemaMissing && (scheduleMatchesResult.error || schedulePlayersResult.error)) || (!scoreSchemaMissing && scoresResult.error)) {
+      setMessage(getFriendlyError(teamsResult.error || itemsResult.error || notesResult.error || scheduleMatchesResult.error || schedulePlayersResult.error || scoresResult.error));
       setLoading(false);
       return;
     }
@@ -2842,8 +2895,9 @@ export function TournamentScheduleScreen() {
       setPlayerMatches([]);
       setTeamCourtMatches([]);
     } else {
-      setPlayerMatches(mapPlayerScheduleMatches(scheduleMatchesResult.data || [], schedulePlayersResult.data || [], mappedTeams, getSchedulePreviewPlayerId(mappedTeams, appSession.player)));
-      setTeamCourtMatches(mapTeamCourtScheduleMatches(scheduleMatchesResult.data || [], schedulePlayersResult.data || [], mappedTeams));
+      const mappedScores = scoreSchemaMissing ? [] : mapMatchScores(scoresResult.data || []);
+      setPlayerMatches(mapPlayerScheduleMatches(scheduleMatchesResult.data || [], schedulePlayersResult.data || [], mappedTeams, mappedScores, getSchedulePreviewPlayerId(mappedTeams, appSession.player)));
+      setTeamCourtMatches(mapTeamCourtScheduleMatches(scheduleMatchesResult.data || [], schedulePlayersResult.data || [], mappedTeams, mappedScores));
     }
     setLoading(false);
   }, [appSession.player, appSession.ready, appSession.userId]);
@@ -2863,12 +2917,17 @@ export function TournamentScheduleScreen() {
   const visibleItems = items.filter((item) => {
     if (filter === "day1") return item.dayNumber === 1;
     if (filter === "day2") return item.dayNumber === 2;
-    if (filter === "team") return assignedTeam ? isScheduleItemForTeam(item, assignedTeam) : false;
+    if (filter === "team") return item.itemType === "event" || (assignedTeam ? isScheduleItemForTeam(item, assignedTeam) : false);
     return true;
   });
+  const visibleEventItems = visibleItems.filter((item) => item.itemType === "event");
   const visibleTeamCourtMatches = assignedTeam ? teamCourtMatches.filter((match) => match.teamAId === assignedTeam.id || match.teamBId === assignedTeam.id) : [];
   const groupedTeamCourtMatchBlocks = groupTeamCourtMatchesByTimeAndPair(visibleTeamCourtMatches, assignedTeam?.id || "");
+  const visibleDayCourtMatches = filter === "day1" || filter === "day2" ? teamCourtMatches.filter((match) => match.dayNumber === (filter === "day1" ? 1 : 2)) : [];
+  const groupedDayCourtMatchBlocks = groupAllTeamCourtMatchesByTimeAndPair(visibleDayCourtMatches);
   const groupedItems = groupScheduleItems(visibleItems);
+  const openMatchDetails = (match: TeamCourtScheduleMatch) => router.push(`/tournaments/schedule/matches/${match.id}`);
+  const openTeamDetails = (teamId: string) => router.push(`/tournaments/schedule/teams/${teamId}`);
   const filterTabs = [
     { id: "matches" as const, label: "My schedule", helper: "Your courts" },
     { id: "team" as const, label: "Team schedule", helper: assignedTeam?.name || "Your team" },
@@ -2937,18 +2996,25 @@ export function TournamentScheduleScreen() {
 
           <section className="grid gap-4" aria-label="Tournament schedule">
             {filter === "matches" && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {playerMatches.map((match, index) => (
-                  <PlayerScheduleMatchCard match={match} isFeatured={index === 0} key={match.id} />
-                ))}
-              </div>
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {playerMatches.map((match, index) => (
+                    <PlayerScheduleMatchCard match={match} isFeatured={index === 0} onOpenMatch={() => {
+                      const fullMatch = teamCourtMatches.find((teamMatch) => teamMatch.id === match.id);
+                      if (fullMatch) openMatchDetails(fullMatch);
+                    }} key={match.id} />
+                  ))}
+                </div>
+                <ScheduleEventsSection items={visibleEventItems} teams={teams} title="Breaks and events" />
+              </>
             )}
+            {filter === "team" && <ScheduleEventsSection items={visibleEventItems} teams={teams} title="Breaks and events" />}
             {filter === "team" && Object.entries(groupedTeamCourtMatchBlocks).map(([timeLabel, blocks], timeIndex) => (
               <section className="grid gap-2.5" key={timeLabel}>
                 <ScheduleTimeHeader label={timeLabel} count={blocks.reduce((total, block) => total + block.matches.length, 0)} />
                 <div className="grid gap-3">
                   {blocks.map((block, blockIndex) => (
-                    <TeamCourtScheduleBlock block={block} teams={teams} isFeatured={timeIndex === 0 && blockIndex === 0} key={block.id} />
+                    <TeamCourtScheduleBlock block={block} teams={teams} isFeatured={timeIndex === 0 && blockIndex === 0} onOpenMatch={openMatchDetails} onOpenTeam={openTeamDetails} key={block.id} />
                   ))}
                 </div>
               </section>
@@ -2963,7 +3029,24 @@ export function TournamentScheduleScreen() {
                 </div>
               </section>
             ))}
-            {filter !== "matches" && filter !== "team" && Object.entries(groupedItems).map(([dayLabel, dayItems]) => (
+            {(filter === "day1" || filter === "day2") && !!visibleDayCourtMatches.length && (
+              <>
+                <ScheduleEventsSection items={visibleEventItems} teams={teams} title="Kickoff, breaks, and events" />
+                {Object.entries(groupedDayCourtMatchBlocks).map(([timeLabel, blocks]) => (
+                  <DayScheduleTimeCard
+                    blocks={blocks}
+                    label={timeLabel}
+                    openBlocks={openDayScheduleBlocks}
+                    onToggleBlock={(blockId) => setOpenDayScheduleBlocks((current) => ({ ...current, [blockId]: !current[blockId] }))}
+                    teams={teams}
+                    onOpenMatch={openMatchDetails}
+                    onOpenTeam={openTeamDetails}
+                    key={timeLabel}
+                  />
+                ))}
+              </>
+            )}
+            {(filter === "day1" || filter === "day2") && !visibleDayCourtMatches.length && Object.entries(groupedItems).map(([dayLabel, dayItems]) => (
               <section className="grid gap-2.5" key={dayLabel}>
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="text-[16px] font-medium text-text-primary">{dayLabel}</h2>
@@ -2979,8 +3062,248 @@ export function TournamentScheduleScreen() {
             {loading && Array.from({ length: 5 }).map((_, index) => <SkeletonRow key={index} />)}
             {!loading && filter === "matches" && !playerMatches.length && <StatusMessage tone="info">Your individual match assignments will appear here once posted.</StatusMessage>}
             {!loading && filter === "team" && !visibleTeamCourtMatches.length && !visibleItems.length && <StatusMessage tone="info">No team schedule items match this view.</StatusMessage>}
-            {!loading && filter !== "matches" && filter !== "team" && !visibleItems.length && <StatusMessage tone="info">No schedule items match this view.</StatusMessage>}
+            {!loading && filter !== "matches" && filter !== "team" && !visibleItems.length && !visibleDayCourtMatches.length && <StatusMessage tone="info">No schedule items match this view.</StatusMessage>}
           </section>
+        </main>
+      </div>
+    </AppFrame>
+  );
+}
+
+export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) {
+  const appSession = useProtectedRoute(`/tournaments/schedule/matches/${matchId}`, true);
+  const [match, setMatch] = useState<TeamCourtScheduleMatch | null>(null);
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [isOwnMatch, setIsOwnMatch] = useState(false);
+  const [draft, setDraft] = useState<ScoreDraft>(getEmptyScoreDraft());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const loadMatch = useCallback(async () => {
+    if (!appSession.ready || !appSession.userId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setMessage("Supabase env vars are missing.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: matchRow, error: matchError } = await supabase
+      .from("tournament_schedule_matches")
+      .select("id, tournament_id, day_number, day_label, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
+      .eq("id", matchId)
+      .maybeSingle();
+
+    if (matchError || !matchRow) {
+      setMessage(matchError ? getFriendlyError(matchError) : "Match not found.");
+      setLoading(false);
+      return;
+    }
+
+    const [tournamentResult, teamsResult, participantsResult, scoresResult] = await Promise.all([
+      supabase
+        .from("tournaments")
+        .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
+        .eq("id", matchRow.tournament_id)
+        .maybeSingle(),
+      supabase
+        .from("tournament_teams")
+        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
+        .eq("tournament_id", matchRow.tournament_id)
+        .eq("is_published", true)
+        .order("sort_order", { ascending: true })
+        .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
+        .limit(40),
+      supabase
+        .from("tournament_schedule_match_players")
+        .select("id, schedule_match_id, team_id, player_id, side, slot, source_player_name")
+        .eq("schedule_match_id", matchId)
+        .limit(8),
+      supabase
+        .from("tournament_match_scores")
+        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+        .eq("schedule_match_id", matchId)
+        .maybeSingle()
+    ]);
+
+    const scoreSchemaMissing = isScoreSchemaMissing(scoresResult.error?.message || "");
+    if (tournamentResult.error || teamsResult.error || participantsResult.error || (!scoreSchemaMissing && scoresResult.error)) {
+      setMessage(getFriendlyError(tournamentResult.error || teamsResult.error || participantsResult.error || scoresResult.error));
+      setLoading(false);
+      return;
+    }
+
+    const mappedTournament = tournamentResult.data ? mapTournament(tournamentResult.data) : null;
+    const mappedTeams = mapPublishedTeamsFromRows(teamsResult.data || []);
+    const mappedScores = scoreSchemaMissing || !scoresResult.data ? [] : mapMatchScores([scoresResult.data]);
+    const mappedMatch = mapTeamCourtScheduleMatches([matchRow], participantsResult.data || [], mappedTeams, mappedScores)[0] || null;
+    const previewPlayerId = getSchedulePreviewPlayerId(mappedTeams, appSession.player);
+    setTournament(mappedTournament);
+    setMatch(mappedMatch);
+    setDraft(getScoreDraftFromScore(mappedMatch?.score));
+    setIsOwnMatch((participantsResult.data || []).some((participant) => participant.player_id === previewPlayerId));
+    setLoading(false);
+  }, [appSession.player, appSession.ready, appSession.userId, matchId]);
+
+  useEffect(() => {
+    loadMatch();
+  }, [loadMatch]);
+
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+
+  const entryWindow = getScoreEntryWindow(tournament?.startsOn || null, tournament?.endsOn || null);
+  const canSubmitScore = Boolean(isOwnMatch && entryWindow.canEdit);
+  const submitScore = async () => {
+    if (!match || !appSession.player?.id || !canSubmitScore) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setMessage("Supabase env vars are missing.");
+      return;
+    }
+    const parsedScore = parseScoreDraft(draft);
+    if (!parsedScore.ok) {
+      setMessage(parsedScore.message);
+      return;
+    }
+    setSaving(true);
+    setMessage("");
+    const { data, error } = await supabase
+      .from("tournament_match_scores")
+      .upsert({
+        tournament_id: match.tournamentId,
+        schedule_match_id: match.id,
+        side_a_set1: parsedScore.values.sideASet1,
+        side_b_set1: parsedScore.values.sideBSet1,
+        side_a_set2: parsedScore.values.sideASet2,
+        side_b_set2: parsedScore.values.sideBSet2,
+        side_a_set3: parsedScore.values.sideASet3,
+        side_b_set3: parsedScore.values.sideBSet3,
+        winner_side: parsedScore.values.winnerSide || null,
+        submitted_by: appSession.player.id,
+        submitted_at: new Date().toISOString()
+      }, { onConflict: "schedule_match_id" })
+      .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+      .maybeSingle();
+    setSaving(false);
+    if (error) {
+      setMessage(getFriendlyError(error));
+      return;
+    }
+    const nextScore = mapMatchScores(data ? [data] : [])[0] || null;
+    setMatch((current) => current ? { ...current, score: nextScore } : current);
+    setMessage("Score saved.");
+  };
+
+  return (
+    <AppFrame active="tournament">
+      <div className={memberPageClass}>
+        <AppTopBar />
+        <main className={memberMainClass}>
+          <ScheduleDetailBackLink label="Back to schedule" href="/tournaments/schedule" />
+          {loading && <SkeletonRow />}
+          {message && !match && <StatusMessage tone="error">{message}</StatusMessage>}
+          {match && (
+            <MatchDetailPageCard
+              canSubmit={canSubmitScore}
+              draft={draft}
+              entryLabel={isOwnMatch ? entryWindow.label : "Read only"}
+              isOwnMatch={isOwnMatch}
+              match={match}
+              message={message}
+              onChangeDraft={setDraft}
+              onSubmit={submitScore}
+              saving={saving}
+            />
+          )}
+        </main>
+      </div>
+    </AppFrame>
+  );
+}
+
+export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
+  const appSession = useProtectedRoute(`/tournaments/schedule/teams/${teamId}`, true);
+  const [team, setTeam] = useState<PublishedTeam | null>(null);
+  const [matches, setMatches] = useState<TeamCourtScheduleMatch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const loadTeam = useCallback(async () => {
+    if (!appSession.ready || !appSession.userId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setMessage("Supabase env vars are missing.");
+      setLoading(false);
+      return;
+    }
+    const { data: teamRow, error: teamError } = await supabase
+      .from("tournament_teams")
+      .select("id, tournament_id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
+      .eq("id", teamId)
+      .maybeSingle();
+    if (teamError || !teamRow) {
+      setMessage(teamError ? getFriendlyError(teamError) : "Team not found.");
+      setLoading(false);
+      return;
+    }
+    const [teamsResult, matchesResult, participantsResult, scoresResult] = await Promise.all([
+      supabase
+        .from("tournament_teams")
+        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
+        .eq("tournament_id", teamRow.tournament_id)
+        .eq("is_published", true)
+        .order("sort_order", { ascending: true })
+        .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
+        .limit(40),
+      supabase
+        .from("tournament_schedule_matches")
+        .select("id, tournament_id, day_number, day_label, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
+        .eq("tournament_id", teamRow.tournament_id)
+        .eq("is_published", true)
+        .order("day_number", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .limit(300),
+      supabase
+        .from("tournament_schedule_match_players")
+        .select("id, schedule_match_id, team_id, player_id, side, slot, source_player_name")
+        .eq("tournament_id", teamRow.tournament_id)
+        .limit(1200),
+      supabase
+        .from("tournament_match_scores")
+        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+        .eq("tournament_id", teamRow.tournament_id)
+        .limit(400)
+    ]);
+    const scoreSchemaMissing = isScoreSchemaMissing(scoresResult.error?.message || "");
+    if (teamsResult.error || matchesResult.error || participantsResult.error || (!scoreSchemaMissing && scoresResult.error)) {
+      setMessage(getFriendlyError(teamsResult.error || matchesResult.error || participantsResult.error || scoresResult.error));
+      setLoading(false);
+      return;
+    }
+    const mappedTeams = mapPublishedTeamsFromRows(teamsResult.data || []);
+    const mappedScores = scoreSchemaMissing ? [] : mapMatchScores(scoresResult.data || []);
+    const mappedMatches = mapTeamCourtScheduleMatches(matchesResult.data || [], participantsResult.data || [], mappedTeams, mappedScores);
+    setTeam(mappedTeams.find((mappedTeam) => mappedTeam.id === teamId) || null);
+    setMatches(mappedMatches.filter((match) => match.teamAId === teamId || match.teamBId === teamId));
+    setLoading(false);
+  }, [appSession.ready, appSession.userId, teamId]);
+
+  useEffect(() => {
+    loadTeam();
+  }, [loadTeam]);
+
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+
+  return (
+    <AppFrame active="tournament">
+      <div className={memberPageClass}>
+        <AppTopBar />
+        <main className={memberMainClass}>
+          <ScheduleDetailBackLink label="Back to schedule" href="/tournaments/schedule" />
+          {loading && <SkeletonRow />}
+          {message && !team && <StatusMessage tone="error">{message}</StatusMessage>}
+          {team && <TeamDetailPageCard matches={matches} team={team} />}
         </main>
       </div>
     </AppFrame>
@@ -4278,7 +4601,192 @@ function ScheduleTimeHeader({ label, count }: { label: string; count: number }) 
   );
 }
 
-function PlayerScheduleMatchCard({ match, isFeatured }: { match: PlayerScheduleMatch; isFeatured: boolean }) {
+function ScheduleEventsSection({ items, teams, title }: { items: ScheduleItem[]; teams: PublishedTeam[]; title: string }) {
+  if (!items.length) return null;
+  return (
+    <section className="grid gap-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[16px] font-medium text-text-primary">{title}</h2>
+        <span className="rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-text-secondary">{items.length} items</span>
+      </div>
+      <div className="grid gap-2.5 lg:grid-cols-2">
+        {items.map((item) => (
+          <ScheduleItemCard item={item} teams={teams} key={item.id} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ScheduleDetailBackLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link className="tap-card inline-flex min-h-10 w-fit items-center gap-2 rounded-full border-hairline border-line bg-white px-3 text-[13px] font-medium text-brand shadow-[0_8px_18px_rgba(24,24,26,0.06)]" href={href}>
+      <ArrowLeft size={15} />
+      {label}
+    </Link>
+  );
+}
+
+function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, entryLabel, message, saving, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; draft: ScoreDraft; canSubmit: boolean; isOwnMatch: boolean; entryLabel: string; message: string; saving: boolean; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
+  return (
+    <section className="grid gap-4">
+      <article className="overflow-hidden rounded-[26px] border-hairline border-white/80 bg-white shadow-[0_20px_55px_rgba(12,59,32,0.10)]">
+        <div className="relative overflow-hidden bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-5 text-white sm:p-6">
+          <CourtBackdrop />
+          <div className="relative grid gap-4">
+            <span className="flex flex-wrap items-center gap-2">
+              <em className="rounded-full bg-white/12 px-3 py-1 text-[12px] font-medium not-italic text-white/82">{match.dayLabel}</em>
+              <em className="rounded-full bg-white/12 px-3 py-1 text-[12px] font-medium not-italic text-white/82">{match.podLabel || "Match"}</em>
+            </span>
+            <div className="grid gap-2">
+              <h1 className="text-[28px] font-medium leading-tight tracking-[-0.5px] sm:text-[36px]">{formatMatchPlayersTitle(match)}</h1>
+              <p className="text-[15px] leading-relaxed text-white/72">{match.teamAName} vs {match.teamBName} · {match.timeLabel} · {match.courtLabel || "Court TBD"}</p>
+            </div>
+            <div className="grid gap-2 rounded-[18px] border-hairline border-white/16 bg-white/10 p-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+              <MatchSideSummary teamName={match.teamAName} players={match.playersA} inverted />
+              <span className="hidden text-[12px] font-medium text-white/52 sm:block">vs</span>
+              <MatchSideSummary teamName={match.teamBName} players={match.playersB} inverted />
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article className="grid gap-4 rounded-[22px] border-hairline border-line bg-white p-4 shadow-[0_14px_34px_rgba(24,24,26,0.06)] sm:p-5">
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+          <span className="grid gap-1">
+            <strong className="text-[20px] font-medium text-text-primary">Match score</strong>
+            <em className="text-[14px] not-italic text-text-secondary">Current score: {formatMatchScoreSummary(match.score)}</em>
+          </span>
+          <span className={canSubmit ? "w-fit rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]" : "w-fit rounded-full bg-surface px-3 py-1.5 text-[12px] font-medium text-text-secondary"}>{entryLabel}</span>
+        </div>
+
+        {isOwnMatch ? (
+          <div className="grid gap-3">
+            <p className="rounded-[16px] border-hairline border-line bg-surface/60 p-3 text-[13px] leading-relaxed text-text-secondary">Enter set scores after your match. Best of three: if one side wins the first two sets, set 3 is not needed.</p>
+            <div className="grid gap-2">
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={1} />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={2} />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={3} optional />
+            </div>
+            {message && <p className={message === "Score saved." ? "rounded-[14px] bg-brand-light p-3 text-[13px] text-[#3b6d11]" : "rounded-[14px] bg-[#fff8f1] p-3 text-[13px] text-[#8a4a22]"}>{message}</p>}
+            <button className="tap-card inline-flex min-h-12 items-center justify-center rounded-[16px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-5 text-[15px] font-medium text-white shadow-[0_14px_30px_rgba(12,59,32,0.18)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-surface disabled:text-text-muted disabled:shadow-none" type="button" onClick={onSubmit} disabled={!canSubmit || saving}>
+              {saving ? "Saving score..." : "Input scores"}
+            </button>
+          </div>
+        ) : (
+          <div className="grid gap-3 rounded-[18px] border-hairline border-line bg-surface/55 p-4">
+            <strong className="text-[16px] font-medium text-text-primary">Read-only match</strong>
+            <p className="text-[14px] leading-relaxed text-text-secondary">Only players listed in this match can submit or edit scores. You can still view teams, players, court, time, and posted scores here.</p>
+          </div>
+        )}
+      </article>
+    </section>
+  );
+}
+
+function TeamDetailPageCard({ team, matches }: { team: PublishedTeam; matches: TeamCourtScheduleMatch[] }) {
+  const teamRecord = getTeamPerformanceSummary(team, matches);
+  return (
+    <section className="grid gap-4">
+      <article className="overflow-hidden rounded-[26px] border-hairline border-white/80 bg-white shadow-[0_20px_55px_rgba(12,59,32,0.10)]">
+        <div className="relative overflow-hidden p-5 text-white sm:p-6" style={{ background: getTeamCardTone(team.jerseyColor).background }}>
+          <CourtBackdrop />
+          <div className="relative grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <span className="grid gap-2">
+              <em className="text-[13px] font-medium not-italic text-white/72">Team page</em>
+              <h1 className="text-[34px] font-medium leading-tight tracking-[-0.6px]">{team.name}</h1>
+              <p className="text-[15px] text-white/72">{team.members.length} players · {matches.length} scheduled matches</p>
+            </span>
+            <span className="grid grid-cols-2 gap-2 text-center">
+              <TeamHeroStat label="Wins" value={teamRecord.wins} />
+              <TeamHeroStat label="Losses" value={teamRecord.losses} />
+            </span>
+          </div>
+        </div>
+      </article>
+
+      <article className="grid gap-3 rounded-[22px] border-hairline border-line bg-white p-4 shadow-[0_14px_34px_rgba(24,24,26,0.06)] sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-[20px] font-medium text-text-primary">Roster and performance</h2>
+          <span className="rounded-full bg-brand-light px-3 py-1 text-[12px] font-medium text-[#3b6d11]">{team.members.length} players</span>
+        </div>
+        <div className="grid gap-2">
+          {team.members.map((member) => {
+            const performance = getMemberPerformance(member, team, matches);
+            return (
+              <article className="grid gap-3 rounded-[18px] border-hairline border-line bg-surface/45 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" key={member.id}>
+                <span className="grid gap-1">
+                  <strong className="text-[16px] font-medium text-text-primary">{member.name}</strong>
+                  <em className="text-[13px] not-italic text-text-secondary">{member.city} · {member.tier} · Rating {member.rating || "N/A"}</em>
+                </span>
+                <span className="grid grid-cols-3 gap-1 text-center">
+                  <TeamPerformancePill label="Played" value={performance.played} />
+                  <TeamPerformancePill label="Won" value={performance.wins} />
+                  <TeamPerformancePill label="Lost" value={performance.losses} />
+                </span>
+              </article>
+            );
+          })}
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function TeamHeroStat({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="grid min-w-[76px] gap-1 rounded-[16px] bg-white/14 px-3 py-2">
+      <strong className="text-[22px] font-medium leading-none text-white">{value}</strong>
+      <em className="text-[11px] not-italic text-white/64">{label}</em>
+    </span>
+  );
+}
+
+function MatchSideSummary({ teamName, players, inverted = false }: { teamName: string; players: string[]; inverted?: boolean }) {
+  return (
+    <span className="grid min-w-0 gap-1">
+      <strong className={inverted ? "truncate text-[14px] font-medium text-white" : "truncate text-[14px] font-medium text-brand"}>{teamName}</strong>
+      <span className="grid gap-1">
+        {(players.length ? players : ["Players TBD"]).map((player) => (
+          <em className={inverted ? "truncate text-[13px] not-italic text-white/78" : "truncate text-[13px] not-italic text-text-primary"} key={player}>{player}</em>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+function CourtBackdrop() {
+  return (
+    <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.16]" viewBox="0 0 720 260" aria-hidden="true" preserveAspectRatio="none">
+      <rect x="40" y="28" width="640" height="204" rx="0" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M360 28v204M40 130h640M180 28v204M540 28v204" fill="none" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function ScoreSetInputs({ draft, setNumber, optional = false, disabled, onChange }: { draft: ScoreDraft; setNumber: 1 | 2 | 3; optional?: boolean; disabled: boolean; onChange: (draft: ScoreDraft) => void }) {
+  const sideAKey = `sideASet${setNumber}` as keyof ScoreDraft;
+  const sideBKey = `sideBSet${setNumber}` as keyof ScoreDraft;
+  return (
+    <label className="grid grid-cols-[64px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-[14px] border-hairline border-line bg-surface/55 px-3 py-2 text-[12px] text-text-secondary">
+      <span className="font-medium text-text-primary">Set {setNumber}{optional ? " (if needed)" : ""}</span>
+      <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-2 text-center text-[16px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[sideAKey]} onChange={(event) => onChange({ ...draft, [sideAKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="N/A" inputMode="numeric" disabled={disabled} />
+      <span className="text-text-muted">-</span>
+      <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-2 text-center text-[16px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[sideBKey]} onChange={(event) => onChange({ ...draft, [sideBKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="N/A" inputMode="numeric" disabled={disabled} />
+    </label>
+  );
+}
+
+function TeamPerformancePill({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="grid min-w-[58px] gap-0.5 rounded-[12px] bg-surface px-2 py-1">
+      <strong className="text-[14px] font-medium text-brand">{value}</strong>
+      <em className="text-[10px] not-italic text-text-secondary">{label}</em>
+    </span>
+  );
+}
+
+function PlayerScheduleMatchCard({ match, isFeatured, onOpenMatch }: { match: PlayerScheduleMatch; isFeatured: boolean; onOpenMatch: () => void }) {
   const playerSideNames = match.playerSideNames.length ? match.playerSideNames : ["You"];
   const opponentNames = match.opponentNames.length ? match.opponentNames : ["Opponent TBD"];
   const courtNumber = formatCourtNumber(match.courtLabel || "");
@@ -4287,39 +4795,43 @@ function PlayerScheduleMatchCard({ match, isFeatured }: { match: PlayerScheduleM
     <article className={`relative overflow-hidden rounded-[20px] border-hairline border-white/70 bg-white/88 p-3.5 shadow-[0_18px_44px_rgba(12,59,32,0.10)] ring-1 ring-line/70 backdrop-blur-xl ${isFeatured ? "shadow-[0_20px_48px_rgba(12,59,32,0.13)]" : ""}`}>
       <span className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_top_right,rgba(76,222,140,0.18),transparent_58%)]" aria-hidden="true" />
       <div className="relative grid gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-brand px-2.5 py-1.5 text-white shadow-[0_10px_22px_rgba(12,59,32,0.16)] sm:gap-2 sm:px-3 sm:py-2">
             <Clock size={13} />
             <strong className="text-[13px] font-medium leading-none sm:text-[14px]">{match.timeLabel || "Time TBD"}</strong>
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border-hairline border-line bg-surface/80 px-2.5 py-1.5 text-brand sm:gap-2 sm:px-3 sm:py-2">
-            <MapPin size={13} />
-            <strong className="text-[13px] font-medium leading-none sm:text-[14px]">{courtNumber ? `Court ${courtNumber}` : "Court TBD"}</strong>
-          </span>
-        </div>
-        <div className="grid gap-2.5 rounded-[16px] border-hairline border-line bg-white p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-          <div className="grid grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] sm:gap-3">
-            <PlayerNameStack label="Your side" names={playerSideNames} tone="primary" />
-            <CourtLineDivider label={courtNumber} />
-            <PlayerNameStack label="Opponents" names={opponentNames} tone="opponent" />
-          </div>
-          <span className="inline-flex w-fit max-w-full items-center gap-1.5 rounded-full border-hairline border-line bg-surface/70 px-2.5 py-1 text-[12px] font-medium text-text-secondary">
+          <span className="min-w-0 truncate text-right text-[12px] font-medium text-text-secondary sm:text-[13px]">
             {match.teamName} vs {match.opposingTeamName}
           </span>
         </div>
+        <button className="tap-card grid gap-2.5 rounded-[16px] border-hairline border-line bg-white p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]" type="button" onClick={onOpenMatch}>
+          <div className="grid grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] sm:gap-3">
+            <PlayerNameStack label="" names={playerSideNames} tone="primary" color={match.teamColor} />
+            <CourtLineDivider label={courtNumber} />
+            <PlayerNameStack label="" names={opponentNames} tone="opponent" color={match.opposingTeamColor} />
+          </div>
+        </button>
       </div>
     </article>
   );
 }
 
-function PlayerNameStack({ label, names, tone }: { label: string; names: string[]; tone: "primary" | "opponent" }) {
+function PlayerNameStack({ label, names, tone, color }: { label: string; names: string[]; tone: "primary" | "opponent"; color?: string }) {
   const isPrimary = tone === "primary";
+  const teamTone = color ? getTeamCardTone(color) : null;
+  const chipStyle = teamTone
+    ? { background: teamTone.background, color: teamTone.textColor, borderColor: "rgba(255,255,255,0.28)" }
+    : undefined;
   return (
     <span className="grid min-w-0 content-start gap-1.5">
       {label && <em className="truncate px-1 text-[10px] font-medium not-italic text-text-muted">{label}</em>}
       {names.map((name, index) => (
-        <strong className={isPrimary ? "min-w-0 truncate whitespace-nowrap rounded-[12px] border-hairline border-line-strong bg-white px-2 py-2 text-[11px] font-medium leading-none text-text-primary shadow-[0_6px_14px_rgba(24,24,26,0.04)] sm:px-2.5 sm:text-[13px] sm:leading-snug" : "min-w-0 truncate whitespace-nowrap rounded-[12px] border-hairline border-line bg-surface/70 px-2 py-2 text-[11px] font-medium leading-none text-text-primary sm:px-2.5 sm:text-[13px] sm:leading-snug"} key={`${name}-${index}`}>
-          {name}
+        <strong
+          className={isPrimary ? "min-w-0 truncate whitespace-nowrap rounded-[12px] border-hairline border-line-strong bg-white px-2 py-2 text-[11px] font-medium leading-none text-text-primary shadow-[0_6px_14px_rgba(24,24,26,0.04)] sm:px-2.5 sm:text-[13px] sm:leading-snug" : "min-w-0 truncate whitespace-nowrap rounded-[12px] border-hairline border-line bg-surface/70 px-2 py-2 text-[11px] font-medium leading-none text-text-primary sm:px-2.5 sm:text-[13px] sm:leading-snug"}
+          key={`${name}-${index}`}
+          style={chipStyle}
+        >
+          <span className="min-w-0 truncate whitespace-nowrap">{name}</span>
         </strong>
       ))}
     </span>
@@ -4330,7 +4842,12 @@ function CourtLineDivider({ label }: { label?: string }) {
   const courtNumber = label ? formatCourtNumber(label) : "";
   return (
     <span className="schedule-court-divider grid place-items-center" aria-hidden={!label}>
-      {courtNumber && <span className="schedule-court-label">{courtNumber}</span>}
+      {courtNumber && (
+        <span className="schedule-court-label">
+          <small>court</small>
+          <b>{courtNumber}</b>
+        </span>
+      )}
     </span>
   );
 }
@@ -4340,7 +4857,7 @@ function formatCourtNumber(label: string) {
   return match ? match[0].replace(/\s+/g, "") : label.replace(/^court\s*/i, "").trim();
 }
 
-function TeamCourtScheduleBlock({ block, teams, isFeatured }: { block: TeamCourtScheduleBlock; teams: PublishedTeam[]; isFeatured: boolean }) {
+function TeamCourtScheduleBlock({ block, teams, isFeatured, onOpenMatch, onOpenTeam }: { block: TeamCourtScheduleBlock; teams: PublishedTeam[]; isFeatured: boolean; onOpenMatch: (match: TeamCourtScheduleMatch) => void; onOpenTeam: (teamId: string) => void }) {
   const primaryTeam = teams.find((team) => team.id === block.primaryTeamId);
   const opponentTeam = teams.find((team) => team.id === block.opponentTeamId);
 
@@ -4349,13 +4866,13 @@ function TeamCourtScheduleBlock({ block, teams, isFeatured }: { block: TeamCourt
       <span className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_top_right,rgba(24,95,165,0.12),transparent_58%)]" aria-hidden="true" />
       <div className="relative grid gap-3">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-          <ScheduleTeamPill label={block.primaryTeam} color={primaryTeam?.jerseyColor || "#eaf3de"} logoUrl={primaryTeam?.logoUrl || ""} isFinalized={Boolean(primaryTeam)} />
+          <ScheduleTeamPill label={block.primaryTeam} color={primaryTeam?.jerseyColor || "#eaf3de"} logoUrl={primaryTeam?.logoUrl || ""} isFinalized={Boolean(primaryTeam)} onClick={primaryTeam ? () => onOpenTeam(primaryTeam.id) : undefined} />
           <em className="text-[12px] not-italic text-text-muted">vs</em>
-          <ScheduleTeamPill label={block.opponentTeam} color={opponentTeam?.jerseyColor || "#e5f1ff"} logoUrl={opponentTeam?.logoUrl || ""} isFinalized={Boolean(opponentTeam)} />
+          <ScheduleTeamPill label={block.opponentTeam} color={opponentTeam?.jerseyColor || "#e5f1ff"} logoUrl={opponentTeam?.logoUrl || ""} isFinalized={Boolean(opponentTeam)} onClick={opponentTeam ? () => onOpenTeam(opponentTeam.id) : undefined} />
         </div>
         <div className="grid gap-2">
           {block.matches.map((match) => (
-            <TeamCourtScheduleGame match={match} teamName={block.primaryTeam} key={match.id} />
+            <TeamCourtScheduleGame match={match} teamName={block.primaryTeam} onOpenMatch={onOpenMatch} key={match.id} />
           ))}
         </div>
       </div>
@@ -4363,39 +4880,108 @@ function TeamCourtScheduleBlock({ block, teams, isFeatured }: { block: TeamCourt
   );
 }
 
-function TeamCourtScheduleGame({ match, teamName }: { match: TeamCourtScheduleMatch; teamName: string }) {
+function DayScheduleTimeCard({ label, blocks, teams, openBlocks, onToggleBlock, onOpenMatch, onOpenTeam }: { label: string; blocks: TeamCourtScheduleBlock[]; teams: PublishedTeam[]; openBlocks: Record<string, boolean>; onToggleBlock: (blockId: string) => void; onOpenMatch: (match: TeamCourtScheduleMatch) => void; onOpenTeam: (teamId: string) => void }) {
+  const matchCount = blocks.reduce((total, block) => total + block.matches.length, 0);
+
+  return (
+    <section className="overflow-hidden rounded-[22px] border-hairline border-white/70 bg-white/88 shadow-[0_18px_44px_rgba(12,59,32,0.10)] ring-1 ring-line/70 backdrop-blur-xl" key={label}>
+      <div className="flex items-center justify-between gap-3 border-b-hairline border-line bg-[linear-gradient(135deg,rgba(234,243,222,0.85),rgba(255,255,255,0.78))] px-4 py-3">
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <Clock size={16} className="shrink-0 text-brand" />
+          <h2 className="truncate text-[18px] font-medium leading-none text-brand">{label}</h2>
+        </span>
+        <span className="shrink-0 rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]">{matchCount} {matchCount === 1 ? "match" : "matches"}</span>
+      </div>
+      <div className="grid gap-2.5 p-3 lg:grid-cols-3">
+        {blocks.map((block) => (
+          <DayScheduleTeamBlock
+            block={block}
+            isOpen={Boolean(openBlocks[block.id])}
+            onToggle={() => onToggleBlock(block.id)}
+            teams={teams}
+            onOpenMatch={onOpenMatch}
+            onOpenTeam={onOpenTeam}
+            key={block.id}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DayScheduleTeamBlock({ block, teams, isOpen, onToggle, onOpenMatch, onOpenTeam }: { block: TeamCourtScheduleBlock; teams: PublishedTeam[]; isOpen: boolean; onToggle: () => void; onOpenMatch: (match: TeamCourtScheduleMatch) => void; onOpenTeam: (teamId: string) => void }) {
+  const primaryTeam = teams.find((team) => team.id === block.primaryTeamId);
+  const opponentTeam = teams.find((team) => team.id === block.opponentTeamId);
+  const matchCount = block.matches.length;
+
+  return (
+    <article className="overflow-hidden rounded-[18px] border-hairline border-line bg-white shadow-[0_10px_24px_rgba(24,24,26,0.05)]">
+      <div className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 text-left">
+        <span className="grid min-w-0 gap-2">
+          <span className="flex min-w-0 items-center justify-between gap-4 rounded-[12px] border-hairline border-line bg-surface/65 px-2.5 py-1.5">
+            {block.matches[0]?.podLabel && <em className="min-w-0 truncate text-[11px] font-medium not-italic text-brand">{block.matches[0].podLabel}</em>}
+            <span className="h-1 w-1 shrink-0 rounded-full bg-text-muted/60" aria-hidden="true" />
+            <em className="shrink-0 text-[11px] font-medium not-italic text-brand">{matchCount} {matchCount === 1 ? "match" : "matches"}</em>
+          </span>
+          <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+            <ScheduleTeamPill label={block.primaryTeam} color={primaryTeam?.jerseyColor || "#eaf3de"} logoUrl={primaryTeam?.logoUrl || ""} isFinalized={Boolean(primaryTeam)} compact onClick={primaryTeam ? () => onOpenTeam(primaryTeam.id) : undefined} />
+            <em className="text-[10px] not-italic text-text-muted">vs</em>
+            <ScheduleTeamPill label={block.opponentTeam} color={opponentTeam?.jerseyColor || "#e5f1ff"} logoUrl={opponentTeam?.logoUrl || ""} isFinalized={Boolean(opponentTeam)} compact onClick={opponentTeam ? () => onOpenTeam(opponentTeam.id) : undefined} />
+          </span>
+        </span>
+        <button className="tap-card inline-grid h-8 w-8 place-items-center justify-self-center rounded-full text-brand" type="button" onClick={onToggle} aria-expanded={isOpen} aria-label={isOpen ? "Hide match details" : "View match details"}>
+          <ChevronDown size={19} strokeWidth={2.4} className={`transition-all duration-300 ease-out ${isOpen ? "rotate-180 translate-y-0 text-brand" : "translate-y-0.5 text-brand/85"}`} />
+        </button>
+      </div>
+      {isOpen && (
+        <div className="grid gap-2 border-t-hairline border-line bg-surface/45 p-3">
+          {block.matches.map((match) => (
+            <TeamCourtScheduleGame match={match} teamName={block.primaryTeam} onOpenMatch={onOpenMatch} key={match.id} />
+          ))}
+        </div>
+      )}
+    </article>
+  );
+}
+
+function TeamCourtScheduleGame({ match, teamName, onOpenMatch }: { match: TeamCourtScheduleMatch; teamName: string; onOpenMatch: (match: TeamCourtScheduleMatch) => void }) {
   const teamIsA = match.teamAName === teamName;
   const primaryPlayers = teamIsA ? match.playersA : match.playersB;
   const opponentPlayers = teamIsA ? match.playersB : match.playersA;
   const courtNumber = formatCourtNumber(match.courtLabel || "");
 
   return (
-    <div className="grid gap-2 rounded-[16px] border-hairline border-line bg-white p-3">
+    <button className="tap-card grid gap-2 rounded-[16px] border-hairline border-line bg-white p-3 text-left transition hover:border-brand/30 hover:shadow-[0_10px_22px_rgba(12,59,32,0.08)]" type="button" onClick={() => onOpenMatch(match)}>
       <div className="grid grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] sm:gap-3">
         <PlayerNameStack label="" names={primaryPlayers.length ? primaryPlayers : [teamName]} tone="primary" />
         <CourtLineDivider label={courtNumber} />
         <PlayerNameStack label="" names={opponentPlayers.length ? opponentPlayers : ["Opponent TBD"]} tone="opponent" />
       </div>
-    </div>
+    </button>
   );
 }
 
-function ScheduleTeamPill({ label, color, logoUrl, isFinalized }: { label: string; color: string; logoUrl: string; isFinalized: boolean }) {
+function ScheduleTeamPill({ label, color, logoUrl, isFinalized, wrapName = false, compact = false, onClick }: { label: string; color: string; logoUrl: string; isFinalized: boolean; wrapName?: boolean; compact?: boolean; onClick?: () => void }) {
   const teamTone = getTeamCardTone(color);
   const pillStyle = isFinalized
     ? { background: teamTone.background, color: teamTone.textColor, borderColor: "rgba(255,255,255,0.28)" }
     : undefined;
+  const Tag = onClick ? "button" : "span";
   return (
-    <span className={isFinalized ? "grid min-h-9 min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-full border-hairline px-2 py-1 shadow-[0_8px_18px_rgba(12,59,32,0.12)]" : "grid min-h-9 min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-full border-hairline border-line bg-white px-2 py-1"} style={pillStyle}>
+    <Tag className={isFinalized ? `${onClick ? "tap-card text-left" : ""} ${compact ? "grid-cols-[24px_minmax(0,1fr)] gap-1.5 px-1.5" : "grid-cols-[28px_minmax(0,1fr)] gap-2 px-2"} grid min-h-9 min-w-0 items-center rounded-full border-hairline py-1 shadow-[0_8px_18px_rgba(12,59,32,0.12)]` : `${onClick ? "tap-card text-left" : ""} ${compact ? "grid-cols-[24px_minmax(0,1fr)] gap-1.5 px-1.5" : "grid-cols-[28px_minmax(0,1fr)] gap-2 px-2"} grid min-h-9 min-w-0 items-center rounded-full border-hairline border-line bg-white py-1`} style={pillStyle} type={onClick ? "button" : undefined} onClick={(event) => {
+      if (!onClick) return;
+      event.stopPropagation();
+      onClick();
+    }}>
       {logoUrl ? (
-        <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-white/90 p-1 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]">
+        <span className={`${compact ? "h-6 w-6" : "h-7 w-7"} grid shrink-0 place-items-center overflow-hidden rounded-full bg-white/90 p-1 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]`}>
           <img className="block h-full max-h-full w-full max-w-full object-contain" src={logoUrl} alt="" aria-hidden="true" />
         </span>
       ) : (
-        <span className="grid h-7 w-7 place-items-center rounded-full text-[10px] font-medium text-white" style={{ backgroundColor: normalizeTeamColor(color) }}>{getInitials(label || "Team")}</span>
+        <span className={`${compact ? "h-6 w-6 text-[9px]" : "h-7 w-7 text-[10px]"} grid place-items-center rounded-full font-medium text-white`} style={{ backgroundColor: normalizeTeamColor(color) }}>{getInitials(label || "Team")}</span>
       )}
-      <strong className={isFinalized ? "truncate text-[13px] font-medium text-current" : "truncate text-[13px] font-medium text-text-primary"}>{label || "TBD"}</strong>
-    </span>
+      <strong className={isFinalized ? `${wrapName ? "whitespace-normal break-words leading-tight" : "truncate whitespace-nowrap"} ${compact ? "text-[11px] sm:text-[12px]" : "text-[13px]"} font-medium text-current` : `${wrapName ? "whitespace-normal break-words leading-tight" : "truncate whitespace-nowrap"} ${compact ? "text-[11px] sm:text-[12px]" : "text-[13px]"} font-medium text-text-primary`}>{label || "TBD"}</strong>
+    </Tag>
   );
 }
 
@@ -4405,6 +4991,33 @@ function groupScheduleItems(items: ScheduleItem[]) {
     groups[item.dayLabel].push(item);
     return groups;
   }, {});
+}
+
+function mapPublishedTeamsFromRows(rows: PublishedTeamRow[]): PublishedTeam[] {
+  return rows.map((team) => {
+    const members = Array.isArray(team.tournament_team_members) ? team.tournament_team_members : team.tournament_team_members ? [team.tournament_team_members] : [];
+    return {
+      id: team.id || "",
+      name: team.name || "Team",
+      sortOrder: team.sort_order || 0,
+      logoUrl: team.logo_url || "",
+      jerseyColor: normalizeTeamColor(team.jersey_color),
+      members: members.map((member) => {
+        const player = Array.isArray(member.players) ? member.players[0] : member.players;
+        return {
+          id: member.id || "",
+          playerId: player?.id || "",
+          name: player?.full_name || "Player",
+          age: formatRegisteredPlayerAge(player?.date_of_birth, player?.age),
+          city: player?.jamaat_city || "MRSA",
+          tier: member.tier_at_draft ? `Tier ${member.tier_at_draft}` : "Tier TBD",
+          rating: formatRegisteredPlayerRating(player?.rating),
+          isCaptain: Boolean(member.is_captain),
+          draftOrder: member.draft_order ?? null
+        };
+      })
+    };
+  });
 }
 
 function groupScheduleItemsByTime(items: ScheduleItem[]) {
@@ -4443,6 +5056,165 @@ function groupTeamCourtMatchesByTimeAndPair(matches: TeamCourtScheduleMatch[], t
   }, {});
 }
 
+function groupAllTeamCourtMatchesByTimeAndPair(matches: TeamCourtScheduleMatch[]) {
+  return matches.reduce<Record<string, TeamCourtScheduleBlock[]>>((groups, match) => {
+    const label = match.timeLabel || match.dayLabel;
+    groups[label] = groups[label] || [];
+    const blockId = `${label}-${match.teamAId || match.teamAName}-${match.teamBId || match.teamBName}`;
+    const existingBlock = groups[label].find((block) => block.id === blockId);
+    if (existingBlock) {
+      existingBlock.matches.push(match);
+    } else {
+      groups[label].push({
+        id: blockId,
+        primaryTeamId: match.teamAId,
+        opponentTeamId: match.teamBId,
+        primaryTeam: match.teamAName,
+        opponentTeam: match.teamBName,
+        matches: [match]
+      });
+    }
+    return groups;
+  }, {});
+}
+
+function mapMatchScores(rows: MatchScoreRow[]): MatchScore[] {
+  return rows.map((row) => ({
+    id: row.id,
+    scheduleMatchId: row.schedule_match_id,
+    sideASet1: row.side_a_set1,
+    sideBSet1: row.side_b_set1,
+    sideASet2: row.side_a_set2,
+    sideBSet2: row.side_b_set2,
+    sideASet3: row.side_a_set3,
+    sideBSet3: row.side_b_set3,
+    winnerSide: row.winner_side === "A" || row.winner_side === "B" ? row.winner_side : "",
+    submittedAt: row.submitted_at || ""
+  }));
+}
+
+function getScoresByMatch(scores: MatchScore[]) {
+  return scores.reduce<Record<string, MatchScore>>((map, score) => {
+    map[score.scheduleMatchId] = score;
+    return map;
+  }, {});
+}
+
+function getEmptyScoreDraft(): ScoreDraft {
+  return { sideASet1: "", sideBSet1: "", sideASet2: "", sideBSet2: "", sideASet3: "", sideBSet3: "" };
+}
+
+function getScoreDraftFromScore(score: MatchScore | null | undefined): ScoreDraft {
+  if (!score) return getEmptyScoreDraft();
+  return {
+    sideASet1: score.sideASet1 == null ? "" : String(score.sideASet1),
+    sideBSet1: score.sideBSet1 == null ? "" : String(score.sideBSet1),
+    sideASet2: score.sideASet2 == null ? "" : String(score.sideASet2),
+    sideBSet2: score.sideBSet2 == null ? "" : String(score.sideBSet2),
+    sideASet3: score.sideASet3 == null ? "" : String(score.sideASet3),
+    sideBSet3: score.sideBSet3 == null ? "" : String(score.sideBSet3)
+  };
+}
+
+function parseScoreDraft(draft: ScoreDraft): { ok: true; values: { sideASet1: number | null; sideBSet1: number | null; sideASet2: number | null; sideBSet2: number | null; sideASet3: number | null; sideBSet3: number | null; winnerSide: "A" | "B" | "" } } | { ok: false; message: string } {
+  const sideASet1 = parseOptionalScore(draft.sideASet1);
+  const sideBSet1 = parseOptionalScore(draft.sideBSet1);
+  const sideASet2 = parseOptionalScore(draft.sideASet2);
+  const sideBSet2 = parseOptionalScore(draft.sideBSet2);
+  const sideASet3 = parseOptionalScore(draft.sideASet3);
+  const sideBSet3 = parseOptionalScore(draft.sideBSet3);
+  if ([sideASet1, sideBSet1, sideASet2, sideBSet2].some((value) => value == null)) return { ok: false, message: "Please enter scores for set 1 and set 2." };
+
+  const set1Winner = getSetWinner(sideASet1, sideBSet1);
+  const set2Winner = getSetWinner(sideASet2, sideBSet2);
+  if (!set1Winner || !set2Winner) return { ok: false, message: "Each completed set needs a winner." };
+
+  let winnerSide: "A" | "B" | "" = "";
+  if (set1Winner === set2Winner) {
+    winnerSide = set1Winner;
+  } else {
+    if (sideASet3 == null || sideBSet3 == null) return { ok: false, message: "Please enter set 3 because the teams split the first two sets." };
+    const set3Winner = getSetWinner(sideASet3, sideBSet3);
+    if (!set3Winner) return { ok: false, message: "Set 3 needs a winner." };
+    winnerSide = set3Winner;
+  }
+  return { ok: true, values: { sideASet1, sideBSet1, sideASet2, sideBSet2, sideASet3, sideBSet3, winnerSide } };
+}
+
+function parseOptionalScore(value: string) {
+  if (!value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function getSetWinner(sideA: number | null, sideB: number | null): "A" | "B" | "" {
+  if (sideA == null || sideB == null || sideA === sideB) return "";
+  return sideA > sideB ? "A" : "B";
+}
+
+function formatMatchScoreSummary(score: MatchScore | null) {
+  if (!score) return "N/A";
+  const sets = [
+    formatScoreSet(score.sideASet1, score.sideBSet1),
+    formatScoreSet(score.sideASet2, score.sideBSet2),
+    formatScoreSet(score.sideASet3, score.sideBSet3)
+  ].filter(Boolean);
+  return sets.length ? sets.join(" · ") : "N/A";
+}
+
+function formatMatchPlayersTitle(match: TeamCourtScheduleMatch) {
+  const sideA = match.playersA.length ? match.playersA.join(" / ") : match.teamAName;
+  const sideB = match.playersB.length ? match.playersB.join(" / ") : match.teamBName;
+  return `${sideA} vs ${sideB}`;
+}
+
+function formatScoreSet(sideA: number | null, sideB: number | null) {
+  return sideA == null || sideB == null ? "" : `${sideA}-${sideB}`;
+}
+
+function getScoreEntryWindow(startsOn: string | null, endsOn: string | null): ScoreEntryWindow {
+  if (!startsOn) return { canEdit: false, label: "Score entry opens on match day." };
+  const startDate = new Date(`${startsOn}T00:00:00-05:00`);
+  const endDate = new Date(`${endsOn || startsOn}T00:00:00-05:00`);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return { canEdit: false, label: "Score entry opens on match day." };
+  const windowStart = new Date(startDate);
+  windowStart.setDate(windowStart.getDate() - 1);
+  windowStart.setHours(22, 0, 0, 0);
+  const windowEnd = new Date(endDate);
+  windowEnd.setDate(windowEnd.getDate() + 1);
+  windowEnd.setHours(10, 0, 0, 0);
+  const now = new Date();
+  if (now < windowStart) return { canEdit: false, label: "Score entry opens Aug 7 at 10 PM CT." };
+  if (now > windowEnd) return { canEdit: false, label: "Score entry is closed." };
+  return { canEdit: true, label: "Score entry open" };
+}
+
+function getTeamPerformanceSummary(team: PublishedTeam, matches: TeamCourtScheduleMatch[]) {
+  return matches.reduce((summary, match) => {
+    if (!match.score?.winnerSide) return summary;
+    const teamSide = match.teamAId === team.id ? "A" : match.teamBId === team.id ? "B" : "";
+    if (!teamSide) return summary;
+    if (match.score.winnerSide === teamSide) summary.wins += 1;
+    else summary.losses += 1;
+    return summary;
+  }, { wins: 0, losses: 0 });
+}
+
+function getMemberPerformance(member: PublishedTeamMember, team: PublishedTeam, matches: TeamCourtScheduleMatch[]) {
+  return matches.reduce((summary, match) => {
+    const teamSide = match.teamAId === team.id ? "A" : match.teamBId === team.id ? "B" : "";
+    if (!teamSide) return summary;
+    const playerNames = teamSide === "A" ? match.playersA : match.playersB;
+    if (!playerNames.some((name) => normalizeName(name) === normalizeName(member.name))) return summary;
+    summary.played += 1;
+    if (match.score?.winnerSide) {
+      if (match.score.winnerSide === teamSide) summary.wins += 1;
+      else summary.losses += 1;
+    }
+    return summary;
+  }, { played: 0, wins: 0, losses: 0 });
+}
+
 function getCourtMatchesForScheduleItem(item: ScheduleItem, matches: TeamCourtScheduleMatch[], teams: PublishedTeam[]) {
   if (item.itemType !== "match") return [];
   const teamA = item.teamASortOrder ? teams.find((team) => team.sortOrder === item.teamASortOrder) : null;
@@ -4479,8 +5251,9 @@ function isScheduleItemForTeam(item: ScheduleItem, team: PublishedTeam) {
   return item.teamASortOrder === team.sortOrder || item.teamBSortOrder === team.sortOrder;
 }
 
-function mapPlayerScheduleMatches(matchRows: PlayerScheduleMatchRow[], playerRows: PlayerScheduleParticipantRow[], teams: PublishedTeam[], playerId: string): PlayerScheduleMatch[] {
+function mapPlayerScheduleMatches(matchRows: PlayerScheduleMatchRow[], playerRows: PlayerScheduleParticipantRow[], teams: PublishedTeam[], scores: MatchScore[], playerId: string): PlayerScheduleMatch[] {
   const playersByMatch = new Map<string, PlayerScheduleParticipantRow[]>();
+  const scoresByMatch = getScoresByMatch(scores);
   playerRows.forEach((row) => {
     if (!row.schedule_match_id) return;
     playersByMatch.set(row.schedule_match_id, [...(playersByMatch.get(row.schedule_match_id) || []), row]);
@@ -4510,6 +5283,7 @@ function mapPlayerScheduleMatches(matchRows: PlayerScheduleMatchRow[], playerRow
 
     return [{
       id: match.id,
+      tournamentId: match.tournament_id || "",
       dayNumber: match.day_number || 1,
       dayLabel: match.day_label || `Day ${match.day_number || 1}`,
       timeLabel: match.time_label || "",
@@ -4521,17 +5295,23 @@ function mapPlayerScheduleMatches(matchRows: PlayerScheduleMatchRow[], playerRow
       tierRule: match.tier_rule || "",
       teamName: currentTeam?.name || fallbackTeamName || "Your team",
       opposingTeamName: opposingTeam?.name || fallbackOpposingTeamName || "Opposing team",
+      teamColor: currentTeam?.jerseyColor || "#eaf3de",
+      opposingTeamColor: opposingTeam?.jerseyColor || "#e5f1ff",
+      teamLogoUrl: currentTeam?.logoUrl || "",
+      opposingTeamLogoUrl: opposingTeam?.logoUrl || "",
       playerSideNames,
       partnerNames,
       opponentNames,
+      score: scoresByMatch[match.id] || null,
       matchId: match.external_match_id || "",
       sortOrder: match.sort_order || 0
     }];
   }).sort((a, b) => a.dayNumber - b.dayNumber || a.sortOrder - b.sortOrder || a.courtLabel.localeCompare(b.courtLabel));
 }
 
-function mapTeamCourtScheduleMatches(matchRows: PlayerScheduleMatchRow[], playerRows: PlayerScheduleParticipantRow[], teams: PublishedTeam[]): TeamCourtScheduleMatch[] {
+function mapTeamCourtScheduleMatches(matchRows: PlayerScheduleMatchRow[], playerRows: PlayerScheduleParticipantRow[], teams: PublishedTeam[], scores: MatchScore[]): TeamCourtScheduleMatch[] {
   const playersByMatch = new Map<string, PlayerScheduleParticipantRow[]>();
+  const scoresByMatch = getScoresByMatch(scores);
   playerRows.forEach((row) => {
     if (!row.schedule_match_id) return;
     playersByMatch.set(row.schedule_match_id, [...(playersByMatch.get(row.schedule_match_id) || []), row]);
@@ -4546,6 +5326,7 @@ function mapTeamCourtScheduleMatches(matchRows: PlayerScheduleMatchRow[], player
 
     return {
       id: match.id,
+      tournamentId: match.tournament_id || "",
       dayNumber: match.day_number || 1,
       dayLabel: match.day_label || `Day ${match.day_number || 1}`,
       timeLabel: match.time_label || "",
@@ -4557,6 +5338,7 @@ function mapTeamCourtScheduleMatches(matchRows: PlayerScheduleMatchRow[], player
       teamBName: teamB?.name || match.team_b_label || "Team B",
       playersA,
       playersB,
+      score: scoresByMatch[match.id] || null,
       sortOrder: match.sort_order || 0
     };
   }).sort((a, b) => a.dayNumber - b.dayNumber || a.sortOrder - b.sortOrder || a.courtLabel.localeCompare(b.courtLabel));
@@ -4584,6 +5366,13 @@ function isScheduleSchemaMissing(message: string) {
   const normalized = message.toLowerCase();
   return normalized.includes("tournament_schedule_matches")
     || normalized.includes("tournament_schedule_match_players")
+    || normalized.includes("could not find the table")
+    || normalized.includes("schema cache");
+}
+
+function isScoreSchemaMissing(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("tournament_match_scores")
     || normalized.includes("could not find the table")
     || normalized.includes("schema cache");
 }

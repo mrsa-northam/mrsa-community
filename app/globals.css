@@ -5891,6 +5891,7 @@ body,
   min-width: 44px;
   min-height: 34px;
   place-items: center;
+  gap: 1px;
   padding: 6px 8px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 13px;
@@ -5906,6 +5907,27 @@ body,
   border: 0.5px solid var(--color-border);
   border-radius: 6px;
   box-shadow: 0 6px 14px rgba(24, 24, 26, 0.06);
+}
+
+.schedule-court-label small,
+.schedule-court-label b {
+  position: relative;
+  z-index: 1;
+}
+
+.schedule-court-label small {
+  font-size: 7px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  text-transform: lowercase;
+}
+
+.schedule-court-label b {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-text-primary);
 }
 
 .schedule-court-label::before {
@@ -5940,6 +5962,14 @@ body,
     min-width: 40px;
     min-height: 30px;
     padding: 5px 6px;
+    font-size: 12px;
+  }
+
+  .schedule-court-label small {
+    font-size: 6px;
+  }
+
+  .schedule-court-label b {
     font-size: 12px;
   }
 }
