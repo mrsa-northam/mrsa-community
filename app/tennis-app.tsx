@@ -2925,6 +2925,8 @@ export function TournamentScheduleScreen() {
   const groupedTeamCourtMatchBlocks = groupTeamCourtMatchesByTimeAndPair(visibleTeamCourtMatches, assignedTeam?.id || "");
   const visibleDayCourtMatches = filter === "day1" || filter === "day2" ? teamCourtMatches.filter((match) => match.dayNumber === (filter === "day1" ? 1 : 2)) : [];
   const groupedDayCourtMatchBlocks = groupAllTeamCourtMatchesByTimeAndPair(visibleDayCourtMatches);
+  const teamScheduleTimeLabels = getSortedScheduleTimeLabels(groupedTeamCourtMatchBlocks, visibleEventItems);
+  const dayScheduleTimeLabels = getSortedScheduleTimeLabels(groupedDayCourtMatchBlocks, visibleEventItems);
   const groupedItems = groupScheduleItems(visibleItems);
   const openMatchDetails = (match: TeamCourtScheduleMatch) => router.push(`/tournaments/schedule/matches/${match.id}`);
   const openTeamDetails = (teamId: string) => router.push(`/tournaments/schedule/teams/${teamId}`);
@@ -3005,20 +3007,27 @@ export function TournamentScheduleScreen() {
                     }} key={match.id} />
                   ))}
                 </div>
-                <ScheduleEventsSection items={visibleEventItems} teams={teams} title="Breaks and events" />
+                <ScheduleEventsTimeline items={visibleEventItems} teams={teams} title="Breaks and events" />
               </>
             )}
-            {filter === "team" && <ScheduleEventsSection items={visibleEventItems} teams={teams} title="Breaks and events" />}
-            {filter === "team" && Object.entries(groupedTeamCourtMatchBlocks).map(([timeLabel, blocks], timeIndex) => (
+            {filter === "team" && teamScheduleTimeLabels.map((timeLabel, timeIndex) => {
+              const blocks = getScheduleBlocksForTime(groupedTeamCourtMatchBlocks, timeLabel);
+              const eventItems = getScheduleItemsForTime(visibleEventItems, timeLabel);
+              if (!blocks.length) {
+                return <ScheduleEventTimeCard items={eventItems} label={timeLabel} teams={teams} key={timeLabel} />;
+              }
+              return (
               <section className="grid gap-2.5" key={timeLabel}>
-                <ScheduleTimeHeader label={timeLabel} count={blocks.reduce((total, block) => total + block.matches.length, 0)} />
+                <ScheduleTimeHeader label={timeLabel} count={blocks.reduce((total, block) => total + block.matches.length, 0) + eventItems.length} />
+                {!!eventItems.length && <div className="grid gap-2.5 lg:grid-cols-2">{eventItems.map((item) => <ScheduleItemCard item={item} teams={teams} key={item.id} />)}</div>}
                 <div className="grid gap-3">
                   {blocks.map((block, blockIndex) => (
                     <TeamCourtScheduleBlock block={block} teams={teams} isFeatured={timeIndex === 0 && blockIndex === 0} onOpenMatch={openMatchDetails} onOpenTeam={openTeamDetails} key={block.id} />
                   ))}
                 </div>
               </section>
-            ))}
+              );
+            })}
             {filter === "team" && !loading && !visibleTeamCourtMatches.length && !!visibleItems.length && Object.entries(groupScheduleItemsByTime(visibleItems)).map(([timeLabel, dayItems]) => (
               <section className="grid gap-2.5" key={timeLabel}>
                 <ScheduleTimeHeader label={timeLabel} count={dayItems.length} />
@@ -3031,10 +3040,10 @@ export function TournamentScheduleScreen() {
             ))}
             {(filter === "day1" || filter === "day2") && !!visibleDayCourtMatches.length && (
               <>
-                <ScheduleEventsSection items={visibleEventItems} teams={teams} title="Kickoff, breaks, and events" />
-                {Object.entries(groupedDayCourtMatchBlocks).map(([timeLabel, blocks]) => (
+                {dayScheduleTimeLabels.map((timeLabel) => (
                   <DayScheduleTimeCard
-                    blocks={blocks}
+                    blocks={getScheduleBlocksForTime(groupedDayCourtMatchBlocks, timeLabel)}
+                    eventItems={getScheduleItemsForTime(visibleEventItems, timeLabel)}
                     label={timeLabel}
                     openBlocks={openDayScheduleBlocks}
                     onToggleBlock={(blockId) => setOpenDayScheduleBlocks((current) => ({ ...current, [blockId]: !current[blockId] }))}
@@ -4601,14 +4610,27 @@ function ScheduleTimeHeader({ label, count }: { label: string; count: number }) 
   );
 }
 
-function ScheduleEventsSection({ items, teams, title }: { items: ScheduleItem[]; teams: PublishedTeam[]; title: string }) {
+function ScheduleEventsTimeline({ items, teams, title }: { items: ScheduleItem[]; teams: PublishedTeam[]; title: string }) {
   if (!items.length) return null;
+  const groupedEvents = groupScheduleItemsByTime(items);
   return (
     <section className="grid gap-2.5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[16px] font-medium text-text-primary">{title}</h2>
         <span className="rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-text-secondary">{items.length} items</span>
       </div>
+      {Object.entries(groupedEvents).sort(([a], [b]) => getScheduleTimeSortValue(a) - getScheduleTimeSortValue(b)).map(([timeLabel, timeItems]) => (
+        <ScheduleEventTimeCard items={timeItems} label={timeLabel} teams={teams} key={timeLabel} />
+      ))}
+    </section>
+  );
+}
+
+function ScheduleEventTimeCard({ items, label, teams }: { items: ScheduleItem[]; label: string; teams: PublishedTeam[] }) {
+  if (!items.length) return null;
+  return (
+    <section className="grid gap-2.5">
+      <ScheduleTimeHeader label={label} count={items.length} />
       <div className="grid gap-2.5 lg:grid-cols-2">
         {items.map((item) => (
           <ScheduleItemCard item={item} teams={teams} key={item.id} />
@@ -4880,7 +4902,7 @@ function TeamCourtScheduleBlock({ block, teams, isFeatured, onOpenMatch, onOpenT
   );
 }
 
-function DayScheduleTimeCard({ label, blocks, teams, openBlocks, onToggleBlock, onOpenMatch, onOpenTeam }: { label: string; blocks: TeamCourtScheduleBlock[]; teams: PublishedTeam[]; openBlocks: Record<string, boolean>; onToggleBlock: (blockId: string) => void; onOpenMatch: (match: TeamCourtScheduleMatch) => void; onOpenTeam: (teamId: string) => void }) {
+function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onToggleBlock, onOpenMatch, onOpenTeam }: { label: string; blocks: TeamCourtScheduleBlock[]; eventItems: ScheduleItem[]; teams: PublishedTeam[]; openBlocks: Record<string, boolean>; onToggleBlock: (blockId: string) => void; onOpenMatch: (match: TeamCourtScheduleMatch) => void; onOpenTeam: (teamId: string) => void }) {
   const matchCount = blocks.reduce((total, block) => total + block.matches.length, 0);
 
   return (
@@ -4890,9 +4912,17 @@ function DayScheduleTimeCard({ label, blocks, teams, openBlocks, onToggleBlock, 
           <Clock size={16} className="shrink-0 text-brand" />
           <h2 className="truncate text-[18px] font-medium leading-none text-brand">{label}</h2>
         </span>
-        <span className="shrink-0 rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]">{matchCount} {matchCount === 1 ? "match" : "matches"}</span>
+        <span className="shrink-0 rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]">{matchCount + eventItems.length} items</span>
       </div>
-      <div className="grid gap-2.5 p-3 lg:grid-cols-3">
+      <div className="grid gap-2.5 p-3">
+        {!!eventItems.length && (
+          <div className="grid gap-2.5 lg:grid-cols-2">
+            {eventItems.map((item) => (
+              <ScheduleItemCard item={item} teams={teams} key={item.id} />
+            ))}
+          </div>
+        )}
+        {!!blocks.length && <div className="grid gap-2.5 lg:grid-cols-3">
         {blocks.map((block) => (
           <DayScheduleTeamBlock
             block={block}
@@ -4904,6 +4934,7 @@ function DayScheduleTimeCard({ label, blocks, teams, openBlocks, onToggleBlock, 
             key={block.id}
           />
         ))}
+        </div>}
       </div>
     </section>
   );
@@ -5027,6 +5058,41 @@ function groupScheduleItemsByTime(items: ScheduleItem[]) {
     groups[label].push(item);
     return groups;
   }, {});
+}
+
+function getSortedScheduleTimeLabels(blockGroups: Record<string, TeamCourtScheduleBlock[]>, eventItems: ScheduleItem[]) {
+  const labels = new Map<string, string>();
+  Object.keys(blockGroups).forEach((label) => {
+    labels.set(normalizeScheduleTime(label), label);
+  });
+  eventItems.forEach((item) => {
+    const label = item.timeLabel || item.dayLabel;
+    labels.set(normalizeScheduleTime(label), label);
+  });
+  return Array.from(labels.values()).sort((a, b) => getScheduleTimeSortValue(a) - getScheduleTimeSortValue(b) || a.localeCompare(b));
+}
+
+function getScheduleItemsForTime(items: ScheduleItem[], timeLabel: string) {
+  const normalizedTime = normalizeScheduleTime(timeLabel);
+  return items.filter((item) => normalizeScheduleTime(item.timeLabel || item.dayLabel) === normalizedTime);
+}
+
+function getScheduleBlocksForTime(blockGroups: Record<string, TeamCourtScheduleBlock[]>, timeLabel: string) {
+  const normalizedTime = normalizeScheduleTime(timeLabel);
+  const matchingEntry = Object.entries(blockGroups).find(([label]) => normalizeScheduleTime(label) === normalizedTime);
+  return matchingEntry?.[1] || [];
+}
+
+function getScheduleTimeSortValue(label: string) {
+  const normalized = label.trim().toLowerCase();
+  const match = normalized.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2] || 0);
+  const meridiem = match[3];
+  if (meridiem === "pm" && hours < 12) hours += 12;
+  if (meridiem === "am" && hours === 12) hours = 0;
+  return hours * 60 + minutes;
 }
 
 function groupTeamCourtMatchesByTimeAndPair(matches: TeamCourtScheduleMatch[], teamId: string) {
