@@ -129,6 +129,8 @@ type TeamCourtScheduleMatch = {
   teamBId: string;
   teamAName: string;
   teamBName: string;
+  teamAColor: string;
+  teamBColor: string;
   playersA: string[];
   playersB: string[];
   score: MatchScore | null;
@@ -2545,7 +2547,6 @@ export function DrawScreen() {
             <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 shadow-[0_10px_24px_rgba(12,59,32,0.05)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <span className="grid gap-1">
                 <strong className="text-[16px] font-medium text-text-primary">Schedule has been posted</strong>
-                <em className="text-[13px] not-italic leading-relaxed text-text-secondary">View round-robin pods, bracket rounds, finals, and organizer notes in one schedule page.</em>
               </span>
               <Link className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.14)]" href="/tournaments/schedule">
                 View schedule
@@ -2751,8 +2752,8 @@ export function TournamentScheduleScreen() {
   const [teamCourtMatches, setTeamCourtMatches] = useState<TeamCourtScheduleMatch[]>([]);
   const [notes, setNotes] = useState<ScheduleNote[]>([]);
   const [filter, setFilter] = useState<"matches" | "team" | "day1" | "day2">("matches");
-  const [notesOpen, setNotesOpen] = useState(false);
   const [openDayScheduleBlocks, setOpenDayScheduleBlocks] = useState<Record<string, boolean>>({});
+  const [openingMatchId, setOpeningMatchId] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -2917,18 +2918,23 @@ export function TournamentScheduleScreen() {
   const visibleItems = items.filter((item) => {
     if (filter === "day1") return item.dayNumber === 1;
     if (filter === "day2") return item.dayNumber === 2;
-    if (filter === "team") return item.itemType === "event" || (assignedTeam ? isScheduleItemForTeam(item, assignedTeam) : false);
+    if (filter === "team") return assignedTeam ? isScheduleItemForTeam(item, assignedTeam) : false;
     return true;
   });
-  const visibleEventItems = visibleItems.filter((item) => item.itemType === "event");
   const visibleTeamCourtMatches = assignedTeam ? teamCourtMatches.filter((match) => match.teamAId === assignedTeam.id || match.teamBId === assignedTeam.id) : [];
   const groupedTeamCourtMatchBlocks = groupTeamCourtMatchesByTimeAndPair(visibleTeamCourtMatches, assignedTeam?.id || "");
   const visibleDayCourtMatches = filter === "day1" || filter === "day2" ? teamCourtMatches.filter((match) => match.dayNumber === (filter === "day1" ? 1 : 2)) : [];
   const groupedDayCourtMatchBlocks = groupAllTeamCourtMatchesByTimeAndPair(visibleDayCourtMatches);
-  const teamScheduleTimeLabels = getSortedScheduleTimeLabels(groupedTeamCourtMatchBlocks, visibleEventItems);
-  const dayScheduleTimeLabels = getSortedScheduleTimeLabels(groupedDayCourtMatchBlocks, visibleEventItems);
-  const groupedItems = groupScheduleItems(visibleItems);
-  const openMatchDetails = (match: TeamCourtScheduleMatch) => router.push(`/tournaments/schedule/matches/${match.id}`);
+  const dayEventItems = filter === "day1" || filter === "day2" ? getDayScheduleEventItems(items, filter === "day1" ? 1 : 2) : [];
+  const groupedPlayerMatches = groupPlayerMatchesByTime(playerMatches);
+  const playerScheduleTimeLabels = getSortedPlayerScheduleTimeLabels(groupedPlayerMatches);
+  const teamScheduleTimeLabels = getSortedScheduleTimeLabels(groupedTeamCourtMatchBlocks, []);
+  const dayScheduleTimeLabels = getSortedScheduleTimeLabels(groupedDayCourtMatchBlocks, dayEventItems);
+  const openMatchDetails = (match: TeamCourtScheduleMatch) => {
+    if (openingMatchId) return;
+    setOpeningMatchId(match.id);
+    router.push(`/tournaments/schedule/matches/${match.id}`);
+  };
   const openTeamDetails = (teamId: string) => router.push(`/tournaments/schedule/teams/${teamId}`);
   const filterTabs = [
     { id: "matches" as const, label: "My schedule", helper: "Your courts" },
@@ -2941,91 +2947,76 @@ export function TournamentScheduleScreen() {
       <div className={memberPageClass}>
         <AppTopBar />
         <main className={memberMainClass}>
-          <section className="grid grid-cols-[34px_minmax(0,1fr)] items-center gap-3 lg:grid-cols-[34px_minmax(0,1fr)_auto]">
-            <Link className="tap-card grid h-8 w-8 place-items-center rounded-full border-hairline border-line bg-white text-brand shadow-[0_8px_18px_rgba(24,24,26,0.06)]" href="/tournaments" aria-label="Back to tournament">
-              <ArrowLeft size={15} />
-            </Link>
-            <div className="grid min-w-0 gap-1">
-              <h1 className="truncate text-[22px] font-medium leading-tight tracking-[-0.2px] text-text-primary">Schedule</h1>
-              <p className="text-[13px] leading-relaxed text-text-secondary">{assignedTeam ? `${assignedTeam.name} schedule, player courts, and organizer notes.` : "Player courts, team schedule, and organizer notes."}</p>
-            </div>
-            <div className="hidden gap-2 lg:flex">
-              <span className="rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]">{playerMatches.length} personal matches</span>
-              {assignedTeam && <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-medium text-text-secondary ring-1 ring-line">{visibleTeamCourtMatches.length || visibleItems.length} team matches</span>}
+          <section className="relative overflow-hidden rounded-[26px] border-hairline border-white/20 bg-brand p-4 text-white shadow-[0_22px_52px_rgba(12,59,32,0.20)] sm:p-5 lg:p-6">
+            <span className="pointer-events-none absolute inset-0 opacity-35 court-lines" aria-hidden="true" />
+            <div className="relative grid gap-4">
+              <div className="grid grid-cols-[34px_minmax(0,1fr)_34px] items-center gap-2">
+                <Link className="tap-card grid h-8 w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/10 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)]" href="/tournaments" aria-label="Back to tournament">
+                  <ArrowLeft size={15} />
+                </Link>
+                <div className="grid min-w-0 justify-items-center gap-1 text-center">
+                  <h1 className="text-[24px] font-medium leading-tight tracking-[-0.3px] text-white sm:text-[28px]">Schedule</h1>
+                </div>
+                <span aria-hidden="true" />
+              </div>
+
+              <div className="grid gap-2 rounded-[18px] border-hairline border-white/15 bg-white/10 p-1.5 backdrop-blur">
+                <div className="grid grid-cols-4 gap-1 sm:gap-1.5">
+                  {filterTabs.map((tab) => (
+                    <button className={filter === tab.id ? "tap-card grid min-h-10 min-w-0 place-items-center justify-items-center rounded-[13px] bg-white px-1.5 text-center text-brand shadow-[0_10px_22px_rgba(0,0,0,0.14)] sm:min-h-12 sm:gap-0.5 sm:px-2" : "tap-card grid min-h-10 min-w-0 place-items-center justify-items-center rounded-[13px] px-1.5 text-center text-white/68 hover:bg-white/10 sm:min-h-12 sm:gap-0.5 sm:px-2"} type="button" onClick={() => setFilter(tab.id)} key={tab.id}>
+                      <strong className="block max-w-full text-center text-[11px] font-medium leading-tight sm:text-[13px]">{tab.label}</strong>
+                      <em className={filter === tab.id ? "hidden max-w-full truncate text-[10px] not-italic leading-none text-brand/60 sm:block" : "hidden max-w-full truncate text-[10px] not-italic leading-none text-white/45 sm:block"}>{tab.helper}</em>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <Link className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[14px] border-hairline border-white/20 bg-white/10 px-4 text-[13px] font-medium text-white backdrop-blur sm:justify-self-center md:w-max" href="/tournaments/schedule/rules">
+                View considerations and match rules
+                <ArrowRight size={14} />
+                <span className="rounded-full bg-white/14 px-2 py-0.5 text-[11px] text-white/72">{notes.length}</span>
+              </Link>
             </div>
           </section>
 
           {message && <StatusMessage tone="error">{message}</StatusMessage>}
-
-          <section className="overflow-hidden rounded-[16px] border-hairline border-line bg-card">
-            <button className="tap-card grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left sm:px-5" type="button" onClick={() => setNotesOpen((current) => !current)} aria-expanded={notesOpen} aria-controls="schedule-considerations">
-              <span className="grid gap-0.5">
-                <strong className="text-[15px] font-medium text-text-primary">Considerations and match rules</strong>
-                <em className="text-[12px] not-italic text-text-secondary">Court availability, matchup rules, finals format, and timed match rules.</em>
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">
-                {notes.length}
-                <ChevronDown size={15} className={`transition-transform ${notesOpen ? "rotate-180" : ""}`} />
-              </span>
-            </button>
-            {notesOpen && (
-              <div className="grid gap-2.5 border-t-hairline border-line p-4 sm:p-5" id="schedule-considerations">
-                {notes.map((note) => (
-                  <article className="grid gap-1.5 rounded-[14px] border-hairline border-line bg-white p-3.5 sm:p-4" key={note.id}>
-                    <strong className="text-[14px] font-medium text-text-primary">{note.title}</strong>
-                    <p className="text-[13px] leading-relaxed text-text-secondary">{note.body}</p>
-                  </article>
-                ))}
-                {!loading && !notes.length && <StatusMessage tone="info">Schedule considerations will appear here when posted.</StatusMessage>}
-              </div>
-            )}
-          </section>
-
-          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-white p-1.5 shadow-[0_10px_24px_rgba(24,24,26,0.04)] sm:p-2">
-            <div className="grid grid-cols-4 gap-1 sm:gap-1.5">
-            {filterTabs.map((tab) => (
-              <button className={filter === tab.id ? "tap-card grid min-h-10 min-w-0 place-items-center justify-items-center rounded-[12px] bg-brand px-1.5 text-center text-white shadow-[0_10px_22px_rgba(12,59,32,0.16)] sm:min-h-12 sm:gap-0.5 sm:rounded-[13px] sm:px-2" : "tap-card grid min-h-10 min-w-0 place-items-center justify-items-center rounded-[12px] px-1.5 text-center text-text-secondary hover:bg-surface/70 sm:min-h-12 sm:gap-0.5 sm:rounded-[13px] sm:px-2"} type="button" onClick={() => setFilter(tab.id)} key={tab.id}>
-                <strong className="block max-w-full text-center text-[11px] font-medium leading-tight sm:text-[13px]">{tab.label}</strong>
-                <em className={filter === tab.id ? "hidden max-w-full truncate text-[10px] not-italic leading-none text-white/70 sm:block" : "hidden max-w-full truncate text-[10px] not-italic leading-none text-text-muted sm:block"}>{tab.helper}</em>
-              </button>
-            ))}
-            </div>
-          </section>
+          {openingMatchId && <ScheduleLoadingNotice label="Opening match..." overlay />}
 
           {filter === "team" && !assignedTeam && (
             <StatusMessage tone="warning">No team assignment found yet. Your team schedule will appear here once rosters are published.</StatusMessage>
           )}
 
-          <section className="grid gap-4" aria-label="Tournament schedule">
+          <section className={openingMatchId ? "pointer-events-none grid gap-4 opacity-70" : "grid gap-4"} aria-label="Tournament schedule" aria-busy={Boolean(openingMatchId)}>
             {filter === "matches" && (
               <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {playerMatches.map((match, index) => (
-                    <PlayerScheduleMatchCard match={match} isFeatured={index === 0} onOpenMatch={() => {
+                {playerScheduleTimeLabels.map((timeLabel, timeIndex) => (
+                  <PlayerScheduleTimeCard
+                    label={timeLabel}
+                    matches={groupedPlayerMatches[timeLabel] || []}
+                    onOpenMatch={(match) => {
                       const fullMatch = teamCourtMatches.find((teamMatch) => teamMatch.id === match.id);
                       if (fullMatch) openMatchDetails(fullMatch);
-                    }} key={match.id} />
-                  ))}
-                </div>
-                <ScheduleEventsTimeline items={visibleEventItems} teams={teams} title="Breaks and events" />
+                    }}
+                    isFeatured={timeIndex === 0}
+                    key={timeLabel}
+                  />
+                ))}
               </>
             )}
-            {filter === "team" && teamScheduleTimeLabels.map((timeLabel, timeIndex) => {
+            {filter === "team" && teamScheduleTimeLabels.map((timeLabel) => {
               const blocks = getScheduleBlocksForTime(groupedTeamCourtMatchBlocks, timeLabel);
-              const eventItems = getScheduleItemsForTime(visibleEventItems, timeLabel);
-              if (!blocks.length) {
-                return <ScheduleEventTimeCard items={eventItems} label={timeLabel} teams={teams} key={timeLabel} />;
-              }
               return (
-              <section className="grid gap-2.5" key={timeLabel}>
-                <ScheduleTimeHeader label={timeLabel} count={blocks.reduce((total, block) => total + block.matches.length, 0) + eventItems.length} />
-                {!!eventItems.length && <div className="grid gap-2.5 lg:grid-cols-2">{eventItems.map((item) => <ScheduleItemCard item={item} teams={teams} key={item.id} />)}</div>}
-                <div className="grid gap-3">
-                  {blocks.map((block, blockIndex) => (
-                    <TeamCourtScheduleBlock block={block} teams={teams} isFeatured={timeIndex === 0 && blockIndex === 0} onOpenMatch={openMatchDetails} onOpenTeam={openTeamDetails} key={block.id} />
-                  ))}
-                </div>
-              </section>
+              <DayScheduleTimeCard
+                blocks={blocks}
+                eventItems={[]}
+                label={timeLabel}
+                openBlocks={openDayScheduleBlocks}
+                onToggleBlock={(blockId) => setOpenDayScheduleBlocks((current) => ({ ...current, [blockId]: !(current[blockId] ?? true) }))}
+                teams={teams}
+                onOpenMatch={openMatchDetails}
+                onOpenTeam={openTeamDetails}
+                key={timeLabel}
+              />
               );
             })}
             {filter === "team" && !loading && !visibleTeamCourtMatches.length && !!visibleItems.length && Object.entries(groupScheduleItemsByTime(visibleItems)).map(([timeLabel, dayItems]) => (
@@ -3043,7 +3034,7 @@ export function TournamentScheduleScreen() {
                 {dayScheduleTimeLabels.map((timeLabel) => (
                   <DayScheduleTimeCard
                     blocks={getScheduleBlocksForTime(groupedDayCourtMatchBlocks, timeLabel)}
-                    eventItems={getScheduleItemsForTime(visibleEventItems, timeLabel)}
+                    eventItems={getScheduleItemsForTime(dayEventItems, timeLabel)}
                     label={timeLabel}
                     openBlocks={openDayScheduleBlocks}
                     onToggleBlock={(blockId) => setOpenDayScheduleBlocks((current) => ({ ...current, [blockId]: !current[blockId] }))}
@@ -3053,26 +3044,120 @@ export function TournamentScheduleScreen() {
                     key={timeLabel}
                   />
                 ))}
+                {filter === "day1" && <DayScheduleEndCard />}
               </>
             )}
-            {(filter === "day1" || filter === "day2") && !visibleDayCourtMatches.length && Object.entries(groupedItems).map(([dayLabel, dayItems]) => (
-              <section className="grid gap-2.5" key={dayLabel}>
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-[16px] font-medium text-text-primary">{dayLabel}</h2>
-                  <span className="rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">{dayItems.length} items</span>
-                </div>
-                <div className="grid gap-2.5">
-                  {dayItems.map((item) => (
-                    <ScheduleItemCard item={item} teams={teams} courtMatches={getCourtMatchesForScheduleItem(item, teamCourtMatches, teams)} key={item.id} />
-                  ))}
-                </div>
-              </section>
+            {(filter === "day1" || filter === "day2") && !visibleDayCourtMatches.length && Object.entries(groupScheduleItemsByTime(visibleItems)).map(([timeLabel, dayItems]) => (
+              <DayScheduleTimeCard
+                blocks={[]}
+                eventItems={dayItems}
+                label={timeLabel}
+                openBlocks={openDayScheduleBlocks}
+                onToggleBlock={(blockId) => setOpenDayScheduleBlocks((current) => ({ ...current, [blockId]: !current[blockId] }))}
+                teams={teams}
+                onOpenMatch={openMatchDetails}
+                onOpenTeam={openTeamDetails}
+                key={timeLabel}
+              />
             ))}
             {loading && Array.from({ length: 5 }).map((_, index) => <SkeletonRow key={index} />)}
             {!loading && filter === "matches" && !playerMatches.length && <StatusMessage tone="info">Your individual match assignments will appear here once posted.</StatusMessage>}
             {!loading && filter === "team" && !visibleTeamCourtMatches.length && !visibleItems.length && <StatusMessage tone="info">No team schedule items match this view.</StatusMessage>}
             {!loading && filter !== "matches" && filter !== "team" && !visibleItems.length && !visibleDayCourtMatches.length && <StatusMessage tone="info">No schedule items match this view.</StatusMessage>}
           </section>
+        </main>
+      </div>
+    </AppFrame>
+  );
+}
+
+export function TournamentScheduleRulesScreen() {
+  const appSession = useProtectedRoute("/tournaments/schedule/rules", true);
+  const [notes, setNotes] = useState<ScheduleNote[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const loadRules = useCallback(async () => {
+    if (!appSession.ready || !appSession.userId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setMessage("Supabase env vars are missing.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: tournamentData, error } = await supabase
+      .from("tournaments")
+      .select("id")
+      .in("status", ["draft", "registration_open", "registration_closed", "live"])
+      .order("starts_on", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !tournamentData) {
+      setMessage(error ? getFriendlyError(error) : "No active tournament found.");
+      setLoading(false);
+      return;
+    }
+
+    const { data, error: notesError } = await supabase
+      .from("tournament_schedule_notes")
+      .select("id, title, body, sort_order")
+      .eq("tournament_id", tournamentData.id)
+      .eq("is_published", true)
+      .order("sort_order", { ascending: true })
+      .limit(80);
+
+    if (notesError) {
+      setMessage(getFriendlyError(notesError));
+      setLoading(false);
+      return;
+    }
+
+    setNotes((data || []).map((note) => ({
+      id: note.id,
+      title: note.title || "Note",
+      body: note.body || "",
+      sortOrder: note.sort_order || 0
+    })));
+    setLoading(false);
+  }, [appSession.ready, appSession.userId]);
+
+  useEffect(() => {
+    loadRules();
+  }, [loadRules]);
+
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+
+  return (
+    <AppFrame active="tournament">
+      <div className={memberPageClass}>
+        <AppTopBar />
+        <main className={memberMainClass}>
+          <section className="relative overflow-hidden rounded-[26px] border-hairline border-white/20 bg-brand px-5 py-8 text-white shadow-[0_22px_52px_rgba(12,59,32,0.20)] sm:px-6 sm:py-10">
+            <span className="pointer-events-none absolute inset-0 opacity-35 court-lines" aria-hidden="true" />
+            <Link className="tap-card absolute left-4 top-4 z-10 inline-grid h-8 max-h-8 min-h-8 w-8 min-w-8 max-w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/10 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)]" href="/tournaments/schedule" aria-label="Back to schedule">
+                <ArrowLeft size={15} />
+            </Link>
+            <div className="relative grid min-w-0 justify-items-center px-8 text-center">
+              <h1 className="max-w-[520px] text-[27px] font-medium leading-[1.08] tracking-[-0.3px] text-white sm:text-[34px]">Considerations and match rules</h1>
+            </div>
+          </section>
+
+          {message && <StatusMessage tone="error">{message}</StatusMessage>}
+          {loading && Array.from({ length: 4 }).map((_, index) => <SkeletonRow key={index} />)}
+          {!loading && !notes.length && !message && <StatusMessage tone="info">Schedule considerations will appear here when posted.</StatusMessage>}
+          {!!notes.length && (
+            <section className="grid gap-3">
+              {notes.map((note, index) => (
+                <article className="grid gap-2 rounded-[18px] border-hairline border-line bg-white/90 p-4 shadow-[0_12px_28px_rgba(24,24,26,0.05)] backdrop-blur sm:p-5" key={note.id}>
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-light text-[12px] font-medium text-[#3b6d11]">{index + 1}</span>
+                  <strong className="text-[17px] font-medium leading-snug text-text-primary">{note.title}</strong>
+                  <p className="text-[14px] leading-relaxed text-text-secondary">{note.body}</p>
+                </article>
+              ))}
+            </section>
+          )}
         </main>
       </div>
     </AppFrame>
@@ -3209,8 +3294,7 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
       <div className={memberPageClass}>
         <AppTopBar />
         <main className={memberMainClass}>
-          <ScheduleDetailBackLink label="Back to schedule" href="/tournaments/schedule" />
-          {loading && <SkeletonRow />}
+          {loading && <ScheduleLoadingNotice label="Loading match..." />}
           {message && !match && <StatusMessage tone="error">{message}</StatusMessage>}
           {match && (
             <MatchDetailPageCard
@@ -4610,36 +4694,6 @@ function ScheduleTimeHeader({ label, count }: { label: string; count: number }) 
   );
 }
 
-function ScheduleEventsTimeline({ items, teams, title }: { items: ScheduleItem[]; teams: PublishedTeam[]; title: string }) {
-  if (!items.length) return null;
-  const groupedEvents = groupScheduleItemsByTime(items);
-  return (
-    <section className="grid gap-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[16px] font-medium text-text-primary">{title}</h2>
-        <span className="rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-text-secondary">{items.length} items</span>
-      </div>
-      {Object.entries(groupedEvents).sort(([a], [b]) => getScheduleTimeSortValue(a) - getScheduleTimeSortValue(b)).map(([timeLabel, timeItems]) => (
-        <ScheduleEventTimeCard items={timeItems} label={timeLabel} teams={teams} key={timeLabel} />
-      ))}
-    </section>
-  );
-}
-
-function ScheduleEventTimeCard({ items, label, teams }: { items: ScheduleItem[]; label: string; teams: PublishedTeam[] }) {
-  if (!items.length) return null;
-  return (
-    <section className="grid gap-2.5">
-      <ScheduleTimeHeader label={label} count={items.length} />
-      <div className="grid gap-2.5 lg:grid-cols-2">
-        {items.map((item) => (
-          <ScheduleItemCard item={item} teams={teams} key={item.id} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function ScheduleDetailBackLink({ href, label }: { href: string; label: string }) {
   return (
     <Link className="tap-card inline-flex min-h-10 w-fit items-center gap-2 rounded-full border-hairline border-line bg-white px-3 text-[13px] font-medium text-brand shadow-[0_8px_18px_rgba(24,24,26,0.06)]" href={href}>
@@ -4649,60 +4703,141 @@ function ScheduleDetailBackLink({ href, label }: { href: string; label: string }
   );
 }
 
-function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, entryLabel, message, saving, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; draft: ScoreDraft; canSubmit: boolean; isOwnMatch: boolean; entryLabel: string; message: string; saving: boolean; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
+function ScheduleLoadingNotice({ label, overlay = false }: { label: string; overlay?: boolean }) {
+  if (overlay) {
+    return (
+      <div className="fixed inset-0 z-[70] grid place-items-center bg-white/45 backdrop-blur-[2px]" role="status" aria-live="polite">
+        <span className="inline-flex items-center gap-2 rounded-full bg-brand px-4 py-2 text-[14px] font-medium text-white shadow-[0_16px_38px_rgba(12,59,32,0.22)]">
+          <RefreshCw className="animate-spin" size={16} />
+          {label}
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <section className="grid gap-4">
-      <article className="overflow-hidden rounded-[26px] border-hairline border-white/80 bg-white shadow-[0_20px_55px_rgba(12,59,32,0.10)]">
-        <div className="relative overflow-hidden bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-5 text-white sm:p-6">
+    <div className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[16px] border-hairline border-line bg-white/90 px-4 text-[14px] font-medium text-brand shadow-[0_12px_28px_rgba(24,24,26,0.06)] backdrop-blur" role="status" aria-live="polite">
+      <RefreshCw className="animate-spin" size={16} />
+      {label}
+    </div>
+  );
+}
+
+function PlayerScheduleTimeCard({ label, matches, onOpenMatch, isFeatured }: { label: string; matches: PlayerScheduleMatch[]; onOpenMatch: (match: PlayerScheduleMatch) => void; isFeatured: boolean }) {
+  const teamLabel = matches.length === 1 ? `${matches[0].teamName} vs ${matches[0].opposingTeamName}` : `${matches.length} matches`;
+  return (
+    <section className={`overflow-hidden rounded-[22px] border-hairline border-white/70 bg-white/88 shadow-[0_18px_44px_rgba(12,59,32,0.10)] ring-1 ring-line/70 backdrop-blur-xl ${isFeatured ? "shadow-[0_20px_48px_rgba(12,59,32,0.13)]" : ""}`}>
+      <div className="flex items-center justify-between gap-3 border-b-hairline border-line bg-[linear-gradient(135deg,rgba(234,243,222,0.85),rgba(255,255,255,0.78))] px-4 py-3">
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <Clock size={16} className="shrink-0 text-brand" />
+          <h2 className="truncate text-[18px] font-medium leading-none text-brand">{label}</h2>
+        </span>
+        <span className="min-w-0 truncate rounded-full bg-brand-light px-3 py-1.5 text-right text-[12px] font-medium text-[#3b6d11]">{teamLabel}</span>
+      </div>
+      <div className="grid gap-2.5 p-3 sm:grid-cols-2">
+        {matches.map((match) => (
+          <PlayerScheduleMatchCard match={match} isFeatured={false} onOpenMatch={() => onOpenMatch(match)} hideTime key={match.id} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, entryLabel, message, saving, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; draft: ScoreDraft; canSubmit: boolean; isOwnMatch: boolean; entryLabel: string; message: string; saving: boolean; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
+  const playersA = match.playersA.length ? match.playersA.join(" / ") : match.teamAName;
+  const playersB = match.playersB.length ? match.playersB.join(" / ") : match.teamBName;
+  return (
+    <section className="grid gap-3">
+      <article className="relative overflow-hidden rounded-[24px] border-hairline border-white/80 bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-4 pt-12 text-white shadow-[0_18px_44px_rgba(12,59,32,0.10)] sm:p-5 sm:pt-12">
+        <Link className="tap-card absolute left-3 top-3 z-10 inline-grid h-8 max-h-8 min-h-8 w-8 min-w-8 max-w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/10 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)]" href="/tournaments/schedule" aria-label="Back to schedule">
+          <ArrowLeft size={15} />
+        </Link>
+        <div className="relative grid gap-3">
           <CourtBackdrop />
-          <div className="relative grid gap-4">
-            <span className="flex flex-wrap items-center gap-2">
-              <em className="rounded-full bg-white/12 px-3 py-1 text-[12px] font-medium not-italic text-white/82">{match.dayLabel}</em>
-              <em className="rounded-full bg-white/12 px-3 py-1 text-[12px] font-medium not-italic text-white/82">{match.podLabel || "Match"}</em>
-            </span>
-            <div className="grid gap-2">
-              <h1 className="text-[28px] font-medium leading-tight tracking-[-0.5px] sm:text-[36px]">{formatMatchPlayersTitle(match)}</h1>
-              <p className="text-[15px] leading-relaxed text-white/72">{match.teamAName} vs {match.teamBName} · {match.timeLabel} · {match.courtLabel || "Court TBD"}</p>
+          <div className="relative grid gap-3">
+            <div className="grid gap-1">
+              <h1 className="text-[23px] font-medium leading-[1.08] tracking-[-0.4px] sm:text-[30px]">{playersA}</h1>
+              <span className="text-[14px] font-medium text-white/58">vs</span>
+              <h2 className="text-[23px] font-medium leading-[1.08] tracking-[-0.4px] text-white sm:text-[30px]">{playersB}</h2>
             </div>
-            <div className="grid gap-2 rounded-[18px] border-hairline border-white/16 bg-white/10 p-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
-              <MatchSideSummary teamName={match.teamAName} players={match.playersA} inverted />
-              <span className="hidden text-[12px] font-medium text-white/52 sm:block">vs</span>
-              <MatchSideSummary teamName={match.teamBName} players={match.playersB} inverted />
+            <div className="grid gap-2 rounded-[18px] border-hairline border-white/16 bg-white/10 p-2.5 backdrop-blur">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                <TeamColorPill label={match.teamAName} color={match.teamAColor} />
+                <span className="text-[12px] font-medium text-white/52">vs</span>
+                <TeamColorPill label={match.teamBName} color={match.teamBColor} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <MatchMetaTile label="Time" value={match.timeLabel || "TBD"} />
+                <MatchMetaTile label="Court" value={match.courtLabel || "TBD"} />
+              </div>
             </div>
           </div>
         </div>
       </article>
 
-      <article className="grid gap-4 rounded-[22px] border-hairline border-line bg-white p-4 shadow-[0_14px_34px_rgba(24,24,26,0.06)] sm:p-5">
+      <article className="grid gap-3 rounded-[20px] border-hairline border-line bg-white p-3 shadow-[0_12px_28px_rgba(24,24,26,0.06)] sm:p-4">
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <span className="grid gap-1">
-            <strong className="text-[20px] font-medium text-text-primary">Match score</strong>
-            <em className="text-[14px] not-italic text-text-secondary">Current score: {formatMatchScoreSummary(match.score)}</em>
+            <strong className="text-[18px] font-medium text-text-primary">Match score</strong>
+            <em className="text-[13px] not-italic text-text-secondary">Current score: {formatMatchScoreSummary(match.score)}</em>
           </span>
           <span className={canSubmit ? "w-fit rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]" : "w-fit rounded-full bg-surface px-3 py-1.5 text-[12px] font-medium text-text-secondary"}>{entryLabel}</span>
         </div>
 
         {isOwnMatch ? (
-          <div className="grid gap-3">
-            <p className="rounded-[16px] border-hairline border-line bg-surface/60 p-3 text-[13px] leading-relaxed text-text-secondary">Enter set scores after your match. Best of three: if one side wins the first two sets, set 3 is not needed.</p>
+          <div className="grid gap-2.5">
+            <p className="rounded-[14px] border-hairline border-line bg-surface/60 px-3 py-2 text-[12px] leading-relaxed text-text-secondary">Best of three. Set 3 only if needed.</p>
+            <div className="grid grid-cols-[52px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-2">
+              <span aria-hidden="true" />
+              <ScoreSideLabel playerNames={playersA} color={match.teamAColor} />
+              <span className="text-center text-[12px] font-medium text-text-muted">vs</span>
+              <ScoreSideLabel playerNames={playersB} color={match.teamBColor} />
+            </div>
             <div className="grid gap-2">
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={1} />
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={2} />
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={3} optional />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={1} sideALabel={match.teamAName} sideBLabel={match.teamBName} />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={2} sideALabel={match.teamAName} sideBLabel={match.teamBName} />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={3} sideALabel={match.teamAName} sideBLabel={match.teamBName} optional />
             </div>
             {message && <p className={message === "Score saved." ? "rounded-[14px] bg-brand-light p-3 text-[13px] text-[#3b6d11]" : "rounded-[14px] bg-[#fff8f1] p-3 text-[13px] text-[#8a4a22]"}>{message}</p>}
-            <button className="tap-card inline-flex min-h-12 items-center justify-center rounded-[16px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-5 text-[15px] font-medium text-white shadow-[0_14px_30px_rgba(12,59,32,0.18)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-surface disabled:text-text-muted disabled:shadow-none" type="button" onClick={onSubmit} disabled={!canSubmit || saving}>
+            <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[15px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-5 text-[14px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.16)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-surface disabled:text-text-muted disabled:shadow-none" type="button" onClick={onSubmit} disabled={!canSubmit || saving}>
               {saving ? "Saving score..." : "Input scores"}
             </button>
           </div>
         ) : (
-          <div className="grid gap-3 rounded-[18px] border-hairline border-line bg-surface/55 p-4">
+          <div className="grid gap-2 rounded-[16px] border-hairline border-line bg-surface/55 p-3">
             <strong className="text-[16px] font-medium text-text-primary">Read-only match</strong>
             <p className="text-[14px] leading-relaxed text-text-secondary">Only players listed in this match can submit or edit scores. You can still view teams, players, court, time, and posted scores here.</p>
           </div>
         )}
       </article>
     </section>
+  );
+}
+
+function TeamColorPill({ label, color }: { label: string; color: string }) {
+  const tone = getTeamCardTone(color);
+  return (
+    <span className="min-w-0 truncate rounded-full border-hairline px-2.5 py-1.5 text-center text-[12px] font-medium shadow-[0_8px_18px_rgba(0,0,0,0.10)]" style={{ background: tone.background, color: tone.textColor, borderColor: "rgba(255,255,255,0.25)" }}>
+      {label}
+    </span>
+  );
+}
+
+function MatchMetaTile({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="grid gap-0.5 rounded-[13px] border-hairline border-white/14 bg-white/10 px-3 py-2">
+      <em className="text-[10px] font-medium not-italic uppercase tracking-[0.08em] text-white/46">{label}</em>
+      <strong className="text-[14px] font-medium leading-tight text-white">{value}</strong>
+    </span>
+  );
+}
+
+function ScoreSideLabel({ playerNames, color }: { playerNames: string; color: string }) {
+  const tone = getTeamCardTone(color);
+  return (
+    <span className="min-w-0 truncate rounded-[11px] border-hairline px-2 py-1.5 text-center text-[11px] font-medium" style={{ background: tone.background, color: tone.textColor, borderColor: "rgba(12,59,32,0.08)" }}>
+      {playerNames}
+    </span>
   );
 }
 
@@ -4764,19 +4899,6 @@ function TeamHeroStat({ label, value }: { label: string; value: number }) {
   );
 }
 
-function MatchSideSummary({ teamName, players, inverted = false }: { teamName: string; players: string[]; inverted?: boolean }) {
-  return (
-    <span className="grid min-w-0 gap-1">
-      <strong className={inverted ? "truncate text-[14px] font-medium text-white" : "truncate text-[14px] font-medium text-brand"}>{teamName}</strong>
-      <span className="grid gap-1">
-        {(players.length ? players : ["Players TBD"]).map((player) => (
-          <em className={inverted ? "truncate text-[13px] not-italic text-white/78" : "truncate text-[13px] not-italic text-text-primary"} key={player}>{player}</em>
-        ))}
-      </span>
-    </span>
-  );
-}
-
 function CourtBackdrop() {
   return (
     <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.16]" viewBox="0 0 720 260" aria-hidden="true" preserveAspectRatio="none">
@@ -4786,15 +4908,15 @@ function CourtBackdrop() {
   );
 }
 
-function ScoreSetInputs({ draft, setNumber, optional = false, disabled, onChange }: { draft: ScoreDraft; setNumber: 1 | 2 | 3; optional?: boolean; disabled: boolean; onChange: (draft: ScoreDraft) => void }) {
+function ScoreSetInputs({ draft, setNumber, optional = false, disabled, onChange, sideALabel, sideBLabel }: { draft: ScoreDraft; setNumber: 1 | 2 | 3; optional?: boolean; disabled: boolean; onChange: (draft: ScoreDraft) => void; sideALabel: string; sideBLabel: string }) {
   const sideAKey = `sideASet${setNumber}` as keyof ScoreDraft;
   const sideBKey = `sideBSet${setNumber}` as keyof ScoreDraft;
   return (
-    <label className="grid grid-cols-[64px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-[14px] border-hairline border-line bg-surface/55 px-3 py-2 text-[12px] text-text-secondary">
-      <span className="font-medium text-text-primary">Set {setNumber}{optional ? " (if needed)" : ""}</span>
-      <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-2 text-center text-[16px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[sideAKey]} onChange={(event) => onChange({ ...draft, [sideAKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="N/A" inputMode="numeric" disabled={disabled} />
+    <label className="grid grid-cols-[52px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-[13px] border-hairline border-line bg-surface/55 px-2 py-1.5 text-[12px] text-text-secondary">
+      <span className="font-medium text-text-primary">Set {setNumber}</span>
+      <input className="min-h-9 rounded-[11px] border-hairline border-line bg-white px-2 text-center text-[15px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[sideAKey]} onChange={(event) => onChange({ ...draft, [sideAKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="0" aria-label={`Set ${setNumber} score for ${sideALabel}${optional ? " if needed" : ""}`} inputMode="numeric" disabled={disabled} />
       <span className="text-text-muted">-</span>
-      <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-2 text-center text-[16px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[sideBKey]} onChange={(event) => onChange({ ...draft, [sideBKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="N/A" inputMode="numeric" disabled={disabled} />
+      <input className="min-h-9 rounded-[11px] border-hairline border-line bg-white px-2 text-center text-[15px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[sideBKey]} onChange={(event) => onChange({ ...draft, [sideBKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="0" aria-label={`Set ${setNumber} score for ${sideBLabel}${optional ? " if needed" : ""}`} inputMode="numeric" disabled={disabled} />
     </label>
   );
 }
@@ -4808,7 +4930,7 @@ function TeamPerformancePill({ label, value }: { label: string; value: number })
   );
 }
 
-function PlayerScheduleMatchCard({ match, isFeatured, onOpenMatch }: { match: PlayerScheduleMatch; isFeatured: boolean; onOpenMatch: () => void }) {
+function PlayerScheduleMatchCard({ match, isFeatured, onOpenMatch, hideTime = false }: { match: PlayerScheduleMatch; isFeatured: boolean; onOpenMatch: () => void; hideTime?: boolean }) {
   const playerSideNames = match.playerSideNames.length ? match.playerSideNames : ["You"];
   const opponentNames = match.opponentNames.length ? match.opponentNames : ["Opponent TBD"];
   const courtNumber = formatCourtNumber(match.courtLabel || "");
@@ -4817,17 +4939,19 @@ function PlayerScheduleMatchCard({ match, isFeatured, onOpenMatch }: { match: Pl
     <article className={`relative overflow-hidden rounded-[20px] border-hairline border-white/70 bg-white/88 p-3.5 shadow-[0_18px_44px_rgba(12,59,32,0.10)] ring-1 ring-line/70 backdrop-blur-xl ${isFeatured ? "shadow-[0_20px_48px_rgba(12,59,32,0.13)]" : ""}`}>
       <span className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_top_right,rgba(76,222,140,0.18),transparent_58%)]" aria-hidden="true" />
       <div className="relative grid gap-3">
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand px-2.5 py-1.5 text-white shadow-[0_10px_22px_rgba(12,59,32,0.16)] sm:gap-2 sm:px-3 sm:py-2">
-            <Clock size={13} />
-            <strong className="text-[13px] font-medium leading-none sm:text-[14px]">{match.timeLabel || "Time TBD"}</strong>
-          </span>
-          <span className="min-w-0 truncate text-right text-[12px] font-medium text-text-secondary sm:text-[13px]">
-            {match.teamName} vs {match.opposingTeamName}
-          </span>
-        </div>
-        <button className="tap-card grid gap-2.5 rounded-[16px] border-hairline border-line bg-white p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]" type="button" onClick={onOpenMatch}>
-          <div className="grid grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] sm:gap-3">
+        {!hideTime && (
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand px-2.5 py-1.5 text-white shadow-[0_10px_22px_rgba(12,59,32,0.16)] sm:gap-2 sm:px-3 sm:py-2">
+              <Clock size={13} />
+              <strong className="text-[13px] font-medium leading-none sm:text-[14px]">{match.timeLabel || "Time TBD"}</strong>
+            </span>
+            <span className="min-w-0 truncate text-right text-[12px] font-medium text-text-secondary sm:text-[13px]">
+              {match.teamName} vs {match.opposingTeamName}
+            </span>
+          </div>
+        )}
+        <button className="tap-card grid gap-2.5 rounded-[16px] border-hairline border-line bg-white p-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-3" type="button" onClick={onOpenMatch}>
+          <div className="grid grid-cols-[minmax(0,1fr)_42px_minmax(0,1fr)] items-stretch gap-1.5 sm:grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] sm:gap-3">
             <PlayerNameStack label="" names={playerSideNames} tone="primary" color={match.teamColor} />
             <CourtLineDivider label={courtNumber} />
             <PlayerNameStack label="" names={opponentNames} tone="opponent" color={match.opposingTeamColor} />
@@ -4902,7 +5026,7 @@ function TeamCourtScheduleBlock({ block, teams, isFeatured, onOpenMatch, onOpenT
   );
 }
 
-function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onToggleBlock, onOpenMatch, onOpenTeam }: { label: string; blocks: TeamCourtScheduleBlock[]; eventItems: ScheduleItem[]; teams: PublishedTeam[]; openBlocks: Record<string, boolean>; onToggleBlock: (blockId: string) => void; onOpenMatch: (match: TeamCourtScheduleMatch) => void; onOpenTeam: (teamId: string) => void }) {
+function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onToggleBlock, onOpenMatch, onOpenTeam, defaultOpen = false }: { label: string; blocks: TeamCourtScheduleBlock[]; eventItems: ScheduleItem[]; teams: PublishedTeam[]; openBlocks: Record<string, boolean>; onToggleBlock: (blockId: string) => void; onOpenMatch: (match: TeamCourtScheduleMatch) => void; onOpenTeam: (teamId: string) => void; defaultOpen?: boolean }) {
   const matchCount = blocks.reduce((total, block) => total + block.matches.length, 0);
 
   return (
@@ -4916,9 +5040,11 @@ function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onT
       </div>
       <div className="grid gap-2.5 p-3">
         {!!eventItems.length && (
-          <div className="grid gap-2.5 lg:grid-cols-2">
+          <div className="grid gap-2">
             {eventItems.map((item) => (
-              <ScheduleItemCard item={item} teams={teams} key={item.id} />
+              item.itemType === "event"
+                ? <ScheduleCompactEventRow item={item} key={item.id} />
+                : <ScheduleItemCard item={item} teams={teams} key={item.id} />
             ))}
           </div>
         )}
@@ -4926,7 +5052,7 @@ function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onT
         {blocks.map((block) => (
           <DayScheduleTeamBlock
             block={block}
-            isOpen={Boolean(openBlocks[block.id])}
+            isOpen={openBlocks[block.id] ?? defaultOpen}
             onToggle={() => onToggleBlock(block.id)}
             teams={teams}
             onOpenMatch={onOpenMatch}
@@ -4936,6 +5062,22 @@ function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onT
         ))}
         </div>}
       </div>
+    </section>
+  );
+}
+
+function ScheduleCompactEventRow({ item }: { item: ScheduleItem }) {
+  return (
+    <article className="rounded-[16px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-4 py-3">
+      <strong className="text-[16px] font-medium leading-snug text-text-primary">{item.matchLabel}</strong>
+    </article>
+  );
+}
+
+function DayScheduleEndCard() {
+  return (
+    <section className="rounded-[18px] border-hairline border-line bg-white px-4 py-3 text-center shadow-[0_10px_24px_rgba(24,24,26,0.04)]">
+      <strong className="text-[14px] font-medium text-brand">Day 1 ends</strong>
     </section>
   );
 }
@@ -5016,14 +5158,6 @@ function ScheduleTeamPill({ label, color, logoUrl, isFinalized, wrapName = false
   );
 }
 
-function groupScheduleItems(items: ScheduleItem[]) {
-  return items.reduce<Record<string, ScheduleItem[]>>((groups, item) => {
-    groups[item.dayLabel] = groups[item.dayLabel] || [];
-    groups[item.dayLabel].push(item);
-    return groups;
-  }, {});
-}
-
 function mapPublishedTeamsFromRows(rows: PublishedTeamRow[]): PublishedTeam[] {
   return rows.map((team) => {
     const members = Array.isArray(team.tournament_team_members) ? team.tournament_team_members : team.tournament_team_members ? [team.tournament_team_members] : [];
@@ -5060,6 +5194,41 @@ function groupScheduleItemsByTime(items: ScheduleItem[]) {
   }, {});
 }
 
+function getDayScheduleEventItems(items: ScheduleItem[], dayNumber: number) {
+  const eventItems = items.filter((item) => item.itemType === "event" && item.dayNumber === dayNumber);
+  if (dayNumber !== 1) return eventItems;
+  const withBreakfast = hasScheduleEventNear(eventItems, 8 * 60)
+    ? eventItems
+    : [createScheduleEventItem(1, "8:00-9:30 AM", "Breakfast / briefing / warmup / team setup", "Check in, eat, warm up, and settle into teams before matches begin.", -20), ...eventItems];
+  return hasScheduleEventNear(withBreakfast, 12 * 60 + 50)
+    ? withBreakfast
+    : [...withBreakfast, createScheduleEventItem(1, "12:50-1:30 PM", "Lunch", "Lunch break before afternoon matches resume.", 1250)];
+}
+
+function hasScheduleEventNear(items: ScheduleItem[], targetMinutes: number) {
+  return items.some((item) => Math.abs(getScheduleTimeSortValue(item.timeLabel || item.dayLabel) - targetMinutes) <= 10);
+}
+
+function createScheduleEventItem(dayNumber: number, timeLabel: string, matchLabel: string, detail: string, sortOrder: number): ScheduleItem {
+  return {
+    id: `day-${dayNumber}-${normalizeScheduleTime(timeLabel)}-${normalizeName(matchLabel)}`,
+    itemType: "event",
+    dayNumber,
+    dayLabel: `Day ${dayNumber}`,
+    timeLabel,
+    podLabel: "",
+    courtLabel: "",
+    phase: "",
+    matchLabel,
+    teamASortOrder: null,
+    teamBSortOrder: null,
+    teamALabel: "",
+    teamBLabel: "",
+    detail,
+    sortOrder
+  };
+}
+
 function getSortedScheduleTimeLabels(blockGroups: Record<string, TeamCourtScheduleBlock[]>, eventItems: ScheduleItem[]) {
   const labels = new Map<string, string>();
   Object.keys(blockGroups).forEach((label) => {
@@ -5070,6 +5239,19 @@ function getSortedScheduleTimeLabels(blockGroups: Record<string, TeamCourtSchedu
     labels.set(normalizeScheduleTime(label), label);
   });
   return Array.from(labels.values()).sort((a, b) => getScheduleTimeSortValue(a) - getScheduleTimeSortValue(b) || a.localeCompare(b));
+}
+
+function groupPlayerMatchesByTime(matches: PlayerScheduleMatch[]) {
+  return matches.reduce<Record<string, PlayerScheduleMatch[]>>((groups, match) => {
+    const label = match.timeLabel || match.dayLabel;
+    groups[label] = groups[label] || [];
+    groups[label].push(match);
+    return groups;
+  }, {});
+}
+
+function getSortedPlayerScheduleTimeLabels(groups: Record<string, PlayerScheduleMatch[]>) {
+  return Object.keys(groups).sort((a, b) => getScheduleTimeSortValue(a) - getScheduleTimeSortValue(b) || a.localeCompare(b));
 }
 
 function getScheduleItemsForTime(items: ScheduleItem[], timeLabel: string) {
@@ -5226,12 +5408,6 @@ function formatMatchScoreSummary(score: MatchScore | null) {
     formatScoreSet(score.sideASet3, score.sideBSet3)
   ].filter(Boolean);
   return sets.length ? sets.join(" · ") : "N/A";
-}
-
-function formatMatchPlayersTitle(match: TeamCourtScheduleMatch) {
-  const sideA = match.playersA.length ? match.playersA.join(" / ") : match.teamAName;
-  const sideB = match.playersB.length ? match.playersB.join(" / ") : match.teamBName;
-  return `${sideA} vs ${sideB}`;
 }
 
 function formatScoreSet(sideA: number | null, sideB: number | null) {
@@ -5402,6 +5578,8 @@ function mapTeamCourtScheduleMatches(matchRows: PlayerScheduleMatchRow[], player
       teamBId: teamB?.id || "",
       teamAName: teamA?.name || match.team_a_label || "Team A",
       teamBName: teamB?.name || match.team_b_label || "Team B",
+      teamAColor: teamA?.jerseyColor || "#eaf3de",
+      teamBColor: teamB?.jerseyColor || "#e5f1ff",
       playersA,
       playersB,
       score: scoresByMatch[match.id] || null,

@@ -53,6 +53,13 @@ type AdminTournament = {
   notes: string | null;
   faqs?: unknown;
 };
+type AdminScheduleNote = {
+  id?: string;
+  title: string;
+  body: string;
+  sortOrder?: number;
+  isPublished?: boolean;
+};
 type AdminRegisteredPlayer = {
   id: string;
   registrationId: string;
@@ -785,16 +792,27 @@ export function AdminTournamentsScreen() {
       notes: String(form.get("notes") || "").trim() || null,
       faqs: getAdminTournamentFaqs(form)
     };
-    const { error } = await supabase.from("tournaments").insert({
+    const { data: createdTournament, error } = await supabase.from("tournaments").insert({
       sport_id: sportId,
       ...tournamentPayload
-    });
-    setCreating(false);
+    }).select("id").single();
 
     if (error) {
+      setCreating(false);
       setNotice({ type: "error", text: error.message });
       return;
     }
+
+    if (createdTournament?.id) {
+      const noteError = await replaceAdminScheduleNotes(createdTournament.id, getAdminScheduleNotes(form));
+      if (noteError) {
+        setCreating(false);
+        setNotice({ type: "error", text: noteError });
+        return;
+      }
+    }
+
+    setCreating(false);
 
     target.reset();
     setFormOpen(false);
@@ -904,6 +922,7 @@ export function AdminTournamentsScreen() {
             <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" placeholder="121.00" required />
           </label>
           <AdminFaqFields />
+          <AdminScheduleNoteFields />
           <label className="grid gap-1 text-[12px] text-text-secondary">
             Maximum players (slots)
             <input
@@ -950,6 +969,7 @@ export function AdminTournamentsScreen() {
 
 export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: string }) {
   const [tournament, setTournament] = useState<AdminTournament | null>(null);
+  const [scheduleNotes, setScheduleNotes] = useState<AdminScheduleNote[]>([]);
   const [registeredPlayers, setRegisteredPlayers] = useState<AdminRegisteredPlayer[]>([]);
   const [teams, setTeams] = useState<AdminTeam[]>([]);
   const [waitlistedPlayers, setWaitlistedPlayers] = useState<AdminWaitlistedPlayer[]>([]);
@@ -965,7 +985,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    const [{ data, error }, { data: registrations, error: registrationError }, { data: waitlistRows, error: waitlistError }, { data: checkoutPayments, error: checkoutPaymentError }, { data: paidPayments, error: paidPaymentError }] = await Promise.all([
+    const [{ data, error }, { data: registrations, error: registrationError }, { data: waitlistRows, error: waitlistError }, { data: checkoutPayments, error: checkoutPaymentError }, { data: paidPayments, error: paidPaymentError }, { data: noteRows, error: noteError }] = await Promise.all([
       supabase
         .from("tournaments")
         .select("id, name, status, venue_name, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
@@ -1001,11 +1021,17 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .eq("entry_type", "charge")
         .in("status", ["paid", "refunded"])
         .order("occurred_at", { ascending: false })
+        .limit(120),
+      supabase
+        .from("tournament_schedule_notes")
+        .select("id, title, body, sort_order, is_published")
+        .eq("tournament_id", tournamentId)
+        .order("sort_order", { ascending: true })
         .limit(120)
     ]);
 
-    if (error || registrationError || waitlistError || checkoutPaymentError || paidPaymentError) {
-      setNotice({ type: "error", text: (error || registrationError || waitlistError || checkoutPaymentError || paidPaymentError)?.message || "Could not load tournament workspace." });
+    if (error || registrationError || waitlistError || checkoutPaymentError || paidPaymentError || noteError) {
+      setNotice({ type: "error", text: (error || registrationError || waitlistError || checkoutPaymentError || paidPaymentError || noteError)?.message || "Could not load tournament workspace." });
       return;
     }
 
@@ -1033,6 +1059,13 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     }
 
     setTournament((data || null) as AdminTournament | null);
+    setScheduleNotes((noteRows || []).map((note) => ({
+      id: note.id,
+      title: note.title || "",
+      body: note.body || "",
+      sortOrder: note.sort_order || 0,
+      isPublished: Boolean(note.is_published)
+    })));
     const shirtNamesByRegistration = new Map((shirtRows || []).map((row) => [row.id, row.shirt_name || ""]));
     const paymentsByRegistration = new Map<string, { id: string; player_id: string; registration_id: string | null; status: string; amount_cents: number; currency: string }>();
     const paymentsByPlayer = new Map<string, { id: string; player_id: string; registration_id: string | null; status: string; amount_cents: number; currency: string }>();
@@ -1202,10 +1235,17 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       notes: String(form.get("notes") || "").trim() || null,
       faqs: getAdminTournamentFaqs(form)
     }).eq("id", tournament.id);
-    setSaving(false);
 
     if (error) {
+      setSaving(false);
       setNotice({ type: "error", text: error.message });
+      return;
+    }
+
+    const noteError = await replaceAdminScheduleNotes(tournament.id, getAdminScheduleNotes(form));
+    setSaving(false);
+    if (noteError) {
+      setNotice({ type: "error", text: noteError });
       return;
     }
 
@@ -1918,6 +1958,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                 />
               </label>
               <AdminFaqFields faqs={normalizeAdminTournamentFaqs(tournament.faqs)} />
+              <AdminScheduleNoteFields notes={scheduleNotes} />
               <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save details"}</button>
             </form>
           </section>
@@ -2290,6 +2331,37 @@ function getAdminTournamentFaqs(form: FormData): AdminFaq[] {
   });
 }
 
+function getAdminScheduleNotes(form: FormData): AdminScheduleNote[] {
+  const titles = form.getAll("scheduleNoteTitle").map((value) => String(value || "").trim());
+  const bodies = form.getAll("scheduleNoteBody").map((value) => String(value || "").trim());
+  return titles.flatMap((title, index) => {
+    const body = bodies[index] || "";
+    return title && body ? [{ title, body, sortOrder: (index + 1) * 10, isPublished: true }] : [];
+  });
+}
+
+async function replaceAdminScheduleNotes(tournamentId: string, notes: AdminScheduleNote[]) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return "Supabase is not configured. Check your environment variables.";
+
+  const { error: deleteError } = await supabase
+    .from("tournament_schedule_notes")
+    .delete()
+    .eq("tournament_id", tournamentId);
+  if (deleteError) return deleteError.message;
+
+  if (!notes.length) return "";
+
+  const { error: insertError } = await supabase.from("tournament_schedule_notes").insert(notes.map((note, index) => ({
+    tournament_id: tournamentId,
+    title: note.title,
+    body: note.body,
+    sort_order: note.sortOrder ?? (index + 1) * 10,
+    is_published: true
+  })));
+  return insertError?.message || "";
+}
+
 function AdminFaqFields({ faqs = [] }: { faqs?: AdminFaq[] }) {
   const [rows, setRows] = useState<AdminFaq[]>(() => faqs.length ? faqs : [{ question: "", answer: "" }]);
 
@@ -2321,6 +2393,42 @@ function AdminFaqFields({ faqs = [] }: { faqs?: AdminFaq[] }) {
       ))}
       <button className="tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[12px] border-hairline border-line bg-white px-4 text-[13px] font-medium text-brand md:w-max" type="button" onClick={addRow}>
         Add FAQ
+      </button>
+    </fieldset>
+  );
+}
+
+function AdminScheduleNoteFields({ notes = [] }: { notes?: AdminScheduleNote[] }) {
+  const [rows, setRows] = useState<AdminScheduleNote[]>(() => notes.length ? notes : [{ title: "", body: "" }]);
+
+  const updateRow = (index: number, field: keyof Pick<AdminScheduleNote, "title" | "body">, value: string) => {
+    setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
+  };
+
+  const addRow = () => {
+    setRows((current) => [...current, { title: "", body: "" }]);
+  };
+
+  const removeRow = (index: number) => {
+    setRows((current) => current.length === 1 ? [{ title: "", body: "" }] : current.filter((_, rowIndex) => rowIndex !== index));
+  };
+
+  return (
+    <fieldset className="grid gap-3 rounded-[16px] border-hairline border-line bg-surface/50 p-3">
+      <legend className="px-1 text-[13px] font-medium text-text-primary">Considerations and match rules</legend>
+      <p className="text-[13px] leading-relaxed text-text-secondary">Add the schedule notes players see on the schedule page. Empty rows are ignored.</p>
+      {rows.map((note, index) => (
+        <div className="grid gap-2 rounded-[14px] border-hairline border-line bg-white p-3" key={`schedule-note-${index}`}>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <span className="text-[13px] font-medium text-text-primary">Note {index + 1}</span>
+            <button className="tap-card rounded-full bg-[#fcebeb] px-3 py-1 text-[12px] font-medium text-[#a32d2d]" type="button" onClick={() => removeRow(index)}>Remove</button>
+          </div>
+          <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="scheduleNoteTitle" placeholder={`Title ${index + 1}`} value={note.title} onChange={(event) => updateRow(index, "title", event.target.value)} />
+          <textarea className="min-h-24 rounded-[12px] border-hairline border-line bg-white px-3 py-2 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="scheduleNoteBody" placeholder="Details shown to players" value={note.body} onChange={(event) => updateRow(index, "body", event.target.value)} />
+        </div>
+      ))}
+      <button className="tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[12px] border-hairline border-line bg-white px-4 text-[13px] font-medium text-brand md:w-max" type="button" onClick={addRow}>
+        Add note
       </button>
     </fieldset>
   );

@@ -5857,6 +5857,12 @@ body,
   max-height: 85dvh;
 }
 
+.court-lines {
+  background:
+    linear-gradient(90deg, transparent 10%, rgba(255, 255, 255, 0.1) 10%, rgba(255, 255, 255, 0.1) calc(10% + 2px), transparent calc(10% + 2px), transparent 50%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.12) calc(50% + 2px), transparent calc(50% + 2px), transparent 90%, rgba(255, 255, 255, 0.1) 90%, rgba(255, 255, 255, 0.1) calc(90% + 2px), transparent calc(90% + 2px)),
+    linear-gradient(0deg, transparent 22%, rgba(255, 255, 255, 0.1) 22%, rgba(255, 255, 255, 0.1) calc(22% + 2px), transparent calc(22% + 2px), transparent 50%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.12) calc(50% + 2px), transparent calc(50% + 2px), transparent 78%, rgba(255, 255, 255, 0.1) 78%, rgba(255, 255, 255, 0.1) calc(78% + 2px), transparent calc(78% + 2px));
+}
+
 .schedule-court-divider {
   position: relative;
   min-height: 76px;
@@ -5959,9 +5965,9 @@ body,
   }
 
   .schedule-court-label {
-    min-width: 40px;
-    min-height: 30px;
-    padding: 5px 6px;
+    min-width: 34px;
+    min-height: 28px;
+    padding: 4px 5px;
     font-size: 12px;
   }
 
