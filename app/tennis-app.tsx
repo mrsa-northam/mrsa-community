@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, Clock, DollarSign, ExternalLink, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, Clock, DollarSign, Dumbbell, ExternalLink, House, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -11,7 +11,7 @@ import { getSupabaseClient } from "./lib/supabase";
 
 const TournamentHeroAmbience = dynamic(() => import("./tournament-hero-ambience").then((mod) => mod.TournamentHeroAmbience), { ssr: false });
 
-type Tab = "tournament" | "profile" | "admin";
+type Tab = "home" | "tournament" | "profile" | "admin";
 type ProfileData = {
   id?: string;
   profilePhotoUrl?: string;
@@ -28,6 +28,7 @@ type ProfileData = {
   jerseySize: string;
   jerseyName: string;
   tennisVideo: string;
+  ustaNumber: string;
 };
 
 type TopPlayer = { id: string; name: string; rating: string; city: string; profilePhotoUrl: string };
@@ -57,9 +58,9 @@ type Tournament = {
 type TournamentFaq = { question: string; answer: string };
 type RegisteredPlayer = { id: string; name: string; age: string; city: string; rating: string; tennisVideoUrl: string };
 type TournamentProfileReminder = { missingPhoto: boolean; missingJerseyName: boolean; missingJerseySize: boolean };
-type PublishedTeamMember = { id: string; playerId: string; name: string; age: string; city: string; tier: string; rating: string; isCaptain: boolean; draftOrder: number | null };
+type PublishedTeamMember = { id: string; playerId: string; name: string; age: string; city: string; tier: string; rating: string; profilePhotoUrl: string; isCaptain: boolean; draftOrder: number | null };
 type PublishedTeam = { id: string; name: string; sortOrder: number; logoUrl: string; jerseyColor: string; members: PublishedTeamMember[] };
-type PublishedTeamPlayerRow = { id?: string | null; full_name?: string | null; jamaat_city?: string | null; age?: number | null; date_of_birth?: string | null; rating?: number | string | null };
+type PublishedTeamPlayerRow = { id?: string | null; full_name?: string | null; jamaat_city?: string | null; age?: number | null; date_of_birth?: string | null; rating?: number | string | null; profile_photo_url?: string | null };
 type PublishedTeamMemberRow = { id?: string | null; is_captain?: boolean | null; draft_order?: number | null; tier_at_draft?: number | null; players?: PublishedTeamPlayerRow | PublishedTeamPlayerRow[] | null };
 type PublishedTeamRow = { id?: string | null; name?: string | null; sort_order?: number | null; logo_url?: string | null; jersey_color?: string | null; tournament_team_members?: PublishedTeamMemberRow | PublishedTeamMemberRow[] | null };
 type ScheduleNote = { id: string; title: string; body: string; sortOrder: number };
@@ -213,12 +214,6 @@ type PaymentHistoryItem = {
   tournamentName: string;
   failureMessage: string;
 };
-type PastTournamentSummary = {
-  seasonYear: number;
-  matches: number;
-  singles: number;
-  doubles: number;
-};
 const skillLevels = [
   { value: "Advanced", label: "Advanced (High-level players with strong match experience and consistency)" },
   { value: "Upper Intermediate", label: "Upper Intermediate (Solid all-around players with competitive experience)" },
@@ -292,6 +287,8 @@ type DbProfileRow = {
   matches_played?: number | string | null;
   tennis_video_url?: string | null;
   tennis_video_status?: string | null;
+  usta_number?: string | null;
+  usta_prompt_skipped_at?: string | null;
   claim_status?: string | null;
   claim_requested_by?: string | null;
 };
@@ -334,7 +331,8 @@ const initialProfile: ProfileData = {
   matchesPlayed: "0",
   jerseySize: "",
   jerseyName: "",
-  tennisVideo: ""
+  tennisVideo: "",
+  ustaNumber: ""
 };
 
 const startingTennisTier = 4;
@@ -418,7 +416,7 @@ function AppTopBar({
   return (
     <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-2.5 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
       <div className="mx-auto grid w-full max-w-shell grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center">
-        <Link className="tap-card inline-flex min-w-0 justify-self-start" href="/tournaments" aria-label="MRSA tournament">
+        <Link className="tap-card inline-flex min-w-0 justify-self-start" href="/dashboard" aria-label="MRSA home">
           <BrandMark />
         </Link>
         <span aria-hidden="true" />
@@ -459,22 +457,6 @@ function StatusMessage({ tone = "info", children }: { tone?: "info" | "success" 
   );
 }
 
-function SkeletonHero() {
-  return (
-    <section className="grid min-h-[220px] animate-pulse rounded-hero border-hairline border-line bg-card p-5 shadow-card md:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] md:items-center md:gap-6">
-      <div className="grid gap-3">
-        <span className="h-4 w-28 rounded-full bg-surface" />
-        <span className="h-8 w-4/5 rounded-full bg-surface" />
-        <span className="h-4 w-2/3 rounded-full bg-surface" />
-      </div>
-      <div className="mt-4 grid gap-3 rounded-surface bg-surface p-4 md:mt-0">
-        <span className="h-5 w-32 rounded-full bg-white/80" />
-        <span className="h-10 rounded-card bg-white/80" />
-      </div>
-    </section>
-  );
-}
-
 function TournamentDetailRow({ icon, label, value, action, className = "", compact = false }: { icon: ReactNode; label: string; value: string; action?: ReactNode; className?: string; compact?: boolean }) {
   return (
     <div className={`grid ${compact ? "grid-cols-[28px_minmax(0,1fr)] gap-1.5 px-2 py-2" : "grid-cols-[52px_minmax(0,1fr)] gap-3 px-4 py-3.5"} border-t-hairline border-white/10 first:border-t-0 ${className}`}>
@@ -496,10 +478,6 @@ function WhatsAppIcon({ size = 16 }: { size?: number }) {
       <path d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.5 0 .15 5.35.15 11.93c0 2.1.55 4.15 1.6 5.95L0 24l6.28-1.65a11.9 11.9 0 0 0 5.8 1.48h.01c6.58 0 11.93-5.35 11.93-11.93 0-3.19-1.24-6.18-3.5-8.42Zm-8.43 18.33h-.01a9.9 9.9 0 0 1-5.05-1.38l-.36-.21-3.73.98 1-3.64-.24-.37a9.87 9.87 0 0 1-1.51-5.26c0-5.46 4.44-9.9 9.9-9.9 2.64 0 5.13 1.03 7 2.9a9.84 9.84 0 0 1 2.9 7c0 5.46-4.44 9.88-9.9 9.88Zm5.43-7.4c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.4-1.47-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.2-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48 0 1.46 1.07 2.88 1.22 3.08.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.7.63.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2-1.41.25-.7.25-1.3.17-1.42-.07-.13-.27-.2-.57-.35Z" />
     </svg>
   );
-}
-
-function SkeletonCard() {
-  return <div className="min-h-[92px] animate-pulse rounded-card border-hairline border-line bg-card p-4 shadow-card"><div className="h-full rounded-card bg-surface" /></div>;
 }
 
 function SkeletonRow() {
@@ -526,10 +504,10 @@ function OnboardingStep({ step, total, label }: { step: number; total: number; l
 }
 
 function normalizeNextPath(nextPath?: string | null) {
-  if (!nextPath) return "/tournaments";
+  if (!nextPath) return "/dashboard";
+  if (nextPath.startsWith("/dashboard")) return "/dashboard";
   if (nextPath.startsWith("/tournaments")) return "/tournaments";
-  if (nextPath.startsWith("/dashboard")) return "/tournaments";
-  return "/tournaments";
+  return "/dashboard";
 }
 
 function buildProfileCompletionPath(playerId: string | undefined, nextPath?: string | null) {
@@ -614,7 +592,7 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
     const [{ data: player }, { data: rejectedClaim }, { data: isAdmin }] = await Promise.all([
       supabase
         .from("players")
-	        .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, jersey_name, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played, claim_status, claim_requested_by")
+        .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, jersey_name, tennis_video_url, tennis_video_status, usta_number, usta_prompt_skipped_at, tier, rating, tournaments_played, matches_played, claim_status, claim_requested_by")
         .or(`auth_user_id.eq.${user.id},claim_requested_by.eq.${user.id}`)
         .limit(1)
         .maybeSingle(),
@@ -1291,7 +1269,7 @@ export function NewPlayerScreen({ claimPlayerId, nextPath }: { claimPlayerId?: s
 
       const { data } = await supabase
         .from("players")
-        .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, jersey_size, jersey_name, tennis_video_url, tennis_video_status, claim_status, claim_requested_by")
+        .select("id, auth_user_id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, jersey_size, jersey_name, tennis_video_url, tennis_video_status, usta_number, usta_prompt_skipped_at, claim_status, claim_requested_by")
         .eq("id", claimPlayerId || appSession.player?.id)
         .maybeSingle();
       if (data) {
@@ -1698,11 +1676,14 @@ export function HomeScreen() {
   const [homeFunFact] = useState(() => homeFunFacts[Math.floor(Math.random() * homeFunFacts.length)]);
   const [upcomingTournament, setUpcomingTournament] = useState<Tournament | null>(null);
   const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
-  const [homeTournamentStatus, setHomeTournamentStatus] = useState<PaymentState>("idle");
-  const [needsVideoLink, setNeedsVideoLink] = useState(false);
-  const [dashboardVideoLink, setDashboardVideoLink] = useState("");
-  const [dashboardVideoMessage, setDashboardVideoMessage] = useState("");
-  const [savingDashboardVideo, setSavingDashboardVideo] = useState(false);
+  const [dashboardUstaNumber, setDashboardUstaNumber] = useState("");
+  const [dashboardUstaMessage, setDashboardUstaMessage] = useState("");
+  const [savingDashboardUsta, setSavingDashboardUsta] = useState(false);
+  const [showDashboardUstaPrompt, setShowDashboardUstaPrompt] = useState(false);
+  const [dashboardUstaDismissed, setDashboardUstaDismissed] = useState(false);
+  const [homeRegisteredCount, setHomeRegisteredCount] = useState(0);
+  const [homePublishedTeamCount, setHomePublishedTeamCount] = useState(0);
+  const [homeRegistered, setHomeRegistered] = useState(false);
 
   useEffect(() => {
     if (!appSession.ready || !appSession.userId) return;
@@ -1724,7 +1705,7 @@ export function HomeScreen() {
         appSession.userId
           ? supabase
               .from("players")
-              .select("id, full_name, profile_photo_url, tennis_video_url, tennis_video_status")
+              .select("id, full_name, profile_photo_url, usta_number")
               .eq("auth_user_id", appSession.userId)
               .maybeSingle()
           : Promise.resolve({ data: null }),
@@ -1737,6 +1718,26 @@ export function HomeScreen() {
       ]);
 
       setUpcomingTournament(tournamentData ? mapTournament(tournamentData) : null);
+      if (tournamentData) {
+        const [{ count: registeredCount }, { count: teamCount }] = await Promise.all([
+          supabase
+            .from("tournament_registrations")
+            .select("id", { count: "exact", head: true })
+            .eq("tournament_id", tournamentData.id)
+            .neq("status", "cancelled")
+            .in("payment_status", ["paid", "waived"]),
+          supabase
+            .from("tournament_teams")
+            .select("id", { count: "exact", head: true })
+            .eq("tournament_id", tournamentData.id)
+            .eq("is_published", true)
+        ]);
+        setHomeRegisteredCount(registeredCount || 0);
+        setHomePublishedTeamCount(teamCount || 0);
+      } else {
+        setHomeRegisteredCount(0);
+        setHomePublishedTeamCount(0);
+      }
       setTopPlayers((playersData || [])
         .filter((row) => !/^test/i.test((row.full_name || "").trim()))
         .slice(0, 5)
@@ -1746,42 +1747,22 @@ export function HomeScreen() {
           rating: formatRating(row.rating),
           city: row.jamaat_city || "City not added",
           profilePhotoUrl: row.profile_photo_url || ""
-        })));
+      })));
       if (profileData) {
-        setNeedsVideoLink(false);
-        setHomeTournamentStatus("idle");
-        setDashboardVideoLink(hasPlayerVideoLink(profileData.tennis_video_url) ? profileData.tennis_video_url || "" : "");
+        setHomeRegistered(false);
+        setDashboardUstaNumber(profileData.usta_number || "");
+        setShowDashboardUstaPrompt(Boolean(!profileData.usta_number?.trim() && !dashboardUstaDismissed));
       }
       if (profileData && tournamentData) {
-        const [{ data: registration }, { data: latestPayment }] = await Promise.all([
-          supabase
-            .from("tournament_registrations")
-            .select("id, status, payment_status, waitlist_status")
-            .eq("tournament_id", tournamentData.id)
-            .eq("player_id", profileData.id)
-            .maybeSingle(),
-          supabase
-            .from("payment_ledger")
-            .select("status")
-            .eq("tournament_id", tournamentData.id)
-            .eq("player_id", profileData.id)
-            .eq("entry_type", "charge")
-            .order("occurred_at", { ascending: false })
-            .limit(1)
-            .maybeSingle()
-        ]);
+        const { data: registration } = await supabase
+          .from("tournament_registrations")
+          .select("id, status, payment_status, waitlist_status")
+          .eq("tournament_id", tournamentData.id)
+          .eq("player_id", profileData.id)
+          .maybeSingle();
 
-        const waitlistStatus = registration?.status === "waitlisted" ? registration.waitlist_status : null;
-        setHomeTournamentStatus(
-          registration && ["paid", "waived"].includes(registration.payment_status) ? "paid"
-            : waitlistStatus === "accepted" ? "waitlist_accepted"
-              : waitlistStatus === "rejected" ? "waitlist_rejected"
-                : waitlistStatus === "pending" ? "waitlist_pending"
-                  : latestPayment?.status === "paid" ? "paid"
-                    : tournamentData.status === "registration_open" && (latestPayment?.status === "pending" || latestPayment?.status === "failed") ? latestPayment.status
-                      : "idle"
-        );
-        setNeedsVideoLink(Boolean(registration && ["paid", "waived"].includes(registration.payment_status)) && needsPlayerVideoUpload(profileData.tennis_video_url, profileData.tennis_video_status));
+        const paidRegistration = Boolean(registration && ["paid", "waived"].includes(registration.payment_status));
+        setHomeRegistered(paidRegistration);
       }
     };
 
@@ -1796,100 +1777,130 @@ export function HomeScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [appSession.player, appSession.ready, appSession.userId]);
+  }, [appSession.player, appSession.ready, appSession.userId, dashboardUstaDismissed]);
 
-  const saveDashboardVideoLink = async (event: FormEvent<HTMLFormElement>) => {
+  const saveDashboardUstaNumber = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const supabase = getSupabaseClient();
     if (!supabase || !appSession.player?.id) return;
 
-    const trimmedLink = dashboardVideoLink.trim();
-    if (!trimmedLink) {
-      setDashboardVideoMessage("Please add your Google Drive video link.");
+    const trimmedNumber = dashboardUstaNumber.trim();
+    if (!trimmedNumber) {
+      setDashboardUstaMessage("Add your USTA number or skip this for now.");
       return;
     }
 
-    setSavingDashboardVideo(true);
-    setDashboardVideoMessage("");
+    setSavingDashboardUsta(true);
+    setDashboardUstaMessage("");
     const { error } = await supabase
       .from("players")
       .update({
-        tennis_video_url: trimmedLink,
-        tennis_video_status: "pending",
-        tennis_video_reviewed_at: null,
-        tennis_video_reviewed_by: null,
-        tennis_video_rejection_note: null
+        usta_number: trimmedNumber,
+        usta_prompt_skipped_at: null
       })
       .eq("id", appSession.player.id);
-    setSavingDashboardVideo(false);
+    setSavingDashboardUsta(false);
 
     if (error) {
-      setDashboardVideoMessage(getFriendlyError(error));
+      setDashboardUstaMessage(getFriendlyError(error));
       return;
     }
 
-    setNeedsVideoLink(false);
-    setDashboardVideoMessage("Video link saved.");
+    setShowDashboardUstaPrompt(false);
+    setDashboardUstaMessage("USTA number saved.");
     await appSession.refresh();
   };
 
+  const skipDashboardUstaPrompt = () => {
+    setDashboardUstaDismissed(true);
+    setShowDashboardUstaPrompt(false);
+    setDashboardUstaMessage("");
+  };
+
+  const homeTournamentCountdown = useTournamentCountdown(upcomingTournament?.startsOn || null);
+
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
-  const homeTournamentCopy = getHomeTournamentCopy(upcomingTournament, homeTournamentStatus);
+  const homeRegistrationClosed = upcomingTournament?.status === "registration_closed";
+  const homeRegisteredPlayerCountLabel = `${homeRegisteredCount} ${homeRegisteredCount === 1 ? "player" : "players"}`;
 
   return (
-    <AppFrame active="tournament">
+    <AppFrame active="home">
       <div className={memberPageClass}>
         <AppTopBar />
 
         <main className={memberMainClass}>
           <PageGreeting subtitle={`Did you know? ${homeFunFact}`} />
-          {needsVideoLink && (
-            <form className="grid gap-3 rounded-[18px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-4" onSubmit={saveDashboardVideoLink}>
-              <h3 className="text-[16px] font-medium text-[#8a4a22]">Reminder</h3>
-              <em className="text-[14px] not-italic leading-relaxed text-[#8a4a22]/85">
-                Upload a Google Drive link of a short video of you playing. Please set sharing to anyone with the link can view. Include your serve, forehand, backhand, volleys, and a few rally points.
-              </em>
-              {dashboardVideoMessage && <b className="text-[13px] font-medium text-[#8a4a22]">{dashboardVideoMessage}</b>}
-              <input
-                className="min-h-10 rounded-[12px] border-hairline border-[#f2dccb] bg-white px-3 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
-                id="dashboard-video-link"
-                aria-label="Google Drive video link"
-                value={dashboardVideoLink}
-                onChange={(event) => setDashboardVideoLink(event.target.value)}
-                placeholder="https://drive.google.com/..."
-                inputMode="url"
-              />
-              <button
-                className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-xs font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.18)] disabled:opacity-60"
-                type="submit"
-                disabled={savingDashboardVideo}
-              >
-                {savingDashboardVideo ? "Saving..." : "Submit video link"}
-              </button>
-            </form>
+          {upcomingTournament ? (
+            <section className={`relative grid overflow-hidden border-hairline border-white/20 bg-[linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] text-white shadow-[0_18px_46px_rgba(12,59,32,0.16)] ${homeRegistrationClosed ? "rounded-[18px] p-2.5" : "rounded-[22px] p-4"}`}>
+              <TournamentHeroAmbience />
+              <div className="pointer-events-none absolute inset-0 -right-16 -top-6 z-0 text-white opacity-[0.06]" aria-hidden="true">
+                <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
+                  <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
+                </svg>
+              </div>
+              <div className={`relative z-10 grid ${homeRegistrationClosed ? "gap-2" : "gap-3"}`}>
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                  <span className={`grid min-w-0 ${homeRegistrationClosed ? "gap-1" : "gap-2"}`}>
+                    <span className={homeRegistrationClosed ? "inline-flex w-max items-center gap-1.5 text-[12px] font-normal text-white/60" : "inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] font-medium text-[#83f0ad]"}>
+                      {upcomingTournament.status === "registration_open" && <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />}
+                      {formatTournamentStatus(upcomingTournament.status)}
+                    </span>
+                    <h1 className={homeRegistrationClosed ? "min-w-0 max-w-full truncate whitespace-nowrap text-[16px] font-medium leading-tight text-white md:text-[19px]" : "max-w-[760px] text-[24px] font-medium leading-[1.1] tracking-[-0.3px] text-white md:text-[30px]"}>{upcomingTournament.name}</h1>
+                  </span>
+                  {homeRegistrationClosed && (
+                    <span className="grid w-full gap-1.5 rounded-[13px] border-hairline border-white/10 bg-white/[0.08] px-2.5 py-1.5 text-left sm:w-auto sm:grid-cols-[max-content_auto] sm:items-center">
+                      <em className="block whitespace-nowrap text-[11px] not-italic leading-tight text-white/60">Tournament starts in</em>
+                      <TournamentStartCountdown countdown={homeTournamentCountdown} />
+                    </span>
+                  )}
+                </div>
+
+                <div className={homeRegistrationClosed ? "grid grid-cols-2 overflow-hidden rounded-[13px] border-hairline border-white/14 bg-white/[0.08]" : "grid overflow-hidden rounded-[20px] border-hairline border-white/14 bg-white/[0.10] md:grid-cols-2"}>
+                  <TournamentDetailRow compact={homeRegistrationClosed} className={homeRegistrationClosed ? "!border-t-0" : "md:border-t-0"} icon={<Calendar size={homeRegistrationClosed ? 14 : 18} />} label="Dates" value={formatTournamentDates(upcomingTournament)} />
+                  {!homeRegistrationClosed && <TournamentDetailRow className="md:border-l-hairline md:border-l-white/10 md:border-t-0" icon={<DollarSign size={20} />} label="Entry fee" value={formatCurrency(upcomingTournament.registrationFeeCents, "USD")} />}
+                  <TournamentDetailRow
+                    compact={homeRegistrationClosed}
+                    className={homeRegistrationClosed ? "!border-t-0 border-l-hairline border-l-white/10" : "md:col-span-2"}
+                    icon={<MapPin size={homeRegistrationClosed ? 14 : 20} />}
+                    label="Venue"
+                    value={upcomingTournament.venueName || "Venue TBD"}
+                    action={(
+                      <a className={`tap-card inline-flex w-max items-center gap-1 font-medium text-[#83f0ad] ${homeRegistrationClosed ? "text-[11px]" : "text-[14px]"}`} href={upcomingTournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(upcomingTournament.venueName || "")}`} target="_blank" rel="noreferrer">
+                        <ExternalLink size={homeRegistrationClosed ? 12 : 14} />
+                        Open in maps
+                      </a>
+                    )}
+                  />
+                </div>
+
+                {homeRegistrationClosed && (
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                    <span className="rounded-[12px] bg-white/[0.08] px-2.5 py-1.5">
+                      <em className="block text-[11px] not-italic text-white/60">Registered</em>
+                      <strong className="block text-[13px] font-medium text-white">{homeRegisteredPlayerCountLabel}</strong>
+                    </span>
+                    <span className="rounded-[12px] bg-white/[0.08] px-2.5 py-1.5">
+                      <em className="block text-[11px] not-italic text-white/60">Published teams</em>
+                      <strong className="block text-[13px] font-medium text-white">{homePublishedTeamCount}</strong>
+                    </span>
+                    {homeRegistered && (
+                      <span className="rounded-[12px] bg-white/[0.08] px-2.5 py-1.5 sm:col-span-1">
+                        <em className="block text-[11px] not-italic text-white/60">Your status</em>
+                        <strong className="block text-[13px] font-medium text-[#C9E84A]">Registered</strong>
+                      </span>
+                    )}
+                  </div>
+                )}
+                <Link className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-[#B8FF35] px-4 text-[14px] font-medium text-[#153419] shadow-[0_18px_38px_rgba(184,255,53,0.16)] sm:w-max sm:justify-self-end" href="/tournaments">
+                  View tournament details
+                  <ArrowRight size={15} />
+                </Link>
+              </div>
+            </section>
+          ) : (
+            <StatusMessage tone="info">No live tournament found.</StatusMessage>
           )}
-          <section className={`${memberHeroClass} md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-4`}>
-            <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
-              <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
-                <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
-              </svg>
-            </div>
-            <div className="relative grid gap-2">
-              <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] font-medium text-[#83f0ad]">
-                {homeTournamentCopy.live && <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />}
-                {homeTournamentCopy.badge}
-              </span>
-              <span className="grid gap-1">
-                {upcomingTournament?.name && <span className="text-[12px] text-white/56">{upcomingTournament.name}</span>}
-                <h1 className="max-w-[680px] text-[17px] font-medium leading-[1.22] tracking-[-0.2px] text-white">{homeTournamentCopy.title}</h1>
-                <em className={memberHeroBodyClass}>{homeTournamentCopy.description}</em>
-              </span>
-            </div>
-            <Link className="tap-card relative mt-4 inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-[#C9E84A] px-4 text-[14px] font-medium text-[#1a1a1a] shadow-[0_16px_34px_rgba(214,242,65,0.20)] md:mt-0" href="/tournaments">
-              {homeTournamentCopy.action} <ArrowRight size={15} />
-            </Link>
-          </section>
 
           <section className="grid gap-3">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
@@ -1915,46 +1926,93 @@ export function HomeScreen() {
               ))}
               {!topPlayers.length && <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[15px] text-text-secondary">Top performers will appear here.</div>}
             </div>
-            <Link className="tap-card mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:items-center md:p-5" href="/about">
-              <span className="grid gap-2">
-                <span className="text-[13px] text-text-secondary">What is MRSA?</span>
-                <strong className="text-lg font-medium leading-tight text-brand">Mumineen Racquet Sports Association</strong>
-                <em className="text-[15px] not-italic leading-relaxed text-text-secondary">A North America-wide community bringing together women through a shared passion for racquet sports — tennis, TT, badminton, and pickleball.</em>
-              </span>
-              <span className="inline-flex h-10 w-10 items-center justify-center justify-self-end rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] text-white shadow-[0_12px_24px_rgba(12,59,32,0.18)]" aria-hidden="true">
-                <ArrowRight size={18} />
-              </span>
-            </Link>
+            <div className="mt-2 grid gap-3 md:grid-cols-2">
+              <Link className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:items-center md:p-5" href="/about">
+                <span className="grid gap-2">
+                  <span className="text-[13px] text-text-secondary">What is MRSA?</span>
+                  <strong className="text-lg font-medium leading-tight text-brand">Mumineen Racquet Sports Association</strong>
+                  <em className="text-[15px] not-italic leading-relaxed text-text-secondary">A North America-wide community bringing together women through a shared passion for racquet sports — tennis, TT, badminton, and pickleball.</em>
+                </span>
+                <span className="inline-flex h-10 w-10 items-center justify-center justify-self-end rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] text-white shadow-[0_12px_24px_rgba(12,59,32,0.18)]" aria-hidden="true">
+                  <ArrowRight size={18} />
+                </span>
+              </Link>
+              <Link className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:items-center md:p-5" href="/fitness">
+                <span className="grid gap-2">
+                  <span className="text-[13px] text-text-secondary">Fitness</span>
+                  <strong className="text-lg font-medium leading-tight text-brand">Tennis fitness regimen</strong>
+                  <em className="text-[15px] not-italic leading-relaxed text-text-secondary">Follow the 30-day tournament prep plan shared with players.</em>
+                </span>
+                <span className="inline-flex h-10 w-10 items-center justify-center justify-self-end rounded-full bg-[#e5f1ff] text-[#185fa5] shadow-[0_12px_24px_rgba(24,95,165,0.12)]" aria-hidden="true">
+                  <Dumbbell size={18} />
+                </span>
+              </Link>
+            </div>
           </section>
         </main>
+        {showDashboardUstaPrompt && (
+          <div className="fixed inset-0 z-50 grid place-items-end overflow-y-auto bg-black/35 px-3 pb-[112px] pt-16 backdrop-blur-sm sm:place-items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="usta-profile-title">
+            <section className="relative grid max-h-[calc(100dvh-150px)] w-full max-w-[520px] gap-4 overflow-y-auto rounded-[24px] border-hairline border-white/80 bg-white p-5 shadow-[0_24px_80px_rgba(24,24,26,0.22)] sm:max-h-[calc(100dvh-48px)]">
+              <button className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full border-hairline border-line bg-white text-text-secondary shadow-[0_8px_18px_rgba(24,24,26,0.08)] transition active:scale-95 disabled:opacity-60" type="button" onClick={skipDashboardUstaPrompt} disabled={savingDashboardUsta} aria-label="Skip USTA number for now">
+                <X size={16} />
+              </button>
+              <div className="grid gap-2 pr-9">
+                <span className="inline-flex w-max items-center rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">USTA affiliation</span>
+                <h2 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary" id="usta-profile-title">Add your USTA number</h2>
+                <p className="text-[15px] leading-relaxed text-text-secondary">
+                  MRSA is now affiliated with USTA. Scores from the upcoming MRSA tournament may count toward your ITF / WTN ranking.
+                </p>
+                <p className="rounded-[14px] border-hairline border-[#dbe8cd] bg-brand-light p-3 text-[14px] leading-relaxed text-[#3b6d11]">
+                  If you do not have a USTA profile, create one with the same email you used for MRSA.
+                </p>
+                <a className="inline-flex w-max items-center gap-1.5 text-[13px] font-medium text-brand" href="https://www.usta.com/" target="_blank" rel="noreferrer">
+                  Create or view USTA profile
+                  <ExternalLink size={13} />
+                </a>
+              </div>
+              <form className="grid gap-3" onSubmit={saveDashboardUstaNumber}>
+                <label className="grid gap-1.5 text-[13px] text-text-secondary">
+                  USTA number
+                  <input
+                    className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
+                    value={dashboardUstaNumber}
+                    onChange={(event) => setDashboardUstaNumber(event.target.value)}
+                    placeholder="Enter USTA number"
+                    inputMode="text"
+                    autoFocus
+                  />
+                </label>
+                {dashboardUstaMessage && <StatusMessage tone={dashboardUstaMessage === "USTA number saved." ? "success" : "warning"}>{dashboardUstaMessage}</StatusMessage>}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-sm font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.14)] disabled:opacity-60" type="submit" disabled={savingDashboardUsta}>
+                    {savingDashboardUsta ? "Saving..." : "Save USTA number"}
+                  </button>
+                  <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] border-hairline border-line bg-white px-4 text-sm font-medium text-text-secondary disabled:opacity-60" type="button" onClick={skipDashboardUstaPrompt} disabled={savingDashboardUsta}>
+                    Skip for now
+                  </button>
+                </div>
+              </form>
+            </section>
+          </div>
+        )}
       </div>
     </AppFrame>
   );
 }
 
 export function DrawScreen() {
-  const router = useRouter();
   const appSession = useProtectedRoute("/tournaments", true);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [registeredPlayers, setRegisteredPlayers] = useState<RegisteredPlayer[]>([]);
   const [publishedTeams, setPublishedTeams] = useState<PublishedTeam[]>([]);
-  const [pastTournaments, setPastTournaments] = useState<PastTournamentSummary[]>([]);
   const [registeredPlayersOpen, setRegisteredPlayersOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
-  const [isPastExpanded, setIsPastExpanded] = useState(false);
-  const [loadingPast, setLoadingPast] = useState(false);
-  const [pastLoaded, setPastLoaded] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [paymentState, setPaymentState] = useState<PaymentState>("idle");
   const [registrationShirtName, setRegistrationShirtName] = useState("");
-  const [paying, setPaying] = useState(false);
-  const [reconcilingPayment, setReconcilingPayment] = useState(false);
-  const [showVideoPrompt, setShowVideoPrompt] = useState(false);
-  const [videoLink, setVideoLink] = useState("");
-  const [videoPromptMessage, setVideoPromptMessage] = useState("");
-  const [savingVideoLink, setSavingVideoLink] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [completedFitnessDays, setCompletedFitnessDays] = useState<number[]>([]);
 
   const loadTournament = useCallback(async () => {
     if (!appSession.ready || !appSession.userId) return;
@@ -1992,7 +2050,7 @@ export function DrawScreen() {
     const mappedTournament = mapTournament(tournamentData);
     setTournament(mappedTournament);
 
-    const [registrationsResult, myRegistrationResult, latestPaymentResult, teamsResult] = await Promise.all([
+    const [registrationsResult, myRegistrationResult, latestPaymentResult, teamsResult, fitnessProgressResult] = await Promise.all([
       supabase
         .from("tournament_registrations")
         .select("player_id, players(id, full_name, jamaat_city, age, date_of_birth, rating, tennis_video_url)")
@@ -2022,12 +2080,20 @@ export function DrawScreen() {
       ,
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
+        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", mappedTournament.id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
         .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
         .limit(40)
+      ,
+      appSession.player?.id
+        ? supabase
+            .from("player_fitness_progress")
+            .select("day_number")
+            .eq("player_id", appSession.player.id)
+            .order("day_number", { ascending: true })
+        : Promise.resolve({ data: [] })
     ]);
     const registrations = registrationsResult.data || [];
     const myRegistration = myRegistrationResult.data;
@@ -2063,6 +2129,7 @@ export function DrawScreen() {
               city: player?.jamaat_city || "MRSA",
               tier: member.tier_at_draft ? `Tier ${member.tier_at_draft}` : "Tier TBD",
               rating: formatRegisteredPlayerRating(player?.rating),
+              profilePhotoUrl: player?.profile_photo_url || "",
               isCaptain: Boolean(member.is_captain),
               draftOrder: member.draft_order ?? null
             };
@@ -2070,6 +2137,7 @@ export function DrawScreen() {
           .sort((a, b) => Number(b.isCaptain) - Number(a.isCaptain) || (a.draftOrder || 9999) - (b.draftOrder || 9999) || a.name.localeCompare(b.name))
       };
     }));
+    setCompletedFitnessDays((fitnessProgressResult.data || []).map((row) => Number(row.day_number)).filter(Boolean));
 
     if (appSession.player?.id) {
       const myPlayer = { id: appSession.player.id };
@@ -2094,29 +2162,6 @@ export function DrawScreen() {
     setLoading(false);
   }, [appSession.player?.id, appSession.ready, appSession.userId]);
 
-  const loadPastTournaments = useCallback(async () => {
-    if (pastLoaded || loadingPast) return;
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-    setLoadingPast(true);
-    const { data, error } = await supabase
-      .from("matches")
-      .select("season_year, format")
-      .not("season_year", "is", null);
-    setLoadingPast(false);
-    if (error) return;
-    setPastTournaments(buildPastTournamentSummaries(data || []));
-    setPastLoaded(true);
-  }, [pastLoaded, loadingPast]);
-
-  const togglePast = () => {
-    setIsPastExpanded((prev) => {
-      const next = !prev;
-      if (next && !pastLoaded) loadPastTournaments();
-      return next;
-    });
-  };
-
   useEffect(() => {
     if (!appSession.ready || !appSession.userId) return;
 
@@ -2133,7 +2178,6 @@ export function DrawScreen() {
         await loadTournament();
         return;
       }
-      setReconcilingPayment(true);
       setMessage(paymentResult === "success" ? "Confirming payment..." : "Checking payment status...");
 
       const { data: session } = await supabase.auth.getSession();
@@ -2143,7 +2187,6 @@ export function DrawScreen() {
         }
       });
       const result = await response.json();
-      setReconcilingPayment(false);
 
       if (!response.ok) {
         setPaymentState("failed");
@@ -2198,320 +2241,17 @@ export function DrawScreen() {
     return () => window.clearTimeout(timeout);
   }, [message]);
 
-  useEffect(() => {
-    if (!videoLink && hasPlayerVideoLink(appSession.player?.tennis_video_url)) {
-      setVideoLink(appSession.player?.tennis_video_url || "");
-    }
-  }, [appSession.player?.tennis_video_url, videoLink]);
-
-  useEffect(() => {
-    if (tournament?.status === "registration_closed" && registeredPlayers.length && !publishedTeams.length) {
-      setRegisteredPlayersOpen(true);
-    }
-  }, [publishedTeams.length, registeredPlayers.length, tournament?.status]);
-  const tournamentCountdown = useTournamentCountdown(tournament?.startsOn || null);
-
-  const continueRegistrationCheckout = async () => {
-    const supabase = getSupabaseClient();
-    if (!supabase || !tournament) return;
-
-    if (!appSession.user) {
-      router.push("/");
-      return;
-    }
-
-    const player = appSession.player?.id ? { id: appSession.player.id } : null;
-
-    if (!player) {
-      router.push(buildProfileCompletionPath(undefined, "/tournaments"));
-      return;
-    }
-
-    setPaying(true);
-    setMessage("");
-
-    const { data: session } = await supabase.auth.getSession();
-    const response = await fetch("/api/stripe/create-checkout-session", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.session?.access_token || ""}`
-      },
-      body: JSON.stringify({ tournamentId: tournament.id })
-    });
-
-    const checkout = await response.json();
-    setPaying(false);
-
-    if (!response.ok) {
-      setPaymentState("failed");
-      setMessage(checkout.error || "Payment could not be started. Please try again.");
-      return;
-    }
-
-    if (checkout.registered) {
-      setRegistered(true);
-      setPaymentState("paid");
-      await loadTournament();
-      return;
-    }
-
-    if (checkout.url) {
-      window.location.href = checkout.url;
-    }
-  };
-
-  const registerForTournament = async () => {
-    if (needsPlayerVideoUpload(appSession.player?.tennis_video_url, appSession.player?.tennis_video_status)) {
-      setVideoLink(hasPlayerVideoLink(videoLink) ? videoLink : "");
-      setVideoPromptMessage("");
-      setShowVideoPrompt(true);
-      return;
-    }
-
-    await continueRegistrationCheckout();
-  };
-
-  const saveVideoLinkAndContinue = async () => {
-    const supabase = getSupabaseClient();
-    if (!supabase || !appSession.player?.id) return;
-
-    const trimmedLink = videoLink.trim();
-    if (!trimmedLink) {
-      setVideoPromptMessage("Add a Google Drive video link or choose skip for now.");
-      return;
-    }
-
-    setSavingVideoLink(true);
-    setMessage("");
-    setVideoPromptMessage("");
-    const { error } = await supabase
-      .from("players")
-      .update({
-        tennis_video_url: trimmedLink,
-        tennis_video_status: "pending",
-        tennis_video_reviewed_at: null,
-        tennis_video_reviewed_by: null,
-        tennis_video_rejection_note: null
-      })
-      .eq("id", appSession.player.id);
-    setSavingVideoLink(false);
-
-    if (error) {
-      setVideoPromptMessage(getFriendlyError(error));
-      return;
-    }
-
-    setShowVideoPrompt(false);
-    await appSession.refresh();
-    await continueRegistrationCheckout();
-  };
-
-  const saveTournamentVideoLink = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const supabase = getSupabaseClient();
-    if (!supabase || !appSession.player?.id) return;
-
-    const trimmedLink = videoLink.trim();
-    if (!trimmedLink) {
-      setVideoPromptMessage("Please add your Google Drive video link.");
-      return;
-    }
-
-    setSavingVideoLink(true);
-    setVideoPromptMessage("");
-    const { error } = await supabase
-      .from("players")
-      .update({
-        tennis_video_url: trimmedLink,
-        tennis_video_status: "pending",
-        tennis_video_reviewed_at: null,
-        tennis_video_reviewed_by: null,
-        tennis_video_rejection_note: null
-      })
-      .eq("id", appSession.player.id);
-    setSavingVideoLink(false);
-
-    if (error) {
-      setVideoPromptMessage(getFriendlyError(error));
-      return;
-    }
-
-    setVideoPromptMessage("Video link submitted for review.");
-    await appSession.refresh();
-  };
-
-  const skipVideoLinkAndContinue = async () => {
-    setShowVideoPrompt(false);
-    await continueRegistrationCheckout();
-  };
-
-  const joinTournamentWaitlist = async () => {
-    const supabase = getSupabaseClient();
-    if (!supabase || !tournament || !appSession.player?.id) return;
-
-    const confirmed = window.confirm("Join the waitlist for this tournament? If an admin accepts your request, you will be able to complete payment.");
-    if (!confirmed) return;
-
-    setPaying(true);
-    setMessage("");
-    const { error } = await supabase
-      .from("tournament_registrations")
-      .upsert({
-        tournament_id: tournament.id,
-        player_id: appSession.player.id,
-        status: "waitlisted",
-        payment_status: "pending",
-        waitlist_status: "pending",
-        notes: "Player joined the waitlist."
-      }, { onConflict: "tournament_id,player_id" });
-    setPaying(false);
-
-    if (error) {
-      setMessage(getFriendlyError(error));
-      return;
-    }
-
-    setPaymentState("waitlist_pending");
-    setMessage("You have joined the waitlist.");
-    await loadTournament();
-  };
-
 	  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
-	  const paymentPending = paymentState === "pending";
-	  const registrationOpen = tournament?.status === "registration_open";
-    const registrationClosed = tournament?.status === "registration_closed";
-    const waitlistAccepted = paymentState === "waitlist_accepted";
-    const canPayForTournament = Boolean(registrationOpen || waitlistAccepted);
-    const needsTournamentVideoLink = needsPlayerVideoUpload(appSession.player?.tennis_video_url, appSession.player?.tennis_video_status);
-    const registeredPlayerCountLabel = `${registeredPlayers.length} ${registeredPlayers.length === 1 ? "player" : "players"}`;
     const tournamentProfileReminder = tournament && registered ? getTournamentProfileReminder(appSession.player, registrationShirtName) : null;
+    const previewFitnessDays = tennisFitnessRegimen.slice(0, 7);
+    const completedPreviewDays = previewFitnessDays.filter((day) => completedFitnessDays.includes(day.day)).length;
+    const fitnessProgressPercent = Math.round((completedFitnessDays.length / tennisFitnessRegimen.length) * 100);
 
   return (
     <AppFrame active="tournament">
       <div className="min-h-dvh bg-[radial-gradient(circle_at_18%_0%,rgba(234,243,222,0.95)_0,transparent_32%),radial-gradient(circle_at_88%_14%,rgba(230,241,251,0.9)_0,transparent_30%),linear-gradient(180deg,#ffffff_0%,#fbfbf8_46%,#f7fbf1_100%)] pb-28 font-sans text-text-primary">
         <AppTopBar />
         <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-5 pb-32 md:px-6 lg:px-8">
-          {loading && !tournament ? (
-            <SkeletonHero />
-          ) : (
-	          <header className={`relative grid overflow-hidden border-hairline border-white/20 bg-[linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] text-white shadow-[0_18px_46px_rgba(12,59,32,0.16)] ${registrationClosed ? "rounded-[18px] p-2.5" : "rounded-[22px] p-4"}`}>
-            <TournamentHeroAmbience />
-            <div className="pointer-events-none absolute inset-0 -right-16 -top-6 z-0 text-white opacity-[0.06]" aria-hidden="true">
-              <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
-                <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
-              </svg>
-            </div>
-		            <div className={`relative z-10 grid ${registrationClosed ? "gap-2" : "gap-3"}`}>
-	              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-	                <span className={`grid min-w-0 ${registrationClosed ? "gap-1" : "gap-2"}`}>
-	                  <span className={registrationClosed ? "inline-flex w-max items-center gap-1.5 text-[11px] font-normal text-white/60" : "inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] font-medium text-[#83f0ad]"}>
-	                    {tournament?.status === "registration_open" && <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />}
-	                    {tournament ? formatTournamentStatus(tournament.status) : "No tournament"}
-	                  </span>
-		                  <h1 className={registrationClosed ? "min-w-0 max-w-full truncate whitespace-nowrap text-[14px] font-medium leading-tight text-white md:text-[17px]" : "max-w-[760px] text-[24px] font-medium leading-[1.1] tracking-[-0.3px] text-white md:text-[30px]"}>{tournament ? tournament.name : "No live tournament"}</h1>
-	                </span>
-	                {registrationClosed && tournament && (
-		                  <span className="grid w-full gap-1.5 rounded-[13px] border-hairline border-white/10 bg-white/[0.08] px-2.5 py-1.5 text-left sm:w-auto sm:grid-cols-[max-content_auto] sm:items-center">
-		                    <em className="block whitespace-nowrap text-[11px] not-italic leading-tight text-white/60">Tournament starts in</em>
-                    <TournamentStartCountdown countdown={tournamentCountdown} />
-                  </span>
-                )}
-              </div>
-              {tournament && (
-		                <div className={registrationClosed ? "grid grid-cols-2 overflow-hidden rounded-[13px] border-hairline border-white/14 bg-white/[0.08]" : "grid overflow-hidden rounded-[20px] border-hairline border-white/14 bg-white/[0.10] md:grid-cols-2"}>
-		                  <TournamentDetailRow compact={registrationClosed} className={registrationClosed ? "!border-t-0" : "md:border-t-0"} icon={<Calendar size={registrationClosed ? 14 : 18} />} label="Dates" value={formatTournamentDates(tournament)} />
-	                  {!registrationClosed && <TournamentDetailRow className="md:border-l-hairline md:border-l-white/10 md:border-t-0" icon={<DollarSign size={20} />} label="Entry fee" value={formatCurrency(tournament.registrationFeeCents, "USD")} />}
-	                  <TournamentDetailRow
-	                    compact={registrationClosed}
-	                    className={registrationClosed ? "!border-t-0 border-l-hairline border-l-white/10" : "md:col-span-2"}
-		                    icon={<MapPin size={registrationClosed ? 14 : 20} />}
-	                    label="Venue"
-	                    value={tournament.venueName || "Venue TBD"}
-	                    action={(
-		                      <a className={`tap-card inline-flex w-max items-center gap-1 font-medium text-[#83f0ad] ${registrationClosed ? "text-[11px]" : "text-[14px]"}`} href={tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueName || "")}`} target="_blank" rel="noreferrer">
-	                        <ExternalLink size={registrationClosed ? 12 : 14} />
-                        Open in maps
-                      </a>
-                    )}
-                  />
-                </div>
-              )}
-              {registrationClosed && tournament && (
-	                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-	                  <span className="rounded-[12px] bg-white/[0.08] px-2.5 py-1.5">
-	                    <em className="block text-[11px] not-italic text-white/60">Registered</em>
-	                    <strong className="block text-[13px] font-medium text-white">{registeredPlayerCountLabel}</strong>
-	                  </span>
-	                  <span className="rounded-[12px] bg-white/[0.08] px-2.5 py-1.5">
-	                    <em className="block text-[11px] not-italic text-white/60">Published teams</em>
-	                    <strong className="block text-[13px] font-medium text-white">{publishedTeams.length}</strong>
-	                  </span>
-	                  {registered && (
-	                    <span className="rounded-[12px] bg-white/[0.08] px-2.5 py-1.5 sm:col-span-1">
-	                      <em className="block text-[11px] not-italic text-white/60">Your status</em>
-	                      <strong className="block text-[13px] font-medium text-[#C9E84A]">Registered</strong>
-                    </span>
-                  )}
-                </div>
-              )}
-              {tournament && !registrationClosed && (
-              <div className="grid gap-3">
-                {registered ? (
-                  <article className="rounded-[18px] border-hairline border-white/10 bg-white/10 px-4 py-3 text-white" aria-label="Tournament starts in">
-                    <span className="text-[12px] text-current opacity-60">Tournament starts in</span>
-                    <strong className="block text-[16px] font-medium leading-tight text-current">{formatDaysUntilStart(tournament)}</strong>
-                  </article>
-                ) : (
-                  <TournamentActionStatusCard tournament={tournament} paymentState={paymentState} registrationOpen={registrationOpen} />
-                )}
-                {registered ? (
-                  <div className="grid gap-2">
-                    <p className="inline-flex items-center justify-center gap-2 text-[14px] font-medium text-[#C9E84A]">
-                      <CheckCircle2 size={16} />
-                      {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen })}
-                    </p>
-                    {needsTournamentVideoLink && (
-                      <form className="grid gap-2 rounded-[16px] border-hairline border-white/10 bg-white/[0.08] p-3" onSubmit={saveTournamentVideoLink}>
-                        <p className="text-[13px] leading-relaxed text-white/70">
-                          Upload a Google Drive link of a short video of you playing. Please set sharing to anyone with the link can view. Include your serve, forehand, backhand, volleys, and a few rally points.
-                        </p>
-                        {videoPromptMessage && <b className="text-[12px] font-medium text-[#C9E84A]">{videoPromptMessage}</b>}
-                        <input
-                          className="min-h-10 rounded-[12px] border-hairline border-white/15 bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-[#C9E84A] focus:ring-2 focus:ring-[#C9E84A]/20"
-                          aria-label="Google Drive video link"
-                          value={videoLink}
-                          onChange={(event) => setVideoLink(event.target.value)}
-                          placeholder="https://drive.google.com/..."
-                          inputMode="url"
-                        />
-                        <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-[linear-gradient(135deg,#C9E84A,#83f0ad)] px-4 text-[13px] font-medium text-[#153419] shadow-[0_12px_26px_rgba(131,240,173,0.18)] disabled:opacity-60" type="submit" disabled={savingVideoLink}>
-                          {savingVideoLink ? "Submitting..." : "Submit video link"}
-                        </button>
-                      </form>
-                    )}
-                  </div>
-                ) : (
-                  <button
-                    className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#B8FF35] px-4 text-[14px] font-medium text-[#153419] shadow-[0_18px_38px_rgba(184,255,53,0.16)] disabled:opacity-70"
-                    type="button"
-                    onClick={canPayForTournament ? registerForTournament : joinTournamentWaitlist}
-                    disabled={paying || reconcilingPayment || paymentState === "waitlist_pending" || paymentState === "waitlist_rejected"}
-                  >
-                    {getRegistrationButtonLabel({ registered, paying: paying || reconcilingPayment, paymentState, registrationOpen })}
-                  </button>
-                )}
-                {paymentState === "waitlist_pending" && <p className="text-[13px] leading-relaxed text-white/58">You have joined the waitlist. Organizer will review your request before payment opens.</p>}
-                {paymentState === "waitlist_accepted" && <p className="text-[13px] leading-relaxed text-white/58">Your waitlist request was accepted. Complete payment to finish registration.</p>}
-                {paymentState === "waitlist_rejected" && <p className="text-[13px] leading-relaxed text-white/58">Your waitlist request was not accepted for this tournament.</p>}
-                {paymentPending && <p className="text-[13px] leading-relaxed text-white/58">If you already paid, wait here for confirmation. If checkout was closed before paying, retry payment.</p>}
-              </div>
-              )}
-            </div>
-          </header>
-          )}
-
           {message && (
             <StatusMessage tone={paymentState === "failed" ? "error" : paymentState === "pending" ? "warning" : "success"}>
               {message}
@@ -2544,58 +2284,95 @@ export function DrawScreen() {
           )}
 
           {tournament && (
-            <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 shadow-[0_10px_24px_rgba(12,59,32,0.05)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-              <span className="grid gap-1">
-                <strong className="text-[16px] font-medium text-text-primary">Schedule has been posted</strong>
-              </span>
-              <Link className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.14)]" href="/tournaments/schedule">
-                View schedule
-                <ArrowRight size={14} />
+            <section className="grid gap-3 md:grid-cols-2">
+              <Link className="tap-card group relative grid min-h-[136px] overflow-hidden rounded-[22px] border-hairline border-white/40 bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-4 text-white shadow-[0_18px_42px_rgba(12,59,32,0.16)]" href="/tournaments/schedule">
+                <span className="pointer-events-none absolute inset-0 opacity-25 court-lines" aria-hidden="true" />
+                <span className="relative grid h-full content-between gap-4">
+                  <span className="grid gap-1">
+                    <span className="inline-grid h-10 w-10 place-items-center rounded-[14px] bg-white/14 text-[#83f0ad]">
+                      <Calendar size={19} />
+                    </span>
+                    <strong className="text-[21px] font-medium leading-tight tracking-[-0.2px]">Schedule</strong>
+                    <em className="text-[13px] not-italic leading-relaxed text-white/65">See your matches, team schedule, courts, and daily slate.</em>
+                  </span>
+                  <span className="inline-flex w-max items-center gap-2 rounded-full bg-[#b7ff2f] px-3 py-1.5 text-[13px] font-medium text-[#14340f]">
+                    View schedule
+                    <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </span>
+              </Link>
+
+              <Link className="tap-card group relative grid min-h-[136px] overflow-hidden rounded-[22px] border-hairline border-line bg-white/90 p-4 shadow-[0_18px_42px_rgba(12,59,32,0.08)] backdrop-blur" href="/tournaments/teams">
+                <span className="grid h-full content-between gap-4">
+                  <span className="grid gap-1">
+                    <CaptainAvatarStack teams={publishedTeams} />
+                    <strong className="text-[21px] font-medium leading-tight tracking-[-0.2px] text-text-primary">Team rosters</strong>
+                    <em className="text-[13px] not-italic leading-relaxed text-text-secondary">{publishedTeams.length ? `${publishedTeams.length} published teams. Open a team to see players and matches.` : "Published teams will appear here once rosters are ready."}</em>
+                  </span>
+                  <span className="inline-flex w-max items-center gap-2 rounded-full bg-brand px-3 py-1.5 text-[13px] font-medium text-white">
+                    View rosters
+                    <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </span>
               </Link>
             </section>
           )}
 
-          {!!publishedTeams.length && (
-            <section className="grid gap-2.5" aria-label="Published tournament team rosters">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-                <span className="grid gap-0.5">
-                  <h2 className="text-[15px] font-medium text-text-primary">Team rosters</h2>
-                  <em className="text-[12px] not-italic text-text-secondary">Published draft teams and captains.</em>
+          <section className="relative overflow-hidden rounded-[22px] border-hairline border-[#dbe8cd] bg-[linear-gradient(135deg,#ffffff_0%,#f7fbf1_55%,#eaf3de_100%)] p-4 shadow-[0_18px_42px_rgba(12,59,32,0.08)]">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
+              <span className="grid gap-2">
+                <span className="inline-grid h-10 w-10 place-items-center rounded-[14px] bg-brand text-[#b7ff2f]">
+                  <Dumbbell size={19} />
                 </span>
-                <span className="rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">{publishedTeams.length} teams</span>
+                <span className="grid gap-1">
+                  <strong className="text-[21px] font-medium leading-tight tracking-[-0.2px] text-brand">Tennis fitness program</strong>
+                  <em className="text-[14px] not-italic leading-relaxed text-text-secondary">Start with the first week and check off each day as you train. Small wins, steady legs.</em>
+                </span>
+                <Link className="tap-card inline-flex min-h-10 w-max items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.16)]" href="/fitness">
+                  {completedFitnessDays.length ? "Continue program" : "Start program"}
+                  <ArrowRight size={14} />
+                </Link>
+              </span>
+              <div className="grid gap-2">
+                <div className="grid gap-2 rounded-[18px] border-hairline border-white/80 bg-white/70 p-3">
+                  <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                    <strong className="text-[14px] font-medium text-text-primary">{completedFitnessDays.length} of {tennisFitnessRegimen.length} days complete</strong>
+                    <em className="text-[13px] not-italic text-[#3b6d11]">{fitnessProgressPercent}%</em>
+                  </span>
+                  <span className="h-2 overflow-hidden rounded-full bg-white">
+                    <span className="block h-full rounded-full bg-[linear-gradient(90deg,#0c3b20,#4cde8c)]" style={{ width: `${fitnessProgressPercent}%` }} />
+                  </span>
+                  <span className="grid grid-cols-7 gap-1.5">
+                    {previewFitnessDays.map((day) => {
+                      const done = completedFitnessDays.includes(day.day);
+                      return (
+                        <span className={done ? "grid aspect-square place-items-center rounded-[10px] bg-brand text-white" : "grid aspect-square place-items-center rounded-[10px] bg-brand-light text-[12px] font-medium text-[#3b6d11]"} key={day.day}>
+                          {done ? <CheckCircle2 size={14} /> : day.day}
+                        </span>
+                      );
+                    })}
+                  </span>
+                  <em className="text-[13px] not-italic text-text-secondary">{completedPreviewDays} of the first 7 days checked off.</em>
+                </div>
               </div>
-              <div className="grid gap-2.5 md:grid-cols-2">
-                {publishedTeams.map((team) => {
-                  const teamTone = getTeamCardTone(team.jerseyColor);
+            </div>
+            </section>
+
+          {!!tournament?.faqs.length && (
+            <section className="overflow-hidden rounded-[18px] border-hairline border-line bg-card">
+              <div className="border-b-hairline border-line px-4 py-3">
+                <h2 className="text-[16px] font-medium text-text-primary">FAQs</h2>
+              </div>
+              <div className="divide-y divide-line">
+                {tournament.faqs.map((faq, index) => {
+                  const open = openFaqIndex === index;
                   return (
-                    <article className="grid gap-2 overflow-hidden rounded-[16px] border-hairline border-white/20 p-3 shadow-[0_10px_24px_rgba(12,59,32,0.10)]" key={team.id} style={{ background: teamTone.background, color: teamTone.textColor }}>
-                      <div className="grid grid-cols-[46px_minmax(0,1fr)_auto] items-center gap-2.5">
-                        {team.logoUrl ? (
-                          <img className="h-11 w-11 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)]" src={team.logoUrl} alt={`${team.name} logo`} />
-                        ) : (
-                          <span className="grid h-11 w-11 place-items-center rounded-full bg-white/18 text-[13px] font-semibold text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)]">{getInitials(team.name)}</span>
-                        )}
-                        <strong className="min-w-0 truncate text-[15px] font-semibold text-current">{team.name}</strong>
-                        <span className="rounded-full bg-white/85 px-2 py-0.5 text-[11px] font-medium text-[#24412c]">{formatPlayerCount(team.members.length)}</span>
-                      </div>
-                      {team.members.length ? (
-                        <ul className="overflow-hidden rounded-[12px] border-hairline border-white/45 bg-white/[0.88]">
-                          {team.members.map((member) => (
-                            <li className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t-hairline border-black/[0.06] px-2.5 py-1.5 first:border-t-0" key={member.id}>
-                              <span className="grid min-w-0 gap-0.5">
-                                <span className="flex min-w-0 items-center gap-1.5">
-                                  <strong className="min-w-0 truncate text-[13px] font-medium text-text-primary">{member.name}</strong>
-                                  {member.isCaptain && <b className="shrink-0 rounded-full bg-[#e5f1ff] px-1.5 py-0.5 text-[10px] font-medium leading-none text-[#185fa5]">Captain</b>}
-                                </span>
-                                <em className="truncate text-[11px] not-italic text-text-secondary">{member.city}{member.age ? ` · ${member.age}` : ""}</em>
-                              </span>
-                              <em className="shrink-0 text-[11px] not-italic text-text-secondary">{member.tier}</em>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="rounded-[12px] border-hairline border-white/45 bg-white/[0.88] px-2.5 py-2 text-[12px] text-text-secondary">Drafted players will appear here once assigned.</p>
-                      )}
+                    <article key={`${faq.question}-${index}`}>
+                      <button className="tap-card grid min-h-12 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left" type="button" onClick={() => setOpenFaqIndex(open ? null : index)} aria-expanded={open}>
+                        <strong className="text-[15px] font-medium text-text-primary">{faq.question}</strong>
+                        <ChevronDown size={16} className={`text-brand transition-transform ${open ? "rotate-180" : ""}`} />
+                      </button>
+                      {open && <p className="px-4 pb-4 text-[14px] leading-relaxed text-text-secondary">{faq.answer}</p>}
                     </article>
                   );
                 })}
@@ -2603,11 +2380,19 @@ export function DrawScreen() {
             </section>
           )}
 
+          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-brand-light p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <h2 className="text-[15px] font-medium text-[#27500a]">Have more questions? Contact organizer</h2>
+            <a className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-brand px-4 text-[13px] font-medium text-white" href="https://wa.me/13128749178?text=Hi%2C%20I%27m%20looking%20at%20the%20MRSA%20tournament%20and%20have%20a%20question." target="_blank" rel="noreferrer">
+              <WhatsAppIcon size={16} />
+              WhatsApp
+            </a>
+          </section>
+
           <section className="overflow-hidden rounded-[16px] border-hairline border-line bg-card">
             <button className="tap-card grid min-h-12 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3.5 text-left" type="button" onClick={() => setRegisteredPlayersOpen((current) => !current)} aria-expanded={registeredPlayersOpen} aria-controls="registered-players-panel">
               <span className="grid gap-0.5">
                 <strong className="text-[15px] font-medium text-text-primary">Registered players</strong>
-                <em className="text-[12px] not-italic text-text-secondary">{tournament?.maxPlayers ? `${registeredPlayers.length} of ${tournament.maxPlayers} spots filled` : registeredPlayerCountLabel}</em>
+                <em className="text-[12px] not-italic text-text-secondary">{tournament?.maxPlayers ? `${registeredPlayers.length} of ${tournament.maxPlayers} spots filled` : formatPlayerCount(registeredPlayers.length)}</em>
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">
                 {registeredPlayers.length}
@@ -2643,100 +2428,267 @@ export function DrawScreen() {
               </div>
             )}
           </section>
-
-          {!!tournament?.faqs.length && (
-            <section className="overflow-hidden rounded-[18px] border-hairline border-line bg-card">
-              <div className="border-b-hairline border-line px-4 py-3">
-                <h2 className="text-[16px] font-medium text-text-primary">FAQs</h2>
-              </div>
-              <div className="divide-y divide-line">
-                {tournament.faqs.map((faq, index) => {
-                  const open = openFaqIndex === index;
-                  return (
-                    <article key={`${faq.question}-${index}`}>
-                      <button className="tap-card grid min-h-12 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left" type="button" onClick={() => setOpenFaqIndex(open ? null : index)} aria-expanded={open}>
-                        <strong className="text-[15px] font-medium text-text-primary">{faq.question}</strong>
-                        <ChevronDown size={16} className={`text-brand transition-transform ${open ? "rotate-180" : ""}`} />
-                      </button>
-                      {open && <p className="px-4 pb-4 text-[14px] leading-relaxed text-text-secondary">{faq.answer}</p>}
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-brand-light p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-            <h2 className="text-[15px] font-medium text-[#27500a]">Have more questions? Contact organizer</h2>
-            <a className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-brand px-4 text-[13px] font-medium text-white" href="https://wa.me/13128749178?text=Hi%2C%20I%27m%20looking%20at%20the%20MRSA%20tournament%20and%20have%20a%20question." target="_blank" rel="noreferrer">
-              <WhatsAppIcon size={16} />
-              WhatsApp
-            </a>
-          </section>
-
-          <button
-            type="button"
-            className="tap-card flex w-full items-center justify-between pt-2 text-left"
-            onClick={togglePast}
-            aria-expanded={isPastExpanded}
-            aria-controls="past-tournaments-list"
-          >
-            <h2 className="text-[15px] font-medium text-text-primary">Past tournaments</h2>
-            <span className="inline-flex items-center gap-2 text-[13px] text-text-secondary">
-              {pastLoaded
-                ? `${pastTournaments.length} ${pastTournaments.length === 1 ? "season" : "seasons"}`
-                : "View"}
-              <ChevronDown size={16} className={`transition-transform ${isPastExpanded ? "rotate-180" : ""}`} />
-            </span>
-          </button>
-
-          {isPastExpanded && (
-            <div id="past-tournaments-list" className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {pastTournaments.map((pastTournament) => (
-                <article className="grid gap-2 rounded-[14px] border-hairline border-line bg-card p-4" key={pastTournament.seasonYear}>
-                  <span className="text-[13px] text-text-secondary">{pastTournament.seasonYear} season</span>
-                  <strong className="text-[17px] font-medium text-text-primary">MRSA {pastTournament.seasonYear}</strong>
-                  <em className="text-[13px] not-italic text-text-secondary">{pastTournament.matches} matches recorded</em>
-                </article>
-              ))}
-              {loadingPast && Array.from({ length: 3 }).map((_, index) => <SkeletonCard key={index} />)}
-              {!loadingPast && pastLoaded && !pastTournaments.length && (
-                <StatusMessage tone="info">No historical tournament data found.</StatusMessage>
-              )}
-            </div>
-          )}
         </section>
         </main>
-        {showVideoPrompt && (
-          <div className="tournament-video-modal fixed inset-0 z-50 grid place-items-end overflow-y-auto bg-black/35 px-3 pb-3 pt-16 backdrop-blur-sm sm:place-items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="tournament-video-title">
-            <section className="tournament-video-form-column relative grid w-full max-w-[520px] gap-4 overflow-y-auto rounded-[24px] border-hairline border-white/80 bg-white/90 p-5 shadow-[0_24px_80px_rgba(24,24,26,0.22)] backdrop-blur-xl">
-              <button className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full border-hairline border-line bg-white text-text-secondary shadow-[0_8px_18px_rgba(24,24,26,0.08)] transition active:scale-95 disabled:opacity-60" type="button" onClick={() => setShowVideoPrompt(false)} disabled={savingVideoLink || paying} aria-label="Back to tournament">
-                <X size={16} />
-              </button>
+      </div>
+    </AppFrame>
+  );
+}
+
+type FitnessDay = {
+  day: number;
+  exercises: string[];
+};
+
+const tennisFitnessRegimen: FitnessDay[] = [
+  { day: 1, exercises: ["Push ups - 5", "Squats - 25", "Crunches - 10", "Lunges - 20"] },
+  { day: 2, exercises: ["Push ups - 5", "Squats - 25", "Crunches - 15", "Lunges - 21"] },
+  { day: 3, exercises: ["Push ups - 6", "Squats - 30", "Crunches - 20", "Lunges - 22"] },
+  { day: 4, exercises: ["Jumping jacks - 15"] },
+  { day: 5, exercises: ["Push ups - 7", "Squats - 35", "Crunches - 25", "Lunges - 23"] },
+  { day: 6, exercises: ["Push ups - 8", "Squats - 40", "Crunches - 30", "Lunges - 24"] },
+  { day: 7, exercises: ["Push ups - 9", "Squats - 45", "Crunches - 35", "Lunges - 25"] },
+  { day: 8, exercises: ["Jumping jacks - 20"] },
+  { day: 9, exercises: ["Push ups - 10", "Squats - 50", "Crunches - 40", "Lunges - 25"] },
+  { day: 10, exercises: ["Push ups - 10", "Squats - 50", "Crunches - 45", "Lunges - 26"] },
+  { day: 11, exercises: ["Push ups - 11", "Squats - 55", "Crunches - 50", "Lunges - 27"] },
+  { day: 12, exercises: ["Jumping jacks - 25"] },
+  { day: 13, exercises: ["Push ups - 12", "Squats - 60", "Crunches - 55", "Lunges - 28"] },
+  { day: 14, exercises: ["Push ups - 13", "Squats - 65", "Crunches - 60", "Lunges - 29"] },
+  { day: 15, exercises: ["Push ups - 14", "Squats - 70", "Crunches - 65", "Lunges - 30"] },
+  { day: 16, exercises: ["Jumping jacks - 30"] },
+  { day: 17, exercises: ["Push ups - 15", "Squats - 75", "Crunches - 70", "Lunges - 31"] },
+  { day: 18, exercises: ["Push ups - 15", "Squats - 75", "Crunches - 75", "Lunges - 31"] },
+  { day: 19, exercises: ["Push ups - 16", "Squats - 80", "Crunches - 80", "Lunges - 32"] },
+  { day: 20, exercises: ["Jumping jacks - 35"] },
+  { day: 21, exercises: ["Push ups - 17", "Squats - 85", "Crunches - 85", "Lunges - 33"] },
+  { day: 22, exercises: ["Push ups - 18", "Squats - 90", "Crunches - 90", "Lunges - 34"] },
+  { day: 23, exercises: ["Push ups - 19", "Squats - 95", "Crunches - 95", "Lunges - 35"] },
+  { day: 24, exercises: ["Jumping jacks - 40"] },
+  { day: 25, exercises: ["Push ups - 20", "Squats - 100", "Crunches - 100", "Lunges - 36"] },
+  { day: 26, exercises: ["Push ups - 21", "Squats - 100", "Crunches - 100", "Lunges - 37"] },
+  { day: 27, exercises: ["Push ups - 22", "Squats - 105", "Crunches - 110", "Lunges - 38"] },
+  { day: 28, exercises: ["Jumping jacks - 45"] },
+  { day: 29, exercises: ["Push ups - 25", "Squats - 110", "Crunches - 115", "Lunges - 39"] },
+  { day: 30, exercises: ["Push ups - 30", "Squats - 115", "Crunches - 120", "Lunges - 40"] }
+];
+
+const tennisFitnessTips = [
+  "Try to perform as many in a row for each exercise.",
+  "If unable to complete, rest and then finish.",
+  "If a day is skipped, resume from where you left off.",
+  "Progress, not perfection."
+];
+
+export function FitnessScreen() {
+  const appSession = useProtectedRoute("/fitness", true);
+  const [completedDays, setCompletedDays] = useState<number[]>([]);
+  const [selectedFitnessDay, setSelectedFitnessDay] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [savingDay, setSavingDay] = useState<number | null>(null);
+  const [message, setMessage] = useState("");
+
+  const loadFitnessProgress = useCallback(async () => {
+    if (!appSession.ready || !appSession.userId || !appSession.player?.id) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setMessage("Supabase env vars are missing.");
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("player_fitness_progress")
+      .select("day_number")
+      .eq("player_id", appSession.player.id)
+      .order("day_number", { ascending: true });
+
+    if (error) {
+      setMessage(getFriendlyError(error));
+      setLoading(false);
+      return;
+    }
+
+    const completed = (data || []).map((row) => Number(row.day_number)).filter(Boolean);
+    const nextWorkout = tennisFitnessRegimen.find((day) => !completed.includes(day.day));
+    setCompletedDays(completed);
+    setSelectedFitnessDay(nextWorkout?.day || tennisFitnessRegimen[tennisFitnessRegimen.length - 1].day);
+    setLoading(false);
+  }, [appSession.player?.id, appSession.ready, appSession.userId]);
+
+  useEffect(() => {
+    loadFitnessProgress();
+  }, [loadFitnessProgress]);
+
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  const completedCount = completedDays.length;
+  const progressPercent = Math.round((completedCount / tennisFitnessRegimen.length) * 100);
+  const nextDay = tennisFitnessRegimen.find((day) => !completedDays.includes(day.day));
+  const selectedDay = tennisFitnessRegimen.find((day) => day.day === selectedFitnessDay) || nextDay || tennisFitnessRegimen[0];
+  const selectedDayComplete = completedDays.includes(selectedDay.day);
+
+  const toggleFitnessDay = async (day: number) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !appSession.player?.id || savingDay) return;
+    const currentlyDone = completedDays.includes(day);
+    setSavingDay(day);
+    setMessage("");
+
+    const { error } = currentlyDone
+      ? await supabase
+          .from("player_fitness_progress")
+          .delete()
+          .eq("player_id", appSession.player.id)
+          .eq("day_number", day)
+      : await supabase
+          .from("player_fitness_progress")
+          .upsert({
+            player_id: appSession.player.id,
+            day_number: day,
+            completed_at: new Date().toISOString()
+          }, { onConflict: "player_id,day_number" });
+
+    setSavingDay(null);
+    if (error) {
+      setMessage(getFriendlyError(error));
+      return;
+    }
+
+    setCompletedDays((current) => currentlyDone ? current.filter((value) => value !== day) : [...new Set([...current, day])].sort((a, b) => a - b));
+  };
+
+  return (
+    <AppFrame active="home">
+      <div className={memberPageClass}>
+        <AppTopBar />
+        <main className={memberMainClass}>
+          <section className={`${memberHeroClass} gap-4 md:grid-cols-[minmax(0,1fr)_180px] md:items-center`}>
+            <TournamentHeroAmbience />
+            <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
+              <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            </div>
+            <Link className="absolute left-4 top-4 z-10 inline-grid h-8 max-h-8 min-h-8 w-8 min-w-8 max-w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/12 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)] backdrop-blur transition-transform active:scale-[0.98]" href="/tournaments" aria-label="Back to tournaments">
+              <ArrowLeft size={17} />
+            </Link>
+            <span className="relative z-10 mt-8 grid gap-2 md:mt-0">
+              <span className={memberHeroEyebrowClass}>Tennis fitness regimen</span>
+              <h1 className="max-w-[680px] text-[28px] font-medium leading-[1.04] tracking-[-0.4px] text-white md:text-[42px]">30-day tournament prep</h1>
+              <p className={memberHeroBodyClass}>Check off workouts, build legs, and arrive with match-day lungs.</p>
+            </span>
+            <span className="relative z-10 grid justify-items-center gap-2 rounded-[22px] border-hairline border-white/14 bg-white/10 p-4 backdrop-blur">
+              <span className="relative grid h-28 w-28 place-items-center rounded-full bg-white/10">
+                <span className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(#b7ff2f ${progressPercent * 3.6}deg, rgba(255,255,255,0.16) 0deg)` }} />
+                <span className="relative grid h-[88px] w-[88px] place-items-center rounded-full bg-brand text-center">
+                  <strong className="text-[25px] font-medium leading-none text-white">{progressPercent}%</strong>
+                  <em className="text-[10px] not-italic text-white/55">complete</em>
+                </span>
+              </span>
+              <em className="text-[12px] not-italic text-white/60">{completedCount} of {tennisFitnessRegimen.length} days</em>
+            </span>
+          </section>
+
+          <section className="grid gap-4 rounded-[24px] border-hairline border-[#dbe8cd] bg-[linear-gradient(135deg,#ffffff_0%,#f7fbf1_55%,#eaf3de_100%)] p-4 shadow-[0_18px_42px_rgba(12,59,32,0.08)] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <div className="grid content-start gap-3">
+              <span className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                <span className="grid gap-1">
+                  <em className="text-[12px] not-italic text-text-secondary">{selectedDayComplete ? "Completed workout" : nextDay?.day === selectedDay.day ? "Next workout" : "Selected workout"}</em>
+                  <strong className="text-[26px] font-medium leading-tight tracking-[-0.4px] text-brand">Day {selectedDay.day}</strong>
+                </span>
+                <span className={selectedDayComplete ? "inline-flex items-center gap-1.5 rounded-full bg-brand px-3 py-1.5 text-[12px] font-medium text-white" : "inline-flex items-center gap-1.5 rounded-full bg-[#b7ff2f] px-3 py-1.5 text-[12px] font-medium text-[#14340f]"}>
+                  {selectedDayComplete ? <CheckCircle2 size={14} /> : <Dumbbell size={14} />}
+                  {selectedDayComplete ? "Done" : "Ready"}
+                </span>
+              </span>
+
               <div className="grid gap-2">
-                <span className="inline-flex w-max items-center rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">Tournament draft video</span>
-                <h2 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary" id="tournament-video-title">Add your playing video</h2>
-                <p className="text-[15px] leading-relaxed text-text-secondary">Please upload a Google Drive link with video of you playing and showcasing your skills. Set sharing to anyone with the link can view. This helps captains and organizers draft you fairly.</p>
-                <p className="rounded-[14px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-3 text-[14px] leading-relaxed text-[#8a4a22]">If the Google Drive link is not uploaded, you may not be drafted. You can skip this step during registration and add it later from your profile.</p>
+                {selectedDay.exercises.map((exercise, index) => (
+                  <span className="grid min-h-12 grid-cols-[34px_minmax(0,1fr)] items-center gap-3 rounded-[15px] border-hairline border-white/80 bg-white/82 px-3 py-2 shadow-[0_8px_18px_rgba(12,59,32,0.035)]" key={exercise}>
+                    <span className={selectedDayComplete ? "grid h-8 w-8 place-items-center rounded-full bg-brand text-white" : "grid h-8 w-8 place-items-center rounded-full bg-brand-light text-[#3b6d11]"}>
+                      {selectedDayComplete ? <CheckCircle2 size={15} /> : index + 1}
+                    </span>
+                    <strong className="text-[15px] font-medium text-text-primary">{exercise}</strong>
+                  </span>
+                ))}
               </div>
-              <label className="grid gap-2 text-[13px] text-text-secondary">
-                Google Drive video link
-                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" value={videoLink} onChange={(event) => setVideoLink(event.target.value)} placeholder="https://drive.google.com/..." inputMode="url" />
-                <em className="text-[13px] not-italic leading-relaxed text-text-secondary">Show your serve, forehand, backhand, volleys, and a few rally points if possible.</em>
-              </label>
-              {videoPromptMessage && <p className="rounded-[14px] border-hairline border-[#f2dccb] bg-[#fff8f1] p-3 text-[14px] text-[#8a4a22]">{videoPromptMessage}</p>}
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-sm font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.18)] disabled:opacity-60" type="button" onClick={saveVideoLinkAndContinue} disabled={savingVideoLink || paying}>
-                  {savingVideoLink ? "Saving..." : "Save link and continue"}
-                </button>
-                <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] border-hairline border-line bg-white px-4 text-sm font-medium text-text-secondary disabled:opacity-60" type="button" onClick={skipVideoLinkAndContinue} disabled={savingVideoLink || paying}>
-                  Skip for now
-                </button>
+
+              {message && <StatusMessage tone="error">{message}</StatusMessage>}
+              <button
+                className={selectedDayComplete ? "tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-[16px] border-hairline border-line bg-white px-5 text-[14px] font-medium text-brand shadow-[0_10px_22px_rgba(12,59,32,0.06)] disabled:opacity-60" : "tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-5 text-[14px] font-medium text-white shadow-[0_14px_30px_rgba(12,59,32,0.18)] disabled:opacity-60"}
+                type="button"
+                onClick={() => toggleFitnessDay(selectedDay.day)}
+                disabled={savingDay === selectedDay.day}
+              >
+                {savingDay === selectedDay.day ? "Saving..." : selectedDayComplete ? "Mark incomplete" : "Complete workout"}
+              </button>
+            </div>
+
+            <div className="grid content-start gap-3">
+              <span className="grid gap-1">
+                <strong className="text-[18px] font-medium tracking-[-0.2px] text-text-primary">30-day board</strong>
+                <em className="text-[13px] not-italic text-text-secondary">Tap any day to preview it, then complete it when done.</em>
+              </span>
+              <div className="grid grid-cols-5 gap-2 sm:grid-cols-6 md:grid-cols-10 lg:grid-cols-5 xl:grid-cols-6">
+                {loading && Array.from({ length: 30 }).map((_, index) => (
+                  <span className="aspect-square animate-pulse rounded-[14px] bg-white/70" key={index} />
+                ))}
+                {!loading && tennisFitnessRegimen.map((day) => {
+                const done = completedDays.includes(day.day);
+                const selected = selectedDay.day === day.day;
+                return (
+                  <button
+                    className={done ? `${selected ? "ring-2 ring-brand/20" : ""} grid aspect-square place-items-center rounded-[14px] bg-brand text-[13px] font-medium text-white shadow-[0_10px_20px_rgba(12,59,32,0.14)]` : selected ? "grid aspect-square place-items-center rounded-[14px] border-hairline border-brand bg-white text-[13px] font-medium text-brand shadow-[0_10px_20px_rgba(12,59,32,0.08)]" : "grid aspect-square place-items-center rounded-[14px] border-hairline border-line bg-white/78 text-[13px] font-medium text-text-secondary"}
+                    type="button"
+                    onClick={() => setSelectedFitnessDay(day.day)}
+                    key={day.day}
+                    aria-label={`View day ${day.day}`}
+                  >
+                    {done ? <CheckCircle2 size={16} /> : day.day}
+                  </button>
+                );
+                })}
               </div>
-              <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] text-xs font-medium text-text-secondary" type="button" onClick={() => setShowVideoPrompt(false)} disabled={savingVideoLink || paying}>Back to tournament</button>
-            </section>
-          </div>
-        )}
+            </div>
+          </section>
+
+          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-white p-4 shadow-[0_10px_24px_rgba(12,59,32,0.05)]">
+            <div className="grid gap-1">
+              <h2 className="text-[18px] font-medium tracking-[-0.2px] text-text-primary">Workout list</h2>
+              <p className="text-[14px] leading-relaxed text-text-secondary">A compact view of every day in the program.</p>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {!loading && tennisFitnessRegimen.map((day) => {
+                const done = completedDays.includes(day.day);
+                return (
+                  <button className={done ? "tap-card grid min-h-[64px] grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 rounded-[15px] border-hairline border-[#dbe8cd] bg-brand-light px-3 py-2 text-left" : "tap-card grid min-h-[64px] grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 rounded-[15px] border-hairline border-line bg-white px-3 py-2 text-left"} type="button" onClick={() => setSelectedFitnessDay(day.day)} key={day.day}>
+                    <span className={done ? "grid h-9 w-9 place-items-center rounded-full bg-brand text-white" : "grid h-9 w-9 place-items-center rounded-full bg-brand-light text-[13px] font-medium text-[#3b6d11]"}>
+                      {done ? <CheckCircle2 size={16} /> : day.day}
+                    </span>
+                    <span className="grid min-w-0 gap-0.5">
+                      <strong className="text-[14px] font-medium text-text-primary">Day {day.day}</strong>
+                      <em className="truncate text-[12px] not-italic text-text-secondary">{day.exercises.join(" · ")}</em>
+                    </span>
+                    <ArrowRight size={14} className="text-text-muted" />
+                  </button>
+              );
+              })}
+            </div>
+          </section>
+
+          <section className="grid gap-3 rounded-[18px] border-hairline border-[#dbe8cd] bg-brand-light p-4">
+            <h2 className="text-[18px] font-medium tracking-[-0.2px] text-[#27500a]">Training notes</h2>
+            <ul className="grid gap-2 text-[14px] leading-relaxed text-[#3b6d11] md:grid-cols-2">
+              {tennisFitnessTips.map((tip) => (
+                <li className="grid grid-cols-[18px_minmax(0,1fr)] gap-2" key={tip}>
+                  <CheckCircle2 className="mt-0.5" size={15} />
+                  <span>{tip}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </main>
       </div>
     </AppFrame>
   );
@@ -2794,7 +2746,7 @@ export function TournamentScheduleScreen() {
     const [teamsResult, itemsResult, notesResult, scheduleMatchesResult, schedulePlayersResult, scoresResult] = await Promise.all([
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
+        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", mappedTournament.id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -2861,6 +2813,7 @@ export function TournamentScheduleScreen() {
             city: player?.jamaat_city || "MRSA",
             tier: member.tier_at_draft ? `Tier ${member.tier_at_draft}` : "Tier TBD",
             rating: formatRegisteredPlayerRating(player?.rating),
+            profilePhotoUrl: player?.profile_photo_url || "",
             isCaptain: Boolean(member.is_captain),
             draftOrder: member.draft_order ?? null
           };
@@ -3169,6 +3122,7 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
   const [match, setMatch] = useState<TeamCourtScheduleMatch | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [isOwnMatch, setIsOwnMatch] = useState(false);
+  const [ownMatchSide, setOwnMatchSide] = useState<"A" | "B" | null>(null);
   const [draft, setDraft] = useState<ScoreDraft>(getEmptyScoreDraft());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -3203,7 +3157,7 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
         .maybeSingle(),
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
+        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", matchRow.tournament_id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -3233,10 +3187,12 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
     const mappedScores = scoreSchemaMissing || !scoresResult.data ? [] : mapMatchScores([scoresResult.data]);
     const mappedMatch = mapTeamCourtScheduleMatches([matchRow], participantsResult.data || [], mappedTeams, mappedScores)[0] || null;
     const previewPlayerId = getSchedulePreviewPlayerId(mappedTeams, appSession.player);
+    const ownParticipant = (participantsResult.data || []).find((participant) => participant.player_id === previewPlayerId);
     setTournament(mappedTournament);
     setMatch(mappedMatch);
     setDraft(getScoreDraftFromScore(mappedMatch?.score));
-    setIsOwnMatch((participantsResult.data || []).some((participant) => participant.player_id === previewPlayerId));
+    setIsOwnMatch(Boolean(ownParticipant));
+    setOwnMatchSide(ownParticipant?.side === "B" ? "B" : ownParticipant?.side === "A" ? "A" : null);
     setLoading(false);
   }, [appSession.player, appSession.ready, appSession.userId, matchId]);
 
@@ -3306,6 +3262,7 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
               message={message}
               onChangeDraft={setDraft}
               onSubmit={submitScore}
+              ownSide={ownMatchSide}
               saving={saving}
             />
           )}
@@ -3332,7 +3289,7 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
     }
     const { data: teamRow, error: teamError } = await supabase
       .from("tournament_teams")
-      .select("id, tournament_id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
+      .select("id, tournament_id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
       .eq("id", teamId)
       .maybeSingle();
     if (teamError || !teamRow) {
@@ -3343,7 +3300,7 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
     const [teamsResult, matchesResult, participantsResult, scoresResult] = await Promise.all([
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating))")
+        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", teamRow.tournament_id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -3397,6 +3354,128 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
           {loading && <SkeletonRow />}
           {message && !team && <StatusMessage tone="error">{message}</StatusMessage>}
           {team && <TeamDetailPageCard matches={matches} team={team} />}
+        </main>
+      </div>
+    </AppFrame>
+  );
+}
+
+export function TournamentTeamsScreen() {
+  const appSession = useProtectedRoute("/tournaments/teams", true);
+  const [teams, setTeams] = useState<PublishedTeam[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const loadTeams = useCallback(async () => {
+    if (!appSession.ready || !appSession.userId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setMessage("Supabase env vars are missing.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: tournamentData, error } = await supabase
+      .from("tournaments")
+      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
+      .in("status", ["registration_open", "registration_closed", "live"])
+      .order("starts_on", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !tournamentData) {
+      setMessage(error ? getFriendlyError(error) : "No active tournament found.");
+      setTeams([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: teamsData, error: teamsError } = await supabase
+      .from("tournament_teams")
+      .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+      .eq("tournament_id", tournamentData.id)
+      .eq("is_published", true)
+      .order("sort_order", { ascending: true })
+      .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
+      .limit(40);
+
+    if (teamsError) {
+      setMessage(getFriendlyError(teamsError));
+      setTeams([]);
+      setLoading(false);
+      return;
+    }
+
+    setTeams(mapPublishedTeamsFromRows(teamsData || []));
+    setLoading(false);
+  }, [appSession.ready, appSession.userId]);
+
+  useEffect(() => {
+    loadTeams();
+  }, [loadTeams]);
+
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+
+  return (
+    <AppFrame active="tournament">
+      <div className={memberPageClass}>
+        <AppTopBar />
+        <main className={memberMainClass}>
+          <section className={`${memberHeroClass} min-h-[112px] content-center p-5`}>
+            <TournamentHeroAmbience />
+            <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
+              <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            </div>
+            <Link className="absolute left-4 top-4 z-10 inline-grid h-8 max-h-8 min-h-8 w-8 min-w-8 max-w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/12 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)] backdrop-blur transition-transform active:scale-[0.98]" href="/tournaments" aria-label="Back to tournament">
+              <ArrowLeft size={16} />
+            </Link>
+            <span className="relative z-10 grid justify-items-center px-10 text-center">
+              <h1 className="text-[26px] font-medium leading-tight tracking-[-0.3px] text-white md:text-[34px]">Team rosters</h1>
+            </span>
+          </section>
+
+          {message && <StatusMessage tone="error">{message}</StatusMessage>}
+          {loading && Array.from({ length: 4 }).map((_, index) => <SkeletonRow key={index} />)}
+          {!loading && !teams.length && !message && <StatusMessage tone="info">Team rosters will appear once they are published.</StatusMessage>}
+
+          {!!teams.length && (
+            <section className="grid gap-3 md:grid-cols-2" aria-label="Published team rosters">
+              {teams.map((team) => {
+                const teamTone = getTeamCardTone(team.jerseyColor);
+                const captain = team.members.find((member) => member.isCaptain);
+                return (
+                  <Link className="tap-card group grid gap-3 overflow-hidden rounded-[18px] border-hairline border-white/25 p-3 shadow-[0_14px_34px_rgba(12,59,32,0.12)]" href={`/tournaments/schedule/teams/${team.id}`} key={team.id} style={{ background: teamTone.background, color: teamTone.textColor }}>
+                    <span className="grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3">
+                      {team.logoUrl ? (
+                        <img className="h-12 w-12 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.16)]" src={team.logoUrl} alt={`${team.name} logo`} />
+                      ) : (
+                        <span className="grid h-12 w-12 place-items-center rounded-full bg-white/18 text-[13px] font-medium text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)]">{getInitials(team.name)}</span>
+                      )}
+                      <span className="grid min-w-0 gap-0.5">
+                        <strong className="truncate text-[18px] font-medium text-current">{team.name}</strong>
+                        <em className="truncate text-[12px] not-italic text-current opacity-70">{captain ? `Captain: ${captain.name}` : "Captain TBD"}</em>
+                      </span>
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-brand transition-transform group-hover:translate-x-0.5">
+                        <ArrowRight size={15} />
+                      </span>
+                    </span>
+                    <span className="grid gap-1.5 rounded-[14px] border-hairline border-white/35 bg-white/[0.86] p-2">
+                      {team.members.slice(0, 4).map((member) => (
+                        <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-text-primary" key={member.id}>
+                          <strong className="truncate text-[13px] font-medium">{member.name}</strong>
+                          <em className="text-[11px] not-italic text-text-secondary">{member.rating}</em>
+                        </span>
+                      ))}
+                    </span>
+                    <span className="inline-flex w-max rounded-full bg-white/85 px-2.5 py-1 text-[12px] font-medium text-[#24412c]">{formatPlayerCount(team.members.length)}</span>
+                  </Link>
+                );
+              })}
+            </section>
+          )}
         </main>
       </div>
     </AppFrame>
@@ -3663,7 +3742,7 @@ export function AboutScreen() {
   const isAuthenticated = Boolean(appSession.ready && appSession.userId && appSession.profileComplete);
 
   return (
-    <AppFrame active={isAuthenticated ? "tournament" : undefined} withNav={isAuthenticated}>
+    <AppFrame active={isAuthenticated ? "home" : undefined} withNav={isAuthenticated}>
       <div className={memberPageClass}>
         <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/75 px-4 py-2.5 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-shell items-center justify-between">
@@ -3772,7 +3851,7 @@ export function PlayerScreen() {
 
       const { data } = await supabase
         .from("players")
-        .select("id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, jersey_name, tennis_video_url, tennis_video_status, tier, rating, tournaments_played, matches_played")
+        .select("id, full_name, phone, age, date_of_birth, profile_photo_url, jamaat_city, self_assessment, dominant_hand, jersey_size, jersey_name, tennis_video_url, tennis_video_status, usta_number, usta_prompt_skipped_at, tier, rating, tournaments_played, matches_played")
         .eq("auth_user_id", appSession.userId)
         .maybeSingle();
 
@@ -3830,6 +3909,7 @@ export function PlayerScreen() {
         jersey_name: profile.jerseyName.trim() || null,
         tennis_video_url: profile.tennisVideo,
         tennis_video_status: hasPlayerVideoLink(profile.tennisVideo) ? "pending" : null,
+        usta_number: profile.ustaNumber.trim() || null,
         tennis_video_reviewed_at: null,
         tennis_video_reviewed_by: null,
         tennis_video_rejection_note: null
@@ -4149,6 +4229,16 @@ export function PlayerScreen() {
                 inputRef={(node) => { if (node) editableFieldRefs.current.tennisVideo = node; }}
                 helper={<span>{videoDescription} Captains and organizers use this for tournament drafts.</span>}
               />
+              <ProfileField
+                label="USTA number"
+                value={profile.ustaNumber}
+                displayValue={profile.ustaNumber || "Not set"}
+                editing={isEditing}
+                onEdit={() => startProfileEdit("ustaNumber")}
+                onChange={(value) => updateProfile("ustaNumber", value)}
+                inputRef={(node) => { if (node) editableFieldRefs.current.ustaNumber = node; }}
+                helper={<span>Optional. Add this so MRSA can connect eligible tournament scores to your USTA / WTN profile.</span>}
+              />
             </div>
 
             {isEditing && (
@@ -4236,7 +4326,8 @@ function mapProfile(row: DbProfileRow): ProfileData {
     matchesPlayed: String(row.matches_played || 0),
     jerseySize: row.jersey_size || "",
     jerseyName: row.jersey_name || "",
-    tennisVideo: hasPlayerVideoLink(row.tennis_video_url) ? row.tennis_video_url || "" : ""
+    tennisVideo: hasPlayerVideoLink(row.tennis_video_url) ? row.tennis_video_url || "" : "",
+    ustaNumber: row.usta_number || ""
   };
 }
 
@@ -4371,10 +4462,6 @@ function hasPlayerVideoLink(value?: string | null) {
   return !/^google drive link$/i.test(normalizedValue);
 }
 
-function needsPlayerVideoUpload(videoUrl?: string | null, videoStatus?: string | null) {
-  return !hasPlayerVideoLink(videoUrl) || videoStatus === "rejected";
-}
-
 function getSkillLevelLabel(value?: string | null) {
   const normalizedValue = normalizeSkillLevel(value);
   return skillLevels.find((level) => level.value === normalizedValue)?.label || "";
@@ -4414,18 +4501,6 @@ function formatTournamentDates(tournament: Tournament) {
     return `${month} ${start.getDate()}`;
   }
   return `${month} ${start.getDate()}-${end.getDate()}`;
-}
-
-function formatDaysUntilStart(tournament: Tournament) {
-  if (!tournament.startsOn) return "TBD";
-  const start = new Date(`${tournament.startsOn}T00:00:00`);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const days = Math.ceil((start.getTime() - today.getTime()) / 86400000);
-  if (days < 0) return "Tournament started";
-  if (days === 0) return "Today";
-  if (days === 1) return "1 day";
-  return `${days} days`;
 }
 
 function useTournamentCountdown(startsOn: string | null) {
@@ -4497,99 +4572,6 @@ function formatCountdownValue(value: number) {
   return value < 10 ? `0${value}` : String(value);
 }
 
-function getRegistrationButtonLabel({
-  registered,
-  paying,
-  paymentState,
-  registrationOpen
-}: {
-  registered: boolean;
-  paying: boolean;
-  paymentState: PaymentState;
-  registrationOpen: boolean | undefined;
-}) {
-  if (registered || paymentState === "paid") return "Registered";
-  if (paying) return "Opening payment...";
-  if (paymentState === "waitlist_pending") return "Joined waitlist";
-  if (paymentState === "waitlist_accepted") return "Complete payment";
-  if (paymentState === "waitlist_rejected") return "Waitlist not accepted";
-  if (paymentState === "failed") return "Retry payment";
-  if (paymentState === "pending") return "Retry payment";
-  if (!registrationOpen) return "Join waitlist";
-  return "Pay and register →";
-}
-
-function getTournamentActionStatus(tournament: Tournament, paymentState: PaymentState, registrationOpen: boolean | undefined) {
-  if (paymentState === "pending") {
-    return {
-      label: "Payment incomplete",
-      value: "Retry payment to finish registration"
-    };
-  }
-  if (paymentState === "failed") {
-    return {
-      label: "Payment failed",
-      value: "Retry payment when ready"
-    };
-  }
-  if (paymentState === "waitlist_pending") {
-    return {
-      label: "Waitlist joined",
-      value: "Organizer will review your request"
-    };
-  }
-  if (paymentState === "waitlist_accepted") {
-    return {
-      label: "Waitlist accepted",
-      value: "Complete payment to register"
-    };
-  }
-  if (paymentState === "waitlist_rejected") {
-    return {
-      label: "Waitlist update",
-      value: "Request was not accepted"
-    };
-  }
-  if (!registrationOpen) {
-    return {
-      label: "Registration closed",
-      value: "Join the waitlist"
-    };
-  }
-
-  const remaining = tournament.registrationClosesAt ? getTimeRemaining(tournament.registrationClosesAt) : null;
-  if (!remaining || remaining.expired) {
-    return {
-      label: "Registration is live",
-      value: "Open now"
-    };
-  }
-
-  const dayLabel = remaining.days === 1 ? "day" : "days";
-  const hourLabel = remaining.hours === 1 ? "hour" : "hours";
-  const minuteLabel = remaining.minutes === 1 ? "minute" : "minutes";
-  const value = remaining.days > 0
-    ? `${remaining.days} ${dayLabel} left`
-    : remaining.hours > 0
-      ? `${remaining.hours} ${hourLabel} left`
-      : `${remaining.minutes} ${minuteLabel} left`;
-
-  return {
-    label: "Registration closes in",
-    value
-  };
-}
-
-function TournamentActionStatusCard({ tournament, paymentState, registrationOpen }: { tournament: Tournament; paymentState: PaymentState; registrationOpen: boolean | undefined }) {
-  const status = getTournamentActionStatus(tournament, paymentState, registrationOpen);
-  return (
-    <article className="rounded-card border-hairline border-white/10 bg-white/[0.08] px-3 py-2 text-white" aria-label={status.label}>
-      <span className="text-[12px] text-current opacity-55">{status.label}</span>
-      <strong className="block text-[13px] font-medium text-current opacity-90">{status.value}</strong>
-    </article>
-  );
-}
-
 function TournamentStartCountdown({ countdown }: { countdown: TournamentCountdown }) {
   if (countdown.state !== "countdown") {
     return <strong className="block text-[15px] font-medium text-white">{countdown.label}</strong>;
@@ -4620,7 +4602,52 @@ function CountdownUnit({ value, label }: { value: number; label: string }) {
   );
 }
 
-function ScheduleItemCard({ item, teams, courtMatches = [] }: { item: ScheduleItem; teams: PublishedTeam[]; courtMatches?: TeamCourtScheduleMatch[] }) {
+function CaptainAvatarStack({ teams }: { teams: PublishedTeam[] }) {
+  const captains = teams
+    .map((team) => team.members.find((member) => member.isCaptain) || team.members[0])
+    .filter(Boolean) as PublishedTeamMember[];
+  const uploadedCaptains = captains.filter((captain) => captain.profilePhotoUrl);
+  const visibleCaptains = uploadedCaptains.length ? uploadedCaptains : captains.slice(0, 4);
+  const remainingCount = uploadedCaptains.length ? captains.length - uploadedCaptains.length : Math.max(0, captains.length - visibleCaptains.length);
+
+  if (!captains.length) {
+    return (
+      <span className="inline-flex h-10 w-max items-center rounded-full bg-brand-light px-2.5 text-[#3b6d11]">
+        <UsersRound size={18} />
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex h-10 w-max items-center pl-1.5 pr-2" aria-label="Team captains">
+      {visibleCaptains.map((captain, index) => (
+        <span
+          aria-label={`${captain.name} captain photo`}
+          className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-light text-[11px] font-medium text-[#3b6d11] shadow-[0_8px_18px_rgba(12,59,32,0.12)]"
+          key={`${captain.playerId}-${index}`}
+          style={{ marginLeft: index ? "-10px" : "0", zIndex: 10 + index }}
+        >
+          {captain.profilePhotoUrl ? (
+            <NextImage src={captain.profilePhotoUrl} alt="" fill sizes="36px" className="object-cover" />
+          ) : (
+            getInitials(captain.name)
+          )}
+        </span>
+      ))}
+      {remainingCount > 0 && (
+        <span
+          className="relative grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-brand text-[12px] font-medium text-white shadow-[0_8px_18px_rgba(12,59,32,0.12)]"
+          style={{ marginLeft: visibleCaptains.length ? "-10px" : "0", zIndex: 10 + visibleCaptains.length }}
+          aria-label={`${remainingCount} more captains`}
+        >
+          +{remainingCount}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function ScheduleItemCard({ item, teams, courtMatches = [], hideTime = false }: { item: ScheduleItem; teams: PublishedTeam[]; courtMatches?: TeamCourtScheduleMatch[]; hideTime?: boolean }) {
   const teamA = item.teamASortOrder ? teams.find((team) => team.sortOrder === item.teamASortOrder) : null;
   const teamB = item.teamBSortOrder ? teams.find((team) => team.sortOrder === item.teamBSortOrder) : null;
   const teamALabel = teamA?.name || item.teamALabel;
@@ -4644,9 +4671,9 @@ function ScheduleItemCard({ item, teams, courtMatches = [] }: { item: ScheduleIt
   }
 
   return (
-    <article className="grid gap-3 rounded-[16px] border-hairline border-line bg-card p-3 shadow-[0_8px_20px_rgba(24,24,26,0.04)] lg:grid-cols-[100px_minmax(0,1fr)] lg:items-center">
+    <article className={hideTime ? "grid gap-3 rounded-[16px] border-hairline border-line bg-card p-3 shadow-[0_8px_20px_rgba(24,24,26,0.04)]" : "grid gap-3 rounded-[16px] border-hairline border-line bg-card p-3 shadow-[0_8px_20px_rgba(24,24,26,0.04)] lg:grid-cols-[100px_minmax(0,1fr)] lg:items-center"}>
       <span className="grid gap-1">
-        <strong className="text-[14px] font-medium text-brand">{item.timeLabel}</strong>
+        {!hideTime && <strong className="text-[14px] font-medium text-brand">{item.timeLabel}</strong>}
         <em className="text-[12px] not-italic text-text-secondary">{[item.podLabel, item.courtLabel].filter(Boolean).join(" · ") || "Courts TBD"}</em>
       </span>
       <span className="grid gap-2">
@@ -4743,9 +4770,18 @@ function PlayerScheduleTimeCard({ label, matches, onOpenMatch, isFeatured }: { l
   );
 }
 
-function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, entryLabel, message, saving, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; draft: ScoreDraft; canSubmit: boolean; isOwnMatch: boolean; entryLabel: string; message: string; saving: boolean; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
+function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, ownSide, entryLabel, message, saving, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; draft: ScoreDraft; canSubmit: boolean; isOwnMatch: boolean; ownSide: "A" | "B" | null; entryLabel: string; message: string; saving: boolean; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
   const playersA = match.playersA.length ? match.playersA.join(" / ") : match.teamAName;
   const playersB = match.playersB.length ? match.playersB.join(" / ") : match.teamBName;
+  const showSideBOnLeft = ownSide === "B";
+  const leftPlayers = showSideBOnLeft ? playersB : playersA;
+  const rightPlayers = showSideBOnLeft ? playersA : playersB;
+  const leftTeam = showSideBOnLeft ? match.teamBName : match.teamAName;
+  const rightTeam = showSideBOnLeft ? match.teamAName : match.teamBName;
+  const leftColor = showSideBOnLeft ? match.teamBColor : match.teamAColor;
+  const rightColor = showSideBOnLeft ? match.teamAColor : match.teamBColor;
+  const leftSide: "A" | "B" = showSideBOnLeft ? "B" : "A";
+  const rightSide: "A" | "B" = showSideBOnLeft ? "A" : "B";
   return (
     <section className="grid gap-3">
       <article className="relative overflow-hidden rounded-[24px] border-hairline border-white/80 bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-4 pt-12 text-white shadow-[0_18px_44px_rgba(12,59,32,0.10)] sm:p-5 sm:pt-12">
@@ -4756,15 +4792,15 @@ function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, entryLabel, 
           <CourtBackdrop />
           <div className="relative grid gap-3">
             <div className="grid gap-1">
-              <h1 className="text-[23px] font-medium leading-[1.08] tracking-[-0.4px] sm:text-[30px]">{playersA}</h1>
+              <h1 className="text-[23px] font-medium leading-[1.08] tracking-[-0.4px] sm:text-[30px]">{leftPlayers}</h1>
               <span className="text-[14px] font-medium text-white/58">vs</span>
-              <h2 className="text-[23px] font-medium leading-[1.08] tracking-[-0.4px] text-white sm:text-[30px]">{playersB}</h2>
+              <h2 className="text-[23px] font-medium leading-[1.08] tracking-[-0.4px] text-white sm:text-[30px]">{rightPlayers}</h2>
             </div>
             <div className="grid gap-2 rounded-[18px] border-hairline border-white/16 bg-white/10 p-2.5 backdrop-blur">
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-                <TeamColorPill label={match.teamAName} color={match.teamAColor} />
+                <TeamColorPill label={leftTeam} color={leftColor} />
                 <span className="text-[12px] font-medium text-white/52">vs</span>
-                <TeamColorPill label={match.teamBName} color={match.teamBColor} />
+                <TeamColorPill label={rightTeam} color={rightColor} />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <MatchMetaTile label="Time" value={match.timeLabel || "TBD"} />
@@ -4789,14 +4825,14 @@ function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, entryLabel, 
             <p className="rounded-[14px] border-hairline border-line bg-surface/60 px-3 py-2 text-[12px] leading-relaxed text-text-secondary">Best of three. Set 3 only if needed.</p>
             <div className="grid grid-cols-[52px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-2">
               <span aria-hidden="true" />
-              <ScoreSideLabel playerNames={playersA} color={match.teamAColor} />
+              <ScoreSideLabel playerNames={leftPlayers} color={leftColor} />
               <span className="text-center text-[12px] font-medium text-text-muted">vs</span>
-              <ScoreSideLabel playerNames={playersB} color={match.teamBColor} />
+              <ScoreSideLabel playerNames={rightPlayers} color={rightColor} />
             </div>
             <div className="grid gap-2">
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={1} sideALabel={match.teamAName} sideBLabel={match.teamBName} />
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={2} sideALabel={match.teamAName} sideBLabel={match.teamBName} />
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} onChange={onChangeDraft} setNumber={3} sideALabel={match.teamAName} sideBLabel={match.teamBName} optional />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={onChangeDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={1} />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={onChangeDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={2} />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={onChangeDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={3} optional />
             </div>
             {message && <p className={message === "Score saved." ? "rounded-[14px] bg-brand-light p-3 text-[13px] text-[#3b6d11]" : "rounded-[14px] bg-[#fff8f1] p-3 text-[13px] text-[#8a4a22]"}>{message}</p>}
             <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[15px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-5 text-[14px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.16)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-surface disabled:text-text-muted disabled:shadow-none" type="button" onClick={onSubmit} disabled={!canSubmit || saving}>
@@ -4908,15 +4944,17 @@ function CourtBackdrop() {
   );
 }
 
-function ScoreSetInputs({ draft, setNumber, optional = false, disabled, onChange, sideALabel, sideBLabel }: { draft: ScoreDraft; setNumber: 1 | 2 | 3; optional?: boolean; disabled: boolean; onChange: (draft: ScoreDraft) => void; sideALabel: string; sideBLabel: string }) {
+function ScoreSetInputs({ draft, setNumber, optional = false, disabled, onChange, leftSide, rightSide, leftLabel, rightLabel }: { draft: ScoreDraft; setNumber: 1 | 2 | 3; optional?: boolean; disabled: boolean; onChange: (draft: ScoreDraft) => void; leftSide: "A" | "B"; rightSide: "A" | "B"; leftLabel: string; rightLabel: string }) {
   const sideAKey = `sideASet${setNumber}` as keyof ScoreDraft;
   const sideBKey = `sideBSet${setNumber}` as keyof ScoreDraft;
+  const leftKey = leftSide === "A" ? sideAKey : sideBKey;
+  const rightKey = rightSide === "A" ? sideAKey : sideBKey;
   return (
     <label className="grid grid-cols-[52px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-[13px] border-hairline border-line bg-surface/55 px-2 py-1.5 text-[12px] text-text-secondary">
       <span className="font-medium text-text-primary">Set {setNumber}</span>
-      <input className="min-h-9 rounded-[11px] border-hairline border-line bg-white px-2 text-center text-[15px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[sideAKey]} onChange={(event) => onChange({ ...draft, [sideAKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="0" aria-label={`Set ${setNumber} score for ${sideALabel}${optional ? " if needed" : ""}`} inputMode="numeric" disabled={disabled} />
+      <input className="min-h-9 rounded-[11px] border-hairline border-line bg-white px-2 text-center text-[15px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[leftKey]} onChange={(event) => onChange({ ...draft, [leftKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="0" aria-label={`Set ${setNumber} score for ${leftLabel}${optional ? " if needed" : ""}`} inputMode="numeric" disabled={disabled} />
       <span className="text-text-muted">-</span>
-      <input className="min-h-9 rounded-[11px] border-hairline border-line bg-white px-2 text-center text-[15px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[sideBKey]} onChange={(event) => onChange({ ...draft, [sideBKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="0" aria-label={`Set ${setNumber} score for ${sideBLabel}${optional ? " if needed" : ""}`} inputMode="numeric" disabled={disabled} />
+      <input className="min-h-9 rounded-[11px] border-hairline border-line bg-white px-2 text-center text-[15px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[rightKey]} onChange={(event) => onChange({ ...draft, [rightKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="0" aria-label={`Set ${setNumber} score for ${rightLabel}${optional ? " if needed" : ""}`} inputMode="numeric" disabled={disabled} />
     </label>
   );
 }
@@ -5028,6 +5066,8 @@ function TeamCourtScheduleBlock({ block, teams, isFeatured, onOpenMatch, onOpenT
 
 function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onToggleBlock, onOpenMatch, onOpenTeam, defaultOpen = false }: { label: string; blocks: TeamCourtScheduleBlock[]; eventItems: ScheduleItem[]; teams: PublishedTeam[]; openBlocks: Record<string, boolean>; onToggleBlock: (blockId: string) => void; onOpenMatch: (match: TeamCourtScheduleMatch) => void; onOpenTeam: (teamId: string) => void; defaultOpen?: boolean }) {
   const matchCount = blocks.reduce((total, block) => total + block.matches.length, 0);
+  const totalCount = matchCount + eventItems.length;
+  const countLabel = eventItems.every((item) => item.itemType === "match") ? `${totalCount} ${totalCount === 1 ? "match" : "matches"}` : `${totalCount} ${totalCount === 1 ? "item" : "items"}`;
 
   return (
     <section className="overflow-hidden rounded-[22px] border-hairline border-white/70 bg-white/88 shadow-[0_18px_44px_rgba(12,59,32,0.10)] ring-1 ring-line/70 backdrop-blur-xl" key={label}>
@@ -5036,7 +5076,7 @@ function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onT
           <Clock size={16} className="shrink-0 text-brand" />
           <h2 className="truncate text-[18px] font-medium leading-none text-brand">{label}</h2>
         </span>
-        <span className="shrink-0 rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]">{matchCount + eventItems.length} items</span>
+        <span className="shrink-0 rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]">{countLabel}</span>
       </div>
       <div className="grid gap-2.5 p-3">
         {!!eventItems.length && (
@@ -5044,7 +5084,7 @@ function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onT
             {eventItems.map((item) => (
               item.itemType === "event"
                 ? <ScheduleCompactEventRow item={item} key={item.id} />
-                : <ScheduleItemCard item={item} teams={teams} key={item.id} />
+                : <ScheduleItemCard item={item} teams={teams} hideTime key={item.id} />
             ))}
           </div>
         )}
@@ -5177,6 +5217,7 @@ function mapPublishedTeamsFromRows(rows: PublishedTeamRow[]): PublishedTeam[] {
           city: player?.jamaat_city || "MRSA",
           tier: member.tier_at_draft ? `Tier ${member.tier_at_draft}` : "Tier TBD",
           rating: formatRegisteredPlayerRating(player?.rating),
+          profilePhotoUrl: player?.profile_photo_url || "",
           isCaptain: Boolean(member.is_captain),
           draftOrder: member.draft_order ?? null
         };
@@ -5196,6 +5237,7 @@ function groupScheduleItemsByTime(items: ScheduleItem[]) {
 
 function getDayScheduleEventItems(items: ScheduleItem[], dayNumber: number) {
   const eventItems = items.filter((item) => item.itemType === "event" && item.dayNumber === dayNumber);
+  if (dayNumber === 2) return normalizeDayTwoScheduleEvents(eventItems);
   if (dayNumber !== 1) return eventItems;
   const withBreakfast = hasScheduleEventNear(eventItems, 8 * 60)
     ? eventItems
@@ -5203,6 +5245,22 @@ function getDayScheduleEventItems(items: ScheduleItem[], dayNumber: number) {
   return hasScheduleEventNear(withBreakfast, 12 * 60 + 50)
     ? withBreakfast
     : [...withBreakfast, createScheduleEventItem(1, "12:50-1:30 PM", "Lunch", "Lunch break before afternoon matches resume.", 1250)];
+}
+
+function normalizeDayTwoScheduleEvents(eventItems: ScheduleItem[]) {
+  const normalized = new Map<string, ScheduleItem>();
+  eventItems.forEach((item) => {
+    const key = normalizeName(item.matchLabel || item.phase || item.detail);
+    if (!key) return;
+    const existing = normalized.get(key);
+    if (!existing || getScheduleTimeSortValue(item.timeLabel || item.dayLabel) < getScheduleTimeSortValue(existing.timeLabel || existing.dayLabel)) {
+      normalized.set(key, item.matchLabel.toLowerCase() === "lunch" ? { ...item, timeLabel: "11:20-1:30" } : item);
+    }
+  });
+  const values = Array.from(normalized.values());
+  return hasScheduleEventNear(values, 8 * 60)
+    ? values
+    : [createScheduleEventItem(2, "8:00-9:00 AM", "Breakfast / briefing / warmup / team setup", "Check in, eat, warm up, and settle into teams before matches begin.", -20), ...values];
 }
 
 function hasScheduleEventNear(items: ScheduleItem[], targetMinutes: number) {
@@ -5621,101 +5679,6 @@ function isScoreSchemaMissing(message: string) {
     || normalized.includes("schema cache");
 }
 
-function getHomeTournamentCopy(tournament: Tournament | null, paymentState: PaymentState) {
-  if (!tournament) {
-    return {
-      badge: "No tournament",
-      title: "No active tournament",
-      description: "New events will appear here.",
-      action: "Open",
-      live: false
-    };
-  }
-
-  if (paymentState === "paid") {
-    const registrationStatus = tournament.status === "registration_open"
-      ? "Registration is live"
-      : tournament.status === "registration_closed"
-        ? "Registration ended"
-        : formatTournamentStatus(tournament.status);
-    return {
-      badge: registrationStatus,
-      title: "You are registered",
-      description: "See dates, venue, and players.",
-      action: "View details",
-      live: tournament.status === "registration_open"
-    };
-  }
-
-  if (paymentState === "pending") {
-    return {
-      badge: "Pending",
-      title: "Payment pending",
-      description: "Check payment status.",
-      action: "Check",
-      live: false
-    };
-  }
-
-  if (paymentState === "waitlist_pending") {
-    return {
-      badge: "Registration closed",
-      title: "You have joined the waitlist",
-      description: "Organizer will review your request before payment opens.",
-      action: "View details",
-      live: false
-    };
-  }
-
-  if (paymentState === "waitlist_accepted") {
-    return {
-      badge: "Waitlist accepted",
-      title: "Complete your payment",
-      description: "Your spot is approved pending payment.",
-      action: "Complete payment",
-      live: true
-    };
-  }
-
-  if (paymentState === "waitlist_rejected") {
-    return {
-      badge: "Registration closed",
-      title: "Waitlist not accepted",
-      description: "View details for any tournament updates.",
-      action: "View details",
-      live: false
-    };
-  }
-
-  if (paymentState === "failed") {
-    return {
-      badge: "Action needed",
-      title: "Payment not completed",
-      description: "Retry registration when you are ready.",
-      action: "Retry",
-      live: false
-    };
-  }
-
-  if (tournament.status === "registration_open") {
-    return {
-      badge: "Registration live",
-      title: "Confirm your spot",
-      description: "See dates, fee, venue, and registered players.",
-      action: "View details",
-      live: true
-    };
-  }
-
-  return {
-    badge: formatTournamentStatus(tournament.status),
-    title: tournament.status === "registration_closed" ? "Join the waitlist" : formatTournamentStatus(tournament.status),
-    description: tournament.status === "registration_closed" ? "Organizer will review your request." : "View details.",
-    action: tournament.status === "registration_closed" ? "Join waitlist" : "View details",
-    live: false
-  };
-}
-
 function formatTournamentStatus(status: string) {
   if (status === "registration_open") return "Registration is live";
   if (status === "registration_closed") return "Registration closed";
@@ -5724,58 +5687,6 @@ function formatTournamentStatus(status: string) {
   if (status === "cancelled") return "Tournament cancelled";
   if (status === "draft") return "Draft tournament";
   return "Tournament status";
-}
-
-function getTimeRemaining(value: string | null) {
-  const targetTime = value ? getRegistrationCloseDate(value).getTime() : Date.now();
-  const distance = Math.max(0, targetTime - Date.now());
-
-  return {
-    expired: Boolean(value) && distance <= 0,
-    days: Math.floor(distance / 86400000),
-    hours: Math.floor((distance % 86400000) / 3600000),
-    minutes: Math.floor((distance % 3600000) / 60000),
-    seconds: Math.floor((distance % 60000) / 1000)
-  };
-}
-
-function getRegistrationCloseDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return date;
-
-  const hasExplicitUtcOffset = /(?:z|[+-]00:?00)$/i.test(value);
-  if (hasExplicitUtcOffset && date.getUTCHours() === 23 && date.getHours() !== 23) {
-    return new Date(
-      date.getUTCFullYear(),
-      date.getUTCMonth(),
-      date.getUTCDate(),
-      date.getUTCHours(),
-      date.getUTCMinutes(),
-      date.getUTCSeconds()
-    );
-  }
-
-  return date;
-}
-
-function buildPastTournamentSummaries(matches: { season_year: number | null; format: string | null }[]): PastTournamentSummary[] {
-  const summaries = new Map<number, PastTournamentSummary>();
-
-  matches.forEach((match) => {
-    if (!match.season_year) return;
-    const summary = summaries.get(match.season_year) || {
-      seasonYear: match.season_year,
-      matches: 0,
-      singles: 0,
-      doubles: 0
-    };
-    summary.matches += 1;
-    if (match.format === "singles") summary.singles += 1;
-    if (match.format === "doubles") summary.doubles += 1;
-    summaries.set(match.season_year, summary);
-  });
-
-  return Array.from(summaries.values()).sort((a, b) => b.seasonYear - a.seasonYear);
 }
 
 function getFriendlyError(error: { message?: string; code?: string } | null) {
@@ -5895,6 +5806,7 @@ function ProfileField({
 
 function BottomNav({ active, showAdmin }: { active: Tab; showAdmin: boolean }) {
   const tabs = [
+    { id: "home" as const, href: "/dashboard", label: "Home", icon: House },
     { id: "tournament" as const, href: "/tournaments", label: "Tournament", icon: Trophy },
     { id: "profile" as const, href: "/profile", label: "Profile", icon: UsersRound },
     ...(showAdmin ? [{ id: "admin" as const, href: "/admin", label: "Admin", icon: Shield }] : [])

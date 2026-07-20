@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { HomeScreen } from "../tennis-app";
 
 export default function DashboardPage() {
-  redirect("/tournaments");
+  return <HomeScreen />;
 }

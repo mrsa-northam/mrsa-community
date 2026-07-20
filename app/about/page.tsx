@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { House, Trophy, UsersRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 type FeaturedVideo = {
@@ -272,7 +273,7 @@ export default function AboutPage() {
         <TeamSection />
         <ReadyToPlayCta />
       </div>
-      <AboutBottomNav paused={videoPlaying} />
+      <StandardAboutBottomNav />
     </main>
   );
 }
@@ -869,102 +870,27 @@ function ReadyToPlayCta() {
   );
 }
 
-function AboutBottomNav({ paused }: { paused: boolean }) {
-  const [visible, setVisible] = useState(true);
-  const timerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const clearIdleTimer = () => {
-      if (!timerRef.current) return;
-      window.clearTimeout(timerRef.current);
-      timerRef.current = null;
-    };
-
-    const focusIsInsideInput = () => {
-      const active = document.activeElement;
-      return Boolean(active?.matches("input, textarea, select, [contenteditable='true']"));
-    };
-
-    const modalOrSheetOpen = () => Boolean(document.querySelector("[aria-modal='true'], [role='dialog'], [data-state='open'], .sheet"));
-    const shouldPause = () => paused || focusIsInsideInput() || modalOrSheetOpen();
-
-    const showNav = () => setVisible(true);
-    const hideNav = () => {
-      if (shouldPause()) {
-        showNav();
-        return;
-      }
-      setVisible(false);
-    };
-
-    const scheduleHide = () => {
-      clearIdleTimer();
-      if (shouldPause()) {
-        showNav();
-        return;
-      }
-      timerRef.current = window.setTimeout(hideNav, 1500);
-    };
-
-    const handleScroll = () => {
-      showNav();
-      scheduleHide();
-    };
-
-    const handleFocusChange = () => {
-      showNav();
-      scheduleHide();
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("focusin", handleFocusChange);
-    window.addEventListener("focusout", handleFocusChange);
-    showNav();
-    scheduleHide();
-
-    return () => {
-      clearIdleTimer();
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("focusin", handleFocusChange);
-      window.removeEventListener("focusout", handleFocusChange);
-    };
-  }, [paused]);
+function StandardAboutBottomNav() {
+  const tabs = [
+    { id: "home", href: "/dashboard", label: "Home", icon: House },
+    { id: "tournament", href: "/tournaments", label: "Tournament", icon: Trophy },
+    { id: "profile", href: "/profile", label: "Profile", icon: UsersRound }
+  ];
 
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-50 grid grid-cols-2 border-t-hairline border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.82))] px-4 pt-3 shadow-[0_-18px_44px_rgba(24,24,26,0.08)] backdrop-blur-2xl transition-[transform,opacity] duration-[250ms] ease-in-out motion-reduce:transition-none ${visible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"}`}
-      style={{ paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}
-      aria-label="About page navigation"
+      className="fixed inset-x-0 bottom-0 z-50 grid border-t-hairline border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,255,255,0.72))] px-4 py-3 shadow-[0_-18px_44px_rgba(24,24,26,0.08)] backdrop-blur-2xl md:inset-x-6 md:bottom-4 md:mx-auto md:max-w-shell md:rounded-[24px] md:border-hairline md:shadow-[0_18px_50px_rgba(24,24,26,0.12)] lg:left-1/2 lg:right-auto lg:w-[min(760px,calc(100vw-64px))] lg:-translate-x-1/2"
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`, paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}
+      aria-label="Primary mobile navigation"
     >
-      <AboutNavLink href="/tournaments" label="Tournament" icon="trophy" />
-      <AboutNavLink href="/profile" label="Profile" icon="profile" />
+      {tabs.map(({ id, href, label, icon: Icon }) => (
+        <Link className={id === "home" ? "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] bg-[#E6F3EA] text-[#1d6e3a]" : "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#b6b1a8]"} href={href} key={id}>
+          <Icon size={20} strokeWidth={id === "home" ? 2.2 : 1.7} />
+          <span className={id === "home" ? "text-[12px] font-medium leading-none" : "text-[12px] font-normal leading-none"}>{label}</span>
+          <span className={id === "home" ? "h-1 w-1 rounded-full bg-[#1d6e3a]" : "h-1 w-1 rounded-full bg-transparent"} />
+        </Link>
+      ))}
     </nav>
-  );
-}
-
-function AboutNavLink({ href, label, icon }: { href: string; label: string; icon: "home" | "trophy" | "profile" }) {
-  return (
-    <Link className="grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#b6b1a8]" href={href}>
-      {icon === "home" && (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 10.8L12 4L20 10.8V20H15V14H9V20H4V10.8Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-        </svg>
-      )}
-      {icon === "trophy" && (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-          <path d="M8 4H16V9C16 11.2 14.2 13 12 13C9.8 13 8 11.2 8 9V4Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-          <path d="M8 6H5V8C5 9.7 6.3 11 8 11M16 6H19V8C19 9.7 17.7 11 16 11M12 13V17M9 20H15M10 17H14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
-      {icon === "profile" && (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z" stroke="currentColor" strokeWidth="1.7" />
-          <path d="M5 20C5.8 16.6 8.4 15 12 15C15.6 15 18.2 16.6 19 20" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-        </svg>
-      )}
-      <span className="text-[10px] font-normal leading-none">{label}</span>
-      <span className="h-1 w-1 rounded-full bg-transparent" />
-    </Link>
   );
 }
 
