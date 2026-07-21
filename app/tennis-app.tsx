@@ -37,6 +37,7 @@ type AvatarProps = {
   name: string;
   photoUrl?: string;
   ariaLabel?: string;
+  sizes?: string;
 };
 type ReturningPlayer = { id: string; name: string; city: string; rating: string; tier: string; claimStatus: string };
 type Tournament = {
@@ -118,6 +119,11 @@ type MatchScore = {
   winnerSide: "A" | "B" | "";
   submittedAt: string;
 };
+type MatchPlayerProfile = {
+  id: string;
+  name: string;
+  profilePhotoUrl: string;
+};
 type TeamCourtScheduleMatch = {
   id: string;
   tournamentId: string;
@@ -132,8 +138,11 @@ type TeamCourtScheduleMatch = {
   teamBName: string;
   teamAColor: string;
   teamBColor: string;
+  format: "Singles" | "Doubles";
   playersA: string[];
   playersB: string[];
+  playerProfilesA: MatchPlayerProfile[];
+  playerProfilesB: MatchPlayerProfile[];
   score: MatchScore | null;
   sortOrder: number;
 };
@@ -375,7 +384,7 @@ const emptyAppSession: AppSessionState = {
 };
 const AppSessionContext = createContext<AppSessionState>(emptyAppSession);
 
-function Avatar({ className, name, photoUrl, ariaLabel }: AvatarProps) {
+function Avatar({ className, name, photoUrl, ariaLabel, sizes = "56px" }: AvatarProps) {
   const [imageFailed, setImageFailed] = useState(false);
   const showPhoto = Boolean(photoUrl && !imageFailed);
 
@@ -385,7 +394,7 @@ function Avatar({ className, name, photoUrl, ariaLabel }: AvatarProps) {
 
   return (
     <span className={`${className} avatar-fallback`} aria-label={ariaLabel}>
-      {showPhoto ? <NextImage src={photoUrl || ""} alt="" fill sizes="56px" onError={() => setImageFailed(true)} /> : getInitials(name)}
+      {showPhoto ? <NextImage src={photoUrl || ""} alt="" fill sizes={sizes} className="object-cover" onError={() => setImageFailed(true)} /> : getInitials(name)}
     </span>
   );
 }
@@ -1892,7 +1901,7 @@ export function HomeScreen() {
                     )}
                   </div>
                 )}
-                <Link className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-[#B8FF35] px-4 text-[14px] font-medium text-[#153419] shadow-[0_18px_38px_rgba(184,255,53,0.16)] sm:w-max sm:justify-self-end" href="/tournaments">
+                <Link className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-[#B8FF35] px-4 text-[14px] font-medium text-[#153419] shadow-[0_18px_38px_rgba(184,255,53,0.16)] sm:w-max sm:justify-self-end xl:justify-self-center" href="/tournaments">
                   View tournament details
                   <ArrowRight size={15} />
                 </Link>
@@ -1937,7 +1946,7 @@ export function HomeScreen() {
                   <ArrowRight size={18} />
                 </span>
               </Link>
-              <Link className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:items-center md:p-5" href="/fitness">
+              <Link className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:items-center md:p-5" href="/fitness?from=dashboard">
                 <span className="grid gap-2">
                   <span className="text-[13px] text-text-secondary">Fitness</span>
                   <strong className="text-lg font-medium leading-tight text-brand">Tennis fitness regimen</strong>
@@ -2328,7 +2337,7 @@ export function DrawScreen() {
                   <strong className="text-[21px] font-medium leading-tight tracking-[-0.2px] text-brand">Tennis fitness program</strong>
                   <em className="text-[14px] not-italic leading-relaxed text-text-secondary">Start with the first week and check off each day as you train. Small wins, steady legs.</em>
                 </span>
-                <Link className="tap-card inline-flex min-h-10 w-max items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.16)]" href="/fitness">
+                <Link className="tap-card inline-flex min-h-10 w-max items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-4 text-[13px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.16)]" href="/fitness?from=tournament">
                   {completedFitnessDays.length ? "Continue program" : "Start program"}
                   <ArrowRight size={14} />
                 </Link>
@@ -2480,13 +2489,47 @@ const tennisFitnessTips = [
   "Progress, not perfection."
 ];
 
+function getFitnessProgramPhase(day: number) {
+  if (day <= 10) return "Foundation";
+  if (day <= 20) return "Build";
+  return "Peak";
+}
+
+function getFitnessDaysUntilTournament(startsOn: string | null) {
+  if (!startsOn) return null;
+  const tournamentDate = new Date(`${startsOn}T00:00:00`);
+  if (Number.isNaN(tournamentDate.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.ceil((tournamentDate.getTime() - today.getTime()) / 86_400_000));
+}
+
+function getFitnessPaceDay(daysUntilTournament: number | null) {
+  if (daysUntilTournament == null) return 1;
+  return Math.min(30, Math.max(1, 31 - daysUntilTournament));
+}
+
+function parseFitnessExercise(exercise: string) {
+  const separatorIndex = exercise.lastIndexOf(" - ");
+  if (separatorIndex < 0) return { name: exercise, reps: "" };
+  return {
+    name: exercise.slice(0, separatorIndex),
+    reps: exercise.slice(separatorIndex + 3)
+  };
+}
+
 export function FitnessScreen() {
   const appSession = useProtectedRoute("/fitness", true);
+  const searchParams = useSearchParams();
   const [completedDays, setCompletedDays] = useState<number[]>([]);
   const [selectedFitnessDay, setSelectedFitnessDay] = useState(1);
+  const [tournamentStartsOn, setTournamentStartsOn] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingDay, setSavingDay] = useState<number | null>(null);
   const [message, setMessage] = useState("");
+  const [canScrollFitnessDaysLeft, setCanScrollFitnessDaysLeft] = useState(false);
+  const [canScrollFitnessDaysRight, setCanScrollFitnessDaysRight] = useState(true);
+  const fitnessDayRailRef = useRef<HTMLDivElement>(null);
 
   const loadFitnessProgress = useCallback(async () => {
     if (!appSession.ready || !appSession.userId || !appSession.player?.id) return;
@@ -2497,21 +2540,36 @@ export function FitnessScreen() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("player_fitness_progress")
-      .select("day_number")
-      .eq("player_id", appSession.player.id)
-      .order("day_number", { ascending: true });
+    const [progressResult, tournamentResult] = await Promise.all([
+      supabase
+        .from("player_fitness_progress")
+        .select("day_number")
+        .eq("player_id", appSession.player.id)
+        .order("day_number", { ascending: true }),
+      supabase
+        .from("tournaments")
+        .select("starts_on")
+        .in("status", ["registration_open", "registration_closed", "live"])
+        .order("starts_on", { ascending: true })
+        .limit(1)
+        .maybeSingle()
+    ]);
 
-    if (error) {
-      setMessage(getFriendlyError(error));
+    if (progressResult.error) {
+      setMessage(getFriendlyError(progressResult.error));
       setLoading(false);
       return;
     }
 
-    const completed = (data || []).map((row) => Number(row.day_number)).filter(Boolean);
-    const nextWorkout = tennisFitnessRegimen.find((day) => !completed.includes(day.day));
+    const completed = (progressResult.data || []).map((row) => Number(row.day_number)).filter(Boolean);
+    const startsOn = tournamentResult.data?.starts_on || null;
+    const paceDay = getFitnessPaceDay(getFitnessDaysUntilTournament(startsOn));
+    const highestCompletedDay = completed.length ? Math.max(...completed) : 0;
+    const suggestedDay = Math.min(30, Math.max(paceDay, highestCompletedDay + 1));
+    const nextWorkout = tennisFitnessRegimen.find((day) => day.day >= suggestedDay && !completed.includes(day.day))
+      || tennisFitnessRegimen.find((day) => !completed.includes(day.day));
     setCompletedDays(completed);
+    setTournamentStartsOn(startsOn);
     setSelectedFitnessDay(nextWorkout?.day || tennisFitnessRegimen[tennisFitnessRegimen.length - 1].day);
     setLoading(false);
   }, [appSession.player?.id, appSession.ready, appSession.userId]);
@@ -2520,12 +2578,42 @@ export function FitnessScreen() {
     loadFitnessProgress();
   }, [loadFitnessProgress]);
 
+  useEffect(() => {
+    if (loading) return;
+    const frame = window.requestAnimationFrame(() => {
+      const rail = fitnessDayRailRef.current;
+      const selectedButton = rail?.querySelector<HTMLElement>(`[data-fitness-day="${selectedFitnessDay}"]`);
+      if (!rail || !selectedButton || window.matchMedia("(min-width: 768px)").matches) return;
+      rail.scrollTo({
+        left: Math.max(0, selectedButton.offsetLeft - (rail.clientWidth - selectedButton.offsetWidth) / 2),
+        behavior: "smooth"
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, selectedFitnessDay]);
+
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
   const completedCount = completedDays.length;
   const progressPercent = Math.round((completedCount / tennisFitnessRegimen.length) * 100);
   const nextDay = tennisFitnessRegimen.find((day) => !completedDays.includes(day.day));
   const selectedDay = tennisFitnessRegimen.find((day) => day.day === selectedFitnessDay) || nextDay || tennisFitnessRegimen[0];
   const selectedDayComplete = completedDays.includes(selectedDay.day);
+  const daysUntilTournament = getFitnessDaysUntilTournament(tournamentStartsOn);
+  const paceDay = getFitnessPaceDay(daysUntilTournament);
+  const highestCompletedDay = completedDays.length ? Math.max(...completedDays) : 0;
+  const selectedDayPhase = getFitnessProgramPhase(selectedDay.day);
+  const planStatus = completedCount === tennisFitnessRegimen.length
+    ? "Program complete"
+    : highestCompletedDay > paceDay
+      ? `${highestCompletedDay - paceDay} ${highestCompletedDay - paceDay === 1 ? "day" : "days"} ahead`
+      : highestCompletedDay === paceDay
+        ? "On plan pace"
+        : `Plan pace: Day ${paceDay}`;
+  const recommendedDayNumber = Math.min(30, Math.max(paceDay, highestCompletedDay + 1));
+  const recommendedOpenDay = tennisFitnessRegimen.find((day) => day.day >= recommendedDayNumber && !completedDays.includes(day.day)) || nextDay;
+  const openedFromTournament = searchParams.get("from") === "tournament";
+  const fitnessBackHref = openedFromTournament ? "/tournaments" : "/dashboard";
+  const fitnessBackLabel = openedFromTournament ? "Back to tournament" : "Back to dashboard";
 
   const toggleFitnessDay = async (day: number) => {
     const supabase = getSupabaseClient();
@@ -2557,12 +2645,26 @@ export function FitnessScreen() {
     setCompletedDays((current) => currentlyDone ? current.filter((value) => value !== day) : [...new Set([...current, day])].sort((a, b) => a - b));
   };
 
+  const selectPreviousFitnessDay = () => setSelectedFitnessDay((current) => Math.max(1, current - 1));
+  const selectNextFitnessDay = () => setSelectedFitnessDay((current) => Math.min(30, current + 1));
+  const updateFitnessDayRailControls = () => {
+    const rail = fitnessDayRailRef.current;
+    if (!rail) return;
+    setCanScrollFitnessDaysLeft(rail.scrollLeft > 4);
+    setCanScrollFitnessDaysRight(rail.scrollLeft < rail.scrollWidth - rail.clientWidth - 4);
+  };
+  const scrollFitnessDayRail = (direction: -1 | 1) => {
+    const rail = fitnessDayRailRef.current;
+    if (!rail) return;
+    rail.scrollBy({ left: direction * Math.max(180, rail.clientWidth * 0.75), behavior: "smooth" });
+  };
+
   return (
     <AppFrame active="home">
       <div className={memberPageClass}>
         <AppTopBar />
         <main className={memberMainClass}>
-          <section className={`${memberHeroClass} gap-4 md:grid-cols-[minmax(0,1fr)_180px] md:items-center`}>
+          <section className={`${memberHeroClass} gap-3 pt-14 md:pt-5`}>
             <TournamentHeroAmbience />
             <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2570,116 +2672,176 @@ export function FitnessScreen() {
                 <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
               </svg>
             </div>
-            <Link className="absolute left-4 top-4 z-10 inline-grid h-8 max-h-8 min-h-8 w-8 min-w-8 max-w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/12 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)] backdrop-blur transition-transform active:scale-[0.98]" href="/tournaments" aria-label="Back to tournaments">
+            <Link className="absolute left-4 top-4 z-10 inline-grid h-8 max-h-8 min-h-8 w-8 min-w-8 max-w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/12 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)] backdrop-blur transition-transform active:scale-[0.98]" href={fitnessBackHref} aria-label={fitnessBackLabel}>
               <ArrowLeft size={17} />
             </Link>
-            <span className="relative z-10 mt-8 grid gap-2 md:mt-0">
-              <span className={memberHeroEyebrowClass}>Tennis fitness regimen</span>
-              <h1 className="max-w-[680px] text-[28px] font-medium leading-[1.04] tracking-[-0.4px] text-white md:text-[42px]">30-day tournament prep</h1>
-              <p className={memberHeroBodyClass}>Check off workouts, build legs, and arrive with match-day lungs.</p>
-            </span>
-            <span className="relative z-10 grid justify-items-center gap-2 rounded-[22px] border-hairline border-white/14 bg-white/10 p-4 backdrop-blur">
-              <span className="relative grid h-28 w-28 place-items-center rounded-full bg-white/10">
-                <span className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(#b7ff2f ${progressPercent * 3.6}deg, rgba(255,255,255,0.16) 0deg)` }} />
-                <span className="relative grid h-[88px] w-[88px] place-items-center rounded-full bg-brand text-center">
-                  <strong className="text-[25px] font-medium leading-none text-white">{progressPercent}%</strong>
-                  <em className="text-[10px] not-italic text-white/55">complete</em>
+            <div className="relative z-10 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <span className="grid gap-1.5 md:pl-12">
+                <span className={memberHeroEyebrowClass}>Tennis fitness program</span>
+                <h1 className="max-w-[680px] text-[26px] font-medium leading-[1.04] tracking-[-0.4px] text-white md:text-[34px]">30-day tournament prep</h1>
+                <p className="max-w-[620px] text-[13px] leading-relaxed text-white/68">Choose your day, finish the workout, and track every session.</p>
+              </span>
+              <span className="grid grid-cols-2 gap-2 md:min-w-[270px]">
+                <span className="grid gap-0.5 rounded-[14px] border-hairline border-white/12 bg-white/10 px-3 py-2 backdrop-blur">
+                  <em className="inline-flex items-center gap-1.5 text-[10px] font-medium not-italic uppercase tracking-[0.06em] text-white/52"><Calendar size={12} /> Tournament</em>
+                  <strong className="text-[17px] font-medium leading-tight text-white">{daysUntilTournament == null ? "Date TBD" : daysUntilTournament === 0 ? "Today" : `${daysUntilTournament} days`}</strong>
+                </span>
+                <span className="grid gap-0.5 rounded-[14px] border-hairline border-white/12 bg-white/10 px-3 py-2 backdrop-blur">
+                  <em className="inline-flex items-center gap-1.5 text-[10px] font-medium not-italic uppercase tracking-[0.06em] text-white/52"><CheckCircle2 size={12} /> Progress</em>
+                  <strong className="text-[17px] font-medium leading-tight text-white">{completedCount} / 30</strong>
                 </span>
               </span>
-              <em className="text-[12px] not-italic text-white/60">{completedCount} of {tennisFitnessRegimen.length} days</em>
-            </span>
+            </div>
+            <div className="relative z-10 grid gap-1.5">
+              <span className="h-2 overflow-hidden rounded-full bg-white/14">
+                <span className="block h-full rounded-full bg-[linear-gradient(90deg,#b7ff2f,#4cde8c)] transition-[width] duration-500" style={{ width: `${progressPercent}%` }} />
+              </span>
+              <span className="flex items-center justify-between gap-3 text-[11px] text-white/58">
+                <em className="not-italic">{progressPercent}% complete</em>
+                <em className="not-italic">{planStatus}</em>
+              </span>
+            </div>
           </section>
 
-          <section className="grid gap-4 rounded-[24px] border-hairline border-[#dbe8cd] bg-[linear-gradient(135deg,#ffffff_0%,#f7fbf1_55%,#eaf3de_100%)] p-4 shadow-[0_18px_42px_rgba(12,59,32,0.08)] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <div className="grid content-start gap-3">
+          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+            <aside className="order-1 grid gap-3 rounded-[20px] border-hairline border-line bg-white/90 p-3 shadow-[0_12px_30px_rgba(12,59,32,0.06)] backdrop-blur lg:order-2 lg:sticky lg:top-[76px]">
+              <span className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                <span className="grid gap-0.5">
+                  <strong className="text-[17px] font-medium text-text-primary">Jump to any day</strong>
+                  <em className="text-[12px] not-italic text-text-secondary">Your plan, at your pace.</em>
+                </span>
+                <span className="rounded-full bg-brand-light px-2.5 py-1 text-[11px] font-medium text-[#3b6d11]">{planStatus}</span>
+              </span>
+
+              <div className="grid grid-cols-[42px_minmax(0,1fr)_42px] gap-2">
+                <button className="tap-card grid h-11 place-items-center rounded-[13px] border-hairline border-line bg-white text-brand disabled:opacity-35" type="button" onClick={selectPreviousFitnessDay} disabled={selectedDay.day === 1} aria-label="Previous workout day">
+                  <ArrowLeft size={16} />
+                </button>
+                <label className="relative grid">
+                  <span className="sr-only">Choose workout day</span>
+                  <select className="min-h-11 w-full appearance-none rounded-[13px] border-hairline border-line bg-surface/55 px-3 pr-9 text-[14px] font-medium text-brand outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" value={selectedDay.day} onChange={(event) => setSelectedFitnessDay(Number(event.target.value))}>
+                    {tennisFitnessRegimen.map((day) => (
+                      <option value={day.day} key={day.day}>Day {day.day} · {getFitnessProgramPhase(day.day)}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-brand" size={15} />
+                </label>
+                <button className="tap-card grid h-11 place-items-center rounded-[13px] border-hairline border-line bg-white text-brand disabled:opacity-35" type="button" onClick={selectNextFitnessDay} disabled={selectedDay.day === 30} aria-label="Next workout day">
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button className="tap-card min-h-9 rounded-[12px] bg-brand-light px-2 text-[12px] font-medium text-[#3b6d11]" type="button" onClick={() => setSelectedFitnessDay(paceDay)}>
+                  Plan pace · Day {paceDay}
+                </button>
+                <button className="tap-card min-h-9 rounded-[12px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-2 text-[12px] font-medium text-white disabled:opacity-45" type="button" onClick={() => recommendedOpenDay && setSelectedFitnessDay(recommendedOpenDay.day)} disabled={!recommendedOpenDay}>
+                  {recommendedOpenDay ? `Suggested · Day ${recommendedOpenDay.day}` : "Program complete"}
+                </button>
+              </div>
+
+              <span className="flex items-center justify-between gap-3 md:hidden">
+                <strong className="text-[13px] font-medium text-text-primary">All 30 days</strong>
+                <em className="inline-flex items-center gap-1 text-[11px] not-italic text-text-secondary">Swipe or use arrows <ArrowRight size={12} /></em>
+              </span>
+              <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-1.5 md:block">
+                <button className="tap-card grid h-10 place-items-center rounded-full bg-brand-light text-brand disabled:opacity-30 md:hidden" type="button" onClick={() => scrollFitnessDayRail(-1)} disabled={!canScrollFitnessDaysLeft} aria-label="Show earlier fitness days">
+                  <ArrowLeft size={15} />
+                </button>
+                <div ref={fitnessDayRailRef} className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 py-1 md:grid md:grid-cols-10 md:overflow-visible md:p-0 lg:grid-cols-5 xl:grid-cols-6" onScroll={updateFitnessDayRailControls} aria-label="30-day program navigator">
+                  {loading && Array.from({ length: 8 }).map((_, index) => (
+                    <span className="h-10 w-10 shrink-0 animate-pulse rounded-[12px] bg-surface md:w-auto" key={index} />
+                  ))}
+                  {!loading && tennisFitnessRegimen.map((day) => {
+                    const done = completedDays.includes(day.day);
+                    const selected = selectedDay.day === day.day;
+                    return (
+                      <button
+                        className={done ? `${selected ? "ring-2 ring-brand-light" : ""} relative grid h-10 w-10 shrink-0 snap-center place-items-center rounded-[12px] bg-brand text-[12px] font-medium text-white shadow-[0_7px_16px_rgba(12,59,32,0.12)] md:w-auto` : selected ? "relative grid h-10 w-10 shrink-0 snap-center place-items-center rounded-[12px] border-hairline border-brand bg-white text-[12px] font-medium text-brand shadow-[0_7px_16px_rgba(12,59,32,0.08)] md:w-auto" : "relative grid h-10 w-10 shrink-0 snap-center place-items-center rounded-[12px] border-hairline border-line bg-white text-[12px] font-medium text-text-secondary md:w-auto"}
+                        type="button"
+                        onClick={() => setSelectedFitnessDay(day.day)}
+                        key={day.day}
+                        data-fitness-day={day.day}
+                        aria-label={`View day ${day.day}${done ? ", completed" : ""}`}
+                        aria-current={selected ? "step" : undefined}
+                      >
+                        {day.day}
+                        {done && <CheckCircle2 className="absolute -right-1 -top-1 rounded-full bg-white text-brand" size={13} fill="white" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button className="tap-card grid h-10 place-items-center rounded-full bg-brand text-white shadow-[0_7px_16px_rgba(12,59,32,0.14)] disabled:opacity-30 md:hidden" type="button" onClick={() => scrollFitnessDayRail(1)} disabled={!canScrollFitnessDaysRight} aria-label="Show later fitness days">
+                  <ArrowRight size={15} />
+                </button>
+              </div>
+
+              <span className="grid grid-cols-3 gap-1 text-center text-[10px] font-medium text-text-muted">
+                <em className="rounded-full bg-surface px-2 py-1 not-italic">1–10 Foundation</em>
+                <em className="rounded-full bg-surface px-2 py-1 not-italic">11–20 Build</em>
+                <em className="rounded-full bg-surface px-2 py-1 not-italic">21–30 Peak</em>
+              </span>
+            </aside>
+
+            <article className="order-2 grid content-start gap-4 rounded-[22px] border-hairline border-[#dbe8cd] bg-[linear-gradient(135deg,#ffffff_0%,#f7fbf1_55%,#eaf3de_100%)] p-4 shadow-[0_18px_42px_rgba(12,59,32,0.08)] sm:p-5 lg:order-1">
               <span className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
                 <span className="grid gap-1">
-                  <em className="text-[12px] not-italic text-text-secondary">{selectedDayComplete ? "Completed workout" : nextDay?.day === selectedDay.day ? "Next workout" : "Selected workout"}</em>
-                  <strong className="text-[26px] font-medium leading-tight tracking-[-0.4px] text-brand">Day {selectedDay.day}</strong>
+                  <em className="text-[11px] font-medium not-italic uppercase tracking-[0.08em] text-text-muted">{selectedDayPhase} phase</em>
+                  <strong className="text-[28px] font-medium leading-none tracking-[-0.5px] text-brand">Day {selectedDay.day}</strong>
+                  <em className="text-[13px] not-italic text-text-secondary">{selectedDay.exercises.length} {selectedDay.exercises.length === 1 ? "movement" : "movements"}</em>
                 </span>
                 <span className={selectedDayComplete ? "inline-flex items-center gap-1.5 rounded-full bg-brand px-3 py-1.5 text-[12px] font-medium text-white" : "inline-flex items-center gap-1.5 rounded-full bg-[#b7ff2f] px-3 py-1.5 text-[12px] font-medium text-[#14340f]"}>
                   {selectedDayComplete ? <CheckCircle2 size={14} /> : <Dumbbell size={14} />}
-                  {selectedDayComplete ? "Done" : "Ready"}
+                  {selectedDayComplete ? "Completed" : recommendedOpenDay?.day === selectedDay.day ? "Up next" : "Ready"}
                 </span>
               </span>
 
-              <div className="grid gap-2">
-                {selectedDay.exercises.map((exercise, index) => (
-                  <span className="grid min-h-12 grid-cols-[34px_minmax(0,1fr)] items-center gap-3 rounded-[15px] border-hairline border-white/80 bg-white/82 px-3 py-2 shadow-[0_8px_18px_rgba(12,59,32,0.035)]" key={exercise}>
-                    <span className={selectedDayComplete ? "grid h-8 w-8 place-items-center rounded-full bg-brand text-white" : "grid h-8 w-8 place-items-center rounded-full bg-brand-light text-[#3b6d11]"}>
-                      {selectedDayComplete ? <CheckCircle2 size={15} /> : index + 1}
-                    </span>
-                    <strong className="text-[15px] font-medium text-text-primary">{exercise}</strong>
-                  </span>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {loading && Array.from({ length: 4 }).map((_, index) => (
+                  <span className="min-h-[72px] animate-pulse rounded-[16px] bg-white/70" key={index} />
                 ))}
+                {!loading && selectedDay.exercises.map((exercise, index) => {
+                  const exerciseDetail = parseFitnessExercise(exercise);
+                  return (
+                    <span className="grid min-h-[72px] grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 rounded-[16px] border-hairline border-white/85 bg-white/88 px-3 py-2.5 shadow-[0_8px_18px_rgba(12,59,32,0.04)]" key={exercise}>
+                      <span className={selectedDayComplete ? "grid h-9 w-9 place-items-center rounded-full bg-brand text-white" : "grid h-9 w-9 place-items-center rounded-full bg-brand-light text-[13px] font-medium text-[#3b6d11]"}>
+                        {selectedDayComplete ? <CheckCircle2 size={16} /> : index + 1}
+                      </span>
+                      <strong className="text-[15px] font-medium leading-tight text-text-primary">{exerciseDetail.name}</strong>
+                      {exerciseDetail.reps && (
+                        <span className="grid min-w-10 justify-items-center rounded-[11px] bg-surface px-2 py-1.5">
+                          <strong className="text-[17px] font-medium leading-none text-brand">{exerciseDetail.reps}</strong>
+                          <em className="text-[9px] font-medium not-italic uppercase tracking-[0.06em] text-text-muted">reps</em>
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
 
               {message && <StatusMessage tone="error">{message}</StatusMessage>}
-              <button
-                className={selectedDayComplete ? "tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-[16px] border-hairline border-line bg-white px-5 text-[14px] font-medium text-brand shadow-[0_10px_22px_rgba(12,59,32,0.06)] disabled:opacity-60" : "tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-5 text-[14px] font-medium text-white shadow-[0_14px_30px_rgba(12,59,32,0.18)] disabled:opacity-60"}
-                type="button"
-                onClick={() => toggleFitnessDay(selectedDay.day)}
-                disabled={savingDay === selectedDay.day}
-              >
-                {savingDay === selectedDay.day ? "Saving..." : selectedDayComplete ? "Mark incomplete" : "Complete workout"}
-              </button>
-            </div>
-
-            <div className="grid content-start gap-3">
-              <span className="grid gap-1">
-                <strong className="text-[18px] font-medium tracking-[-0.2px] text-text-primary">30-day board</strong>
-                <em className="text-[13px] not-italic text-text-secondary">Tap any day to preview it, then complete it when done.</em>
-              </span>
-              <div className="grid grid-cols-5 gap-2 sm:grid-cols-6 md:grid-cols-10 lg:grid-cols-5 xl:grid-cols-6">
-                {loading && Array.from({ length: 30 }).map((_, index) => (
-                  <span className="aspect-square animate-pulse rounded-[14px] bg-white/70" key={index} />
-                ))}
-                {!loading && tennisFitnessRegimen.map((day) => {
-                const done = completedDays.includes(day.day);
-                const selected = selectedDay.day === day.day;
-                return (
-                  <button
-                    className={done ? `${selected ? "ring-2 ring-brand/20" : ""} grid aspect-square place-items-center rounded-[14px] bg-brand text-[13px] font-medium text-white shadow-[0_10px_20px_rgba(12,59,32,0.14)]` : selected ? "grid aspect-square place-items-center rounded-[14px] border-hairline border-brand bg-white text-[13px] font-medium text-brand shadow-[0_10px_20px_rgba(12,59,32,0.08)]" : "grid aspect-square place-items-center rounded-[14px] border-hairline border-line bg-white/78 text-[13px] font-medium text-text-secondary"}
-                    type="button"
-                    onClick={() => setSelectedFitnessDay(day.day)}
-                    key={day.day}
-                    aria-label={`View day ${day.day}`}
-                  >
-                    {done ? <CheckCircle2 size={16} /> : day.day}
-                  </button>
-                );
-                })}
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <button
+                  className={selectedDayComplete ? "tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-[15px] border-hairline border-line bg-white px-5 text-[14px] font-medium text-brand shadow-[0_10px_22px_rgba(12,59,32,0.06)] disabled:opacity-60" : "tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-[15px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-5 text-[14px] font-medium text-white shadow-[0_14px_30px_rgba(12,59,32,0.18)] disabled:opacity-60"}
+                  type="button"
+                  onClick={() => toggleFitnessDay(selectedDay.day)}
+                  disabled={loading || savingDay === selectedDay.day}
+                >
+                  {savingDay === selectedDay.day ? "Saving..." : selectedDayComplete ? "Mark incomplete" : "Complete workout"}
+                </button>
+                <button className="tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-[15px] bg-brand-light px-4 text-[14px] font-medium text-[#3b6d11] disabled:opacity-40" type="button" onClick={selectNextFitnessDay} disabled={selectedDay.day === 30}>
+                  Next day <ArrowRight size={15} />
+                </button>
               </div>
-            </div>
+            </article>
           </section>
 
-          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-white p-4 shadow-[0_10px_24px_rgba(12,59,32,0.05)]">
-            <div className="grid gap-1">
-              <h2 className="text-[18px] font-medium tracking-[-0.2px] text-text-primary">Workout list</h2>
-              <p className="text-[14px] leading-relaxed text-text-secondary">A compact view of every day in the program.</p>
-            </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              {!loading && tennisFitnessRegimen.map((day) => {
-                const done = completedDays.includes(day.day);
-                return (
-                  <button className={done ? "tap-card grid min-h-[64px] grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 rounded-[15px] border-hairline border-[#dbe8cd] bg-brand-light px-3 py-2 text-left" : "tap-card grid min-h-[64px] grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 rounded-[15px] border-hairline border-line bg-white px-3 py-2 text-left"} type="button" onClick={() => setSelectedFitnessDay(day.day)} key={day.day}>
-                    <span className={done ? "grid h-9 w-9 place-items-center rounded-full bg-brand text-white" : "grid h-9 w-9 place-items-center rounded-full bg-brand-light text-[13px] font-medium text-[#3b6d11]"}>
-                      {done ? <CheckCircle2 size={16} /> : day.day}
-                    </span>
-                    <span className="grid min-w-0 gap-0.5">
-                      <strong className="text-[14px] font-medium text-text-primary">Day {day.day}</strong>
-                      <em className="truncate text-[12px] not-italic text-text-secondary">{day.exercises.join(" · ")}</em>
-                    </span>
-                    <ArrowRight size={14} className="text-text-muted" />
-                  </button>
-              );
-              })}
-            </div>
-          </section>
-
-          <section className="grid gap-3 rounded-[18px] border-hairline border-[#dbe8cd] bg-brand-light p-4">
-            <h2 className="text-[18px] font-medium tracking-[-0.2px] text-[#27500a]">Training notes</h2>
-            <ul className="grid gap-2 text-[14px] leading-relaxed text-[#3b6d11] md:grid-cols-2">
+          <details className="group overflow-hidden rounded-[16px] border-hairline border-[#dbe8cd] bg-brand-light">
+            <summary className="tap-card flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-[14px] font-medium text-[#27500a] [&::-webkit-details-marker]:hidden">
+              Training guidance
+              <ChevronDown className="transition-transform group-open:rotate-180" size={16} />
+            </summary>
+            <ul className="grid gap-2 border-t-hairline border-[#dbe8cd] px-4 py-3 text-[13px] leading-relaxed text-[#3b6d11] md:grid-cols-2">
               {tennisFitnessTips.map((tip) => (
                 <li className="grid grid-cols-[18px_minmax(0,1fr)] gap-2" key={tip}>
                   <CheckCircle2 className="mt-0.5" size={15} />
@@ -2687,7 +2849,7 @@ export function FitnessScreen() {
                 </li>
               ))}
             </ul>
-          </section>
+          </details>
         </main>
       </div>
     </AppFrame>
@@ -2870,7 +3032,7 @@ export function TournamentScheduleScreen() {
   const assignedTeam = getScheduleAssignedTeam(teams, appSession.player);
   const visibleItems = items.filter((item) => {
     if (filter === "day1") return item.dayNumber === 1;
-    if (filter === "day2") return item.dayNumber === 2;
+    if (filter === "day2") return item.dayNumber === 2 && !isLunchScheduleItem(item);
     if (filter === "team") return assignedTeam ? isScheduleItemForTeam(item, assignedTeam) : false;
     return true;
   });
@@ -2940,8 +3102,14 @@ export function TournamentScheduleScreen() {
           )}
 
           <section className={openingMatchId ? "pointer-events-none grid gap-4 opacity-70" : "grid gap-4"} aria-label="Tournament schedule" aria-busy={Boolean(openingMatchId)}>
+            {filter === "day2" && (
+              <div className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2.5 rounded-[15px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-3 py-2.5 text-[#8a4a22]">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-white"><Info size={14} /></span>
+                <p className="text-[13px] leading-relaxed">No dedicated lunch break on Day 2—please coordinate and eat when your match schedule allows.</p>
+              </div>
+            )}
             {filter === "matches" && (
-              <>
+              <div className="grid gap-4 xl:grid-cols-3">
                 {playerScheduleTimeLabels.map((timeLabel, timeIndex) => (
                   <PlayerScheduleTimeCard
                     label={timeLabel}
@@ -2954,40 +3122,68 @@ export function TournamentScheduleScreen() {
                     key={timeLabel}
                   />
                 ))}
-              </>
+              </div>
             )}
-            {filter === "team" && teamScheduleTimeLabels.map((timeLabel) => {
-              const blocks = getScheduleBlocksForTime(groupedTeamCourtMatchBlocks, timeLabel);
-              return (
-              <DayScheduleTimeCard
-                blocks={blocks}
-                eventItems={[]}
-                label={timeLabel}
-                openBlocks={openDayScheduleBlocks}
-                onToggleBlock={(blockId) => setOpenDayScheduleBlocks((current) => ({ ...current, [blockId]: !(current[blockId] ?? true) }))}
-                teams={teams}
-                onOpenMatch={openMatchDetails}
-                onOpenTeam={openTeamDetails}
-                key={timeLabel}
-              />
-              );
-            })}
-            {filter === "team" && !loading && !visibleTeamCourtMatches.length && !!visibleItems.length && Object.entries(groupScheduleItemsByTime(visibleItems)).map(([timeLabel, dayItems]) => (
-              <section className="grid gap-2.5" key={timeLabel}>
-                <ScheduleTimeHeader label={timeLabel} count={dayItems.length} />
-                <div className="grid gap-2.5 lg:grid-cols-2">
-                  {dayItems.map((item) => (
-                    <ScheduleItemCard item={item} teams={teams} courtMatches={getCourtMatchesForScheduleItem(item, teamCourtMatches, teams)} key={item.id} />
-                  ))}
-                </div>
-              </section>
-            ))}
+            {filter === "team" && !!teamScheduleTimeLabels.length && (
+              <div className="grid gap-4 xl:grid-cols-3">
+                {teamScheduleTimeLabels.map((timeLabel) => {
+                  const blocks = getScheduleBlocksForTime(groupedTeamCourtMatchBlocks, timeLabel);
+                  return (
+                    <DayScheduleTimeCard
+                      blocks={blocks}
+                      eventItems={[]}
+                      label={timeLabel}
+                      openBlocks={openDayScheduleBlocks}
+                      onToggleBlock={(blockId) => setOpenDayScheduleBlocks((current) => ({ ...current, [blockId]: !(current[blockId] ?? true) }))}
+                      teams={teams}
+                      onOpenMatch={openMatchDetails}
+                      onOpenTeam={openTeamDetails}
+                      key={timeLabel}
+                    />
+                  );
+                })}
+              </div>
+            )}
+            {filter === "team" && !loading && !visibleTeamCourtMatches.length && !!visibleItems.length && (
+              <div className="grid gap-4 xl:grid-cols-3">
+                {Object.entries(groupScheduleItemsByTime(visibleItems)).map(([timeLabel, dayItems]) => (
+                  <section className="grid gap-2.5" key={timeLabel}>
+                    <ScheduleTimeHeader label={timeLabel} count={dayItems.length} />
+                    <div className="grid gap-2.5">
+                      {dayItems.map((item) => (
+                        <ScheduleItemCard item={item} teams={teams} courtMatches={getCourtMatchesForScheduleItem(item, teamCourtMatches, teams)} key={item.id} />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
             {(filter === "day1" || filter === "day2") && !!visibleDayCourtMatches.length && (
               <>
-                {dayScheduleTimeLabels.map((timeLabel) => (
+                <div className="grid gap-4 xl:grid-cols-3">
+                  {dayScheduleTimeLabels.map((timeLabel) => (
+                    <DayScheduleTimeCard
+                      blocks={getScheduleBlocksForTime(groupedDayCourtMatchBlocks, timeLabel)}
+                      eventItems={getScheduleItemsForTime(dayEventItems, timeLabel)}
+                      label={timeLabel}
+                      openBlocks={openDayScheduleBlocks}
+                      onToggleBlock={(blockId) => setOpenDayScheduleBlocks((current) => ({ ...current, [blockId]: !current[blockId] }))}
+                      teams={teams}
+                      onOpenMatch={openMatchDetails}
+                      onOpenTeam={openTeamDetails}
+                      key={timeLabel}
+                    />
+                  ))}
+                </div>
+                {filter === "day1" && <DayScheduleEndCard />}
+              </>
+            )}
+            {(filter === "day1" || filter === "day2") && !visibleDayCourtMatches.length && !!visibleItems.length && (
+              <div className="grid gap-4 xl:grid-cols-3">
+                {Object.entries(groupScheduleItemsByTime(visibleItems)).map(([timeLabel, dayItems]) => (
                   <DayScheduleTimeCard
-                    blocks={getScheduleBlocksForTime(groupedDayCourtMatchBlocks, timeLabel)}
-                    eventItems={getScheduleItemsForTime(dayEventItems, timeLabel)}
+                    blocks={[]}
+                    eventItems={dayItems}
                     label={timeLabel}
                     openBlocks={openDayScheduleBlocks}
                     onToggleBlock={(blockId) => setOpenDayScheduleBlocks((current) => ({ ...current, [blockId]: !current[blockId] }))}
@@ -2997,22 +3193,8 @@ export function TournamentScheduleScreen() {
                     key={timeLabel}
                   />
                 ))}
-                {filter === "day1" && <DayScheduleEndCard />}
-              </>
+              </div>
             )}
-            {(filter === "day1" || filter === "day2") && !visibleDayCourtMatches.length && Object.entries(groupScheduleItemsByTime(visibleItems)).map(([timeLabel, dayItems]) => (
-              <DayScheduleTimeCard
-                blocks={[]}
-                eventItems={dayItems}
-                label={timeLabel}
-                openBlocks={openDayScheduleBlocks}
-                onToggleBlock={(blockId) => setOpenDayScheduleBlocks((current) => ({ ...current, [blockId]: !current[blockId] }))}
-                teams={teams}
-                onOpenMatch={openMatchDetails}
-                onOpenTeam={openTeamDetails}
-                key={timeLabel}
-              />
-            ))}
             {loading && Array.from({ length: 5 }).map((_, index) => <SkeletonRow key={index} />)}
             {!loading && filter === "matches" && !playerMatches.length && <StatusMessage tone="info">Your individual match assignments will appear here once posted.</StatusMessage>}
             {!loading && filter === "team" && !visibleTeamCourtMatches.length && !visibleItems.length && <StatusMessage tone="info">No team schedule items match this view.</StatusMessage>}
@@ -3274,6 +3456,7 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
 
 export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
   const appSession = useProtectedRoute(`/tournaments/schedule/teams/${teamId}`, true);
+  const searchParams = useSearchParams();
   const [team, setTeam] = useState<PublishedTeam | null>(null);
   const [matches, setMatches] = useState<TeamCourtScheduleMatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3344,13 +3527,17 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
   }, [loadTeam]);
 
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  const openedFromRoster = searchParams.get("from") === "roster";
 
   return (
     <AppFrame active="tournament">
       <div className={memberPageClass}>
         <AppTopBar />
         <main className={memberMainClass}>
-          <ScheduleDetailBackLink label="Back to schedule" href="/tournaments/schedule" />
+          <ScheduleDetailBackLink
+            label={openedFromRoster ? "Back to team rosters" : "Back to schedule"}
+            href={openedFromRoster ? "/tournaments/teams" : "/tournaments/schedule"}
+          />
           {loading && <SkeletonRow />}
           {message && !team && <StatusMessage tone="error">{message}</StatusMessage>}
           {team && <TeamDetailPageCard matches={matches} team={team} />}
@@ -3447,7 +3634,7 @@ export function TournamentTeamsScreen() {
                 const teamTone = getTeamCardTone(team.jerseyColor);
                 const captain = team.members.find((member) => member.isCaptain);
                 return (
-                  <Link className="tap-card group grid gap-3 overflow-hidden rounded-[18px] border-hairline border-white/25 p-3 shadow-[0_14px_34px_rgba(12,59,32,0.12)]" href={`/tournaments/schedule/teams/${team.id}`} key={team.id} style={{ background: teamTone.background, color: teamTone.textColor }}>
+                  <Link className="tap-card group grid gap-3 overflow-hidden rounded-[18px] border-hairline border-white/25 p-3 shadow-[0_14px_34px_rgba(12,59,32,0.12)]" href={`/tournaments/schedule/teams/${team.id}?from=roster`} key={team.id} style={{ background: teamTone.background, color: teamTone.textColor }}>
                     <span className="grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3">
                       {team.logoUrl ? (
                         <img className="h-12 w-12 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.16)]" src={team.logoUrl} alt={`${team.name} logo`} />
@@ -4761,7 +4948,7 @@ function PlayerScheduleTimeCard({ label, matches, onOpenMatch, isFeatured }: { l
         </span>
         <span className="min-w-0 truncate rounded-full bg-brand-light px-3 py-1.5 text-right text-[12px] font-medium text-[#3b6d11]">{teamLabel}</span>
       </div>
-      <div className="grid gap-2.5 p-3 sm:grid-cols-2">
+      <div className="grid gap-2.5 p-3">
         {matches.map((match) => (
           <PlayerScheduleMatchCard match={match} isFeatured={false} onOpenMatch={() => onOpenMatch(match)} hideTime key={match.id} />
         ))}
@@ -4771,11 +4958,17 @@ function PlayerScheduleTimeCard({ label, matches, onOpenMatch, isFeatured }: { l
 }
 
 function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, ownSide, entryLabel, message, saving, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; draft: ScoreDraft; canSubmit: boolean; isOwnMatch: boolean; ownSide: "A" | "B" | null; entryLabel: string; message: string; saving: boolean; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
-  const playersA = match.playersA.length ? match.playersA.join(" / ") : match.teamAName;
-  const playersB = match.playersB.length ? match.playersB.join(" / ") : match.teamBName;
   const showSideBOnLeft = ownSide === "B";
-  const leftPlayers = showSideBOnLeft ? playersB : playersA;
-  const rightPlayers = showSideBOnLeft ? playersA : playersB;
+  const fallbackProfilesA = match.playersA.length
+    ? match.playersA.map((name, index) => ({ id: `a-${index}`, name, profilePhotoUrl: "" }))
+    : [{ id: "team-a", name: match.teamAName, profilePhotoUrl: "" }];
+  const fallbackProfilesB = match.playersB.length
+    ? match.playersB.map((name, index) => ({ id: `b-${index}`, name, profilePhotoUrl: "" }))
+    : [{ id: "team-b", name: match.teamBName, profilePhotoUrl: "" }];
+  const profilesA = match.playerProfilesA.length ? match.playerProfilesA : fallbackProfilesA;
+  const profilesB = match.playerProfilesB.length ? match.playerProfilesB : fallbackProfilesB;
+  const leftProfiles = showSideBOnLeft ? profilesB : profilesA;
+  const rightProfiles = showSideBOnLeft ? profilesA : profilesB;
   const leftTeam = showSideBOnLeft ? match.teamBName : match.teamAName;
   const rightTeam = showSideBOnLeft ? match.teamAName : match.teamBName;
   const leftColor = showSideBOnLeft ? match.teamBColor : match.teamAColor;
@@ -4784,29 +4977,26 @@ function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, ownSide, ent
   const rightSide: "A" | "B" = showSideBOnLeft ? "A" : "B";
   return (
     <section className="grid gap-3">
-      <article className="relative overflow-hidden rounded-[24px] border-hairline border-white/80 bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-4 pt-12 text-white shadow-[0_18px_44px_rgba(12,59,32,0.10)] sm:p-5 sm:pt-12">
+      <article className="relative overflow-hidden rounded-[24px] border-hairline border-white/80 bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-3 pt-12 text-white shadow-[0_18px_44px_rgba(12,59,32,0.10)] sm:p-5 sm:pt-14">
         <Link className="tap-card absolute left-3 top-3 z-10 inline-grid h-8 max-h-8 min-h-8 w-8 min-w-8 max-w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/10 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)]" href="/tournaments/schedule" aria-label="Back to schedule">
           <ArrowLeft size={15} />
         </Link>
-        <div className="relative grid gap-3">
+        <div className="relative grid gap-4">
           <CourtBackdrop />
-          <div className="relative grid gap-3">
-            <div className="grid gap-1">
-              <h1 className="text-[23px] font-medium leading-[1.08] tracking-[-0.4px] sm:text-[30px]">{leftPlayers}</h1>
-              <span className="text-[14px] font-medium text-white/58">vs</span>
-              <h2 className="text-[23px] font-medium leading-[1.08] tracking-[-0.4px] text-white sm:text-[30px]">{rightPlayers}</h2>
+          <div className="relative grid gap-4">
+            <div className="flex min-w-0 flex-wrap items-center justify-center gap-1.5 pl-10 text-[10px] font-medium uppercase tracking-[0.06em] text-white/68 sm:pl-0">
+              <span className="rounded-full bg-white/10 px-2.5 py-1">{match.format}</span>
+              <span className="rounded-full bg-white/10 px-2.5 py-1">{match.timeLabel || "Time TBD"}</span>
+              <span className="rounded-full bg-white/10 px-2.5 py-1">{match.courtLabel || "Court TBD"}</span>
             </div>
-            <div className="grid gap-2 rounded-[18px] border-hairline border-white/16 bg-white/10 p-2.5 backdrop-blur">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-                <TeamColorPill label={leftTeam} color={leftColor} />
-                <span className="text-[12px] font-medium text-white/52">vs</span>
-                <TeamColorPill label={rightTeam} color={rightColor} />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <MatchMetaTile label="Time" value={match.timeLabel || "TBD"} />
-                <MatchMetaTile label="Court" value={match.courtLabel || "TBD"} />
-              </div>
+
+            <div className="grid grid-cols-[minmax(0,1fr)_34px_minmax(0,1fr)] items-start gap-1 sm:grid-cols-[minmax(0,1fr)_48px_minmax(0,1fr)] sm:gap-3">
+              <MatchPlayerSide color={leftColor} players={leftProfiles} teamName={leftTeam} />
+              <span className="mt-9 grid h-8 w-8 place-items-center justify-self-center rounded-full border-hairline border-white/18 bg-white/10 text-[10px] font-medium text-white/65 sm:mt-12 sm:h-10 sm:w-10 sm:text-[11px]">VS</span>
+              <MatchPlayerSide color={rightColor} players={rightProfiles} teamName={rightTeam} />
             </div>
+
+            <MatchSetScoreboard leftColor={leftColor} leftSide={leftSide} leftTeam={leftTeam} rightColor={rightColor} rightSide={rightSide} rightTeam={rightTeam} score={match.score} />
           </div>
         </div>
       </article>
@@ -4814,20 +5004,19 @@ function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, ownSide, ent
       <article className="grid gap-3 rounded-[20px] border-hairline border-line bg-white p-3 shadow-[0_12px_28px_rgba(24,24,26,0.06)] sm:p-4">
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <span className="grid gap-1">
-            <strong className="text-[18px] font-medium text-text-primary">Match score</strong>
-            <em className="text-[13px] not-italic text-text-secondary">Current score: {formatMatchScoreSummary(match.score)}</em>
+            <strong className="text-[18px] font-medium text-text-primary">Score entry</strong>
+            <em className="text-[13px] not-italic text-text-secondary">Best of three sets. Set 3 only if needed.</em>
           </span>
           <span className={canSubmit ? "w-fit rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]" : "w-fit rounded-full bg-surface px-3 py-1.5 text-[12px] font-medium text-text-secondary"}>{entryLabel}</span>
         </div>
 
         {isOwnMatch ? (
           <div className="grid gap-2.5">
-            <p className="rounded-[14px] border-hairline border-line bg-surface/60 px-3 py-2 text-[12px] leading-relaxed text-text-secondary">Best of three. Set 3 only if needed.</p>
             <div className="grid grid-cols-[52px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-2">
               <span aria-hidden="true" />
-              <ScoreSideLabel playerNames={leftPlayers} color={leftColor} />
+              <ScoreSideLabel playerNames={leftTeam} color={leftColor} />
               <span className="text-center text-[12px] font-medium text-text-muted">vs</span>
-              <ScoreSideLabel playerNames={rightPlayers} color={rightColor} />
+              <ScoreSideLabel playerNames={rightTeam} color={rightColor} />
             </div>
             <div className="grid gap-2">
               <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={onChangeDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={1} />
@@ -4840,9 +5029,12 @@ function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, ownSide, ent
             </button>
           </div>
         ) : (
-          <div className="grid gap-2 rounded-[16px] border-hairline border-line bg-surface/55 p-3">
-            <strong className="text-[16px] font-medium text-text-primary">Read-only match</strong>
-            <p className="text-[14px] leading-relaxed text-text-secondary">Only players listed in this match can submit or edit scores. You can still view teams, players, court, time, and posted scores here.</p>
+          <div className="grid grid-cols-[32px_minmax(0,1fr)] items-start gap-3 rounded-[16px] border-hairline border-line bg-surface/55 p-3">
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-text-muted"><Info size={15} /></span>
+            <span className="grid gap-1">
+              <strong className="text-[14px] font-medium text-text-primary">Scores are read only</strong>
+              <p className="text-[13px] leading-relaxed text-text-secondary">Only players assigned to this match can submit or edit the result.</p>
+            </span>
           </div>
         )}
       </article>
@@ -4850,21 +5042,64 @@ function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, ownSide, ent
   );
 }
 
-function TeamColorPill({ label, color }: { label: string; color: string }) {
+function MatchPlayerSide({ players, teamName, color }: { players: MatchPlayerProfile[]; teamName: string; color: string }) {
   const tone = getTeamCardTone(color);
+  const isDoubles = players.length > 1;
   return (
-    <span className="min-w-0 truncate rounded-full border-hairline px-2.5 py-1.5 text-center text-[12px] font-medium shadow-[0_8px_18px_rgba(0,0,0,0.10)]" style={{ background: tone.background, color: tone.textColor, borderColor: "rgba(255,255,255,0.25)" }}>
-      {label}
+    <span className="grid min-w-0 justify-items-center gap-2 text-center">
+      <span className={`flex items-center justify-center ${isDoubles ? "-space-x-3 sm:-space-x-2" : ""}`}>
+        {players.slice(0, 2).map((player) => (
+          <span className={isDoubles ? "relative h-14 w-14 overflow-hidden rounded-full border-2 border-white/80 bg-white/14 text-[12px] font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] sm:h-20 sm:w-20 sm:text-[16px]" : "relative h-[72px] w-[72px] overflow-hidden rounded-full border-2 border-white/80 bg-white/14 text-[15px] font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] sm:h-24 sm:w-24 sm:text-[18px]"} key={player.id}>
+            <Avatar className="relative grid h-full w-full place-items-center overflow-hidden rounded-full bg-white/14 text-white" name={player.name} photoUrl={player.profilePhotoUrl} ariaLabel={`${player.name} profile photo`} sizes={isDoubles ? "(min-width: 640px) 80px, 56px" : "(min-width: 640px) 96px, 72px"} />
+          </span>
+        ))}
+      </span>
+      <span className="grid min-w-0 gap-0.5">
+        {players.slice(0, 2).map((player) => (
+          <strong className="break-words text-[12px] font-medium leading-tight text-white sm:text-[15px]" key={player.id}>{player.name}</strong>
+        ))}
+      </span>
+      <span className="max-w-full truncate rounded-full border-hairline border-white/25 px-2.5 py-1 text-[9px] font-medium uppercase tracking-[0.06em] shadow-[0_8px_18px_rgba(0,0,0,0.10)] sm:text-[10px]" style={{ background: tone.background, color: tone.textColor }}>
+        {teamName}
+      </span>
     </span>
   );
 }
 
-function MatchMetaTile({ label, value }: { label: string; value: string }) {
+function MatchSetScoreboard({ score, leftSide, rightSide, leftTeam, rightTeam, leftColor, rightColor }: { score: MatchScore | null; leftSide: "A" | "B"; rightSide: "A" | "B"; leftTeam: string; rightTeam: string; leftColor: string; rightColor: string }) {
+  const scoresForSide = (side: "A" | "B") => side === "A"
+    ? [score?.sideASet1, score?.sideASet2, score?.sideASet3]
+    : [score?.sideBSet1, score?.sideBSet2, score?.sideBSet3];
+  const leftScores = scoresForSide(leftSide);
+  const rightScores = scoresForSide(rightSide);
+  const renderScore = (value: number | null | undefined) => value == null ? "—" : value;
   return (
-    <span className="grid gap-0.5 rounded-[13px] border-hairline border-white/14 bg-white/10 px-3 py-2">
-      <em className="text-[10px] font-medium not-italic uppercase tracking-[0.08em] text-white/46">{label}</em>
-      <strong className="text-[14px] font-medium leading-tight text-white">{value}</strong>
-    </span>
+    <div className="mx-auto grid w-full max-w-[680px] gap-1 rounded-[16px] border-hairline border-white/18 bg-[#082d19]/72 p-2 backdrop-blur-md">
+      <div className="grid grid-cols-[minmax(0,1fr)_36px_36px_36px] items-center gap-1 px-2 text-center text-[9px] font-medium uppercase tracking-[0.08em] text-white/42 sm:grid-cols-[minmax(0,1fr)_44px_44px_44px]">
+        <span className="text-left">Score</span>
+        <span>1</span>
+        <span>2</span>
+        <span>3</span>
+      </div>
+      {[
+        { team: leftTeam, color: leftColor, side: leftSide, values: leftScores },
+        { team: rightTeam, color: rightColor, side: rightSide, values: rightScores }
+      ].map((row) => {
+        const winner = score?.winnerSide === row.side;
+        return (
+          <div className={winner ? "grid min-h-10 grid-cols-[minmax(0,1fr)_36px_36px_36px] items-center gap-1 rounded-[11px] bg-white/16 px-2 sm:grid-cols-[minmax(0,1fr)_44px_44px_44px]" : "grid min-h-10 grid-cols-[minmax(0,1fr)_36px_36px_36px] items-center gap-1 rounded-[11px] bg-white/[0.07] px-2 sm:grid-cols-[minmax(0,1fr)_44px_44px_44px]"} key={row.side}>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: normalizeTeamColor(row.color) }} />
+              <strong className="truncate text-[11px] font-medium text-white/82 sm:text-[12px]">{row.team}</strong>
+              {winner && <Trophy className="shrink-0 text-[#b7ff2f]" size={12} aria-label="Winner" />}
+            </span>
+            {row.values.map((value, index) => (
+              <strong className={value == null ? "text-center text-[15px] font-medium text-white/28" : "text-center text-[17px] font-medium text-white"} key={index}>{renderScore(value)}</strong>
+            ))}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -4972,6 +5207,7 @@ function PlayerScheduleMatchCard({ match, isFeatured, onOpenMatch, hideTime = fa
   const playerSideNames = match.playerSideNames.length ? match.playerSideNames : ["You"];
   const opponentNames = match.opponentNames.length ? match.opponentNames : ["Opponent TBD"];
   const courtNumber = formatCourtNumber(match.courtLabel || "");
+  const isSingles = playerSideNames.length === 1 && opponentNames.length === 1;
 
   return (
     <article className={`relative overflow-hidden rounded-[20px] border-hairline border-white/70 bg-white/88 p-3.5 shadow-[0_18px_44px_rgba(12,59,32,0.10)] ring-1 ring-line/70 backdrop-blur-xl ${isFeatured ? "shadow-[0_20px_48px_rgba(12,59,32,0.13)]" : ""}`}>
@@ -4988,11 +5224,14 @@ function PlayerScheduleMatchCard({ match, isFeatured, onOpenMatch, hideTime = fa
             </span>
           </div>
         )}
-        <button className="tap-card grid gap-2.5 rounded-[16px] border-hairline border-line bg-white p-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-3" type="button" onClick={onOpenMatch}>
+        <button className="tap-card group grid gap-2.5 rounded-[16px] border-hairline border-line bg-white p-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:border-brand/30 hover:shadow-[0_10px_22px_rgba(12,59,32,0.08)] sm:p-3" type="button" onClick={onOpenMatch} aria-label={`View match details: ${playerSideNames.join(" and ")} versus ${opponentNames.join(" and ")}`}>
           <div className="grid grid-cols-[minmax(0,1fr)_42px_minmax(0,1fr)] items-stretch gap-1.5 sm:grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] sm:gap-3">
-            <PlayerNameStack label="" names={playerSideNames} tone="primary" color={match.teamColor} />
+            <PlayerNameStack label="" names={playerSideNames} tone="primary" color={match.teamColor} centerOnWideScreens={isSingles} />
             <CourtLineDivider label={courtNumber} />
-            <PlayerNameStack label="" names={opponentNames} tone="opponent" color={match.opposingTeamColor} />
+            <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_18px] items-center gap-1.5">
+              <PlayerNameStack label="" names={opponentNames} tone="opponent" color={match.opposingTeamColor} />
+              <MatchCardSideCue />
+            </span>
           </div>
         </button>
       </div>
@@ -5000,14 +5239,22 @@ function PlayerScheduleMatchCard({ match, isFeatured, onOpenMatch, hideTime = fa
   );
 }
 
-function PlayerNameStack({ label, names, tone, color }: { label: string; names: string[]; tone: "primary" | "opponent"; color?: string }) {
+function MatchCardSideCue() {
+  return (
+    <span className="pointer-events-none grid h-5 w-[18px] place-items-center text-black/80" aria-hidden="true">
+      <ArrowRight className="transition-transform group-hover:translate-x-0.5" size={15} strokeWidth={2.2} />
+    </span>
+  );
+}
+
+function PlayerNameStack({ label, names, tone, color, centerOnWideScreens = false }: { label: string; names: string[]; tone: "primary" | "opponent"; color?: string; centerOnWideScreens?: boolean }) {
   const isPrimary = tone === "primary";
   const teamTone = color ? getTeamCardTone(color) : null;
   const chipStyle = teamTone
     ? { background: teamTone.background, color: teamTone.textColor, borderColor: "rgba(255,255,255,0.28)" }
     : undefined;
   return (
-    <span className="grid min-w-0 content-start gap-1.5">
+    <span className={`grid min-w-0 content-start gap-1.5 ${centerOnWideScreens ? "sm:content-center" : ""}`}>
       {label && <em className="truncate px-1 text-[10px] font-medium not-italic text-text-muted">{label}</em>}
       {names.map((name, index) => (
         <strong
@@ -5088,7 +5335,7 @@ function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onT
             ))}
           </div>
         )}
-        {!!blocks.length && <div className="grid gap-2.5 lg:grid-cols-3">
+        {!!blocks.length && <div className="grid gap-2.5">
         {blocks.map((block) => (
           <DayScheduleTeamBlock
             block={block}
@@ -5161,14 +5408,20 @@ function TeamCourtScheduleGame({ match, teamName, onOpenMatch }: { match: TeamCo
   const teamIsA = match.teamAName === teamName;
   const primaryPlayers = teamIsA ? match.playersA : match.playersB;
   const opponentPlayers = teamIsA ? match.playersB : match.playersA;
+  const displayPrimaryPlayers = primaryPlayers.length ? primaryPlayers : [teamName];
+  const displayOpponentPlayers = opponentPlayers.length ? opponentPlayers : ["Opponent TBD"];
   const courtNumber = formatCourtNumber(match.courtLabel || "");
+  const isSingles = displayPrimaryPlayers.length === 1 && displayOpponentPlayers.length === 1;
 
   return (
-    <button className="tap-card grid gap-2 rounded-[16px] border-hairline border-line bg-white p-3 text-left transition hover:border-brand/30 hover:shadow-[0_10px_22px_rgba(12,59,32,0.08)]" type="button" onClick={() => onOpenMatch(match)}>
+    <button className="tap-card group relative grid gap-2 rounded-[16px] border-hairline border-line bg-white p-3 text-left transition hover:border-brand/30 hover:shadow-[0_10px_22px_rgba(12,59,32,0.08)]" type="button" onClick={() => onOpenMatch(match)} aria-label={`View match details: ${displayPrimaryPlayers.join(" and ")} versus ${displayOpponentPlayers.join(" and ")}`}>
       <div className="grid grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] sm:gap-3">
-        <PlayerNameStack label="" names={primaryPlayers.length ? primaryPlayers : [teamName]} tone="primary" />
+        <PlayerNameStack label="" names={displayPrimaryPlayers} tone="primary" centerOnWideScreens={isSingles} />
         <CourtLineDivider label={courtNumber} />
-        <PlayerNameStack label="" names={opponentPlayers.length ? opponentPlayers : ["Opponent TBD"]} tone="opponent" />
+        <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_18px] items-center gap-1.5">
+          <PlayerNameStack label="" names={displayOpponentPlayers} tone="opponent" />
+          <MatchCardSideCue />
+        </span>
       </div>
     </button>
   );
@@ -5249,7 +5502,7 @@ function getDayScheduleEventItems(items: ScheduleItem[], dayNumber: number) {
 
 function normalizeDayTwoScheduleEvents(eventItems: ScheduleItem[]) {
   const normalized = new Map<string, ScheduleItem>();
-  eventItems.forEach((item) => {
+  eventItems.filter((item) => !isLunchScheduleItem(item)).forEach((item) => {
     const key = normalizeName(item.matchLabel || item.phase || item.detail);
     if (!key) return;
     const existing = normalized.get(key);
@@ -5261,6 +5514,10 @@ function normalizeDayTwoScheduleEvents(eventItems: ScheduleItem[]) {
   return hasScheduleEventNear(values, 8 * 60)
     ? values
     : [createScheduleEventItem(2, "8:00-9:00 AM", "Breakfast / briefing / warmup / team setup", "Check in, eat, warm up, and settle into teams before matches begin.", -20), ...values];
+}
+
+function isLunchScheduleItem(item: ScheduleItem) {
+  return normalizeName([item.matchLabel, item.phase, item.detail].filter(Boolean).join(" ")).includes("lunch");
 }
 
 function hasScheduleEventNear(items: ScheduleItem[], targetMinutes: number) {
@@ -5458,20 +5715,6 @@ function getSetWinner(sideA: number | null, sideB: number | null): "A" | "B" | "
   return sideA > sideB ? "A" : "B";
 }
 
-function formatMatchScoreSummary(score: MatchScore | null) {
-  if (!score) return "N/A";
-  const sets = [
-    formatScoreSet(score.sideASet1, score.sideBSet1),
-    formatScoreSet(score.sideASet2, score.sideBSet2),
-    formatScoreSet(score.sideASet3, score.sideBSet3)
-  ].filter(Boolean);
-  return sets.length ? sets.join(" · ") : "N/A";
-}
-
-function formatScoreSet(sideA: number | null, sideB: number | null) {
-  return sideA == null || sideB == null ? "" : `${sideA}-${sideB}`;
-}
-
 function getScoreEntryWindow(startsOn: string | null, endsOn: string | null): ScoreEntryWindow {
   if (!startsOn) return { canEdit: false, label: "Score entry opens on match day." };
   const startDate = new Date(`${startsOn}T00:00:00-05:00`);
@@ -5506,11 +5749,10 @@ function getMemberPerformance(member: PublishedTeamMember, team: PublishedTeam, 
     if (!teamSide) return summary;
     const playerNames = teamSide === "A" ? match.playersA : match.playersB;
     if (!playerNames.some((name) => normalizeName(name) === normalizeName(member.name))) return summary;
+    if (!match.score?.winnerSide) return summary;
     summary.played += 1;
-    if (match.score?.winnerSide) {
-      if (match.score.winnerSide === teamSide) summary.wins += 1;
-      else summary.losses += 1;
-    }
+    if (match.score.winnerSide === teamSide) summary.wins += 1;
+    else summary.losses += 1;
     return summary;
   }, { played: 0, wins: 0, losses: 0 });
 }
@@ -5619,10 +5861,22 @@ function mapTeamCourtScheduleMatches(matchRows: PlayerScheduleMatchRow[], player
 
   return matchRows.map((match) => {
     const participants = (playersByMatch.get(match.id) || []).sort((a, b) => String(a.side).localeCompare(String(b.side)) || Number(a.slot || 0) - Number(b.slot || 0));
-    const playersA = participants.filter((participant) => participant.side === "A").map((participant) => participant.source_player_name || "Player");
-    const playersB = participants.filter((participant) => participant.side === "B").map((participant) => participant.source_player_name || "Player");
     const teamA = teams.find((team) => team.id === match.team_a_id) || teams.find((team) => team.id === participants.find((participant) => participant.side === "A")?.team_id);
     const teamB = teams.find((team) => team.id === match.team_b_id) || teams.find((team) => team.id === participants.find((participant) => participant.side === "B")?.team_id);
+    const mapParticipantProfile = (participant: PlayerScheduleParticipantRow, team: PublishedTeam | undefined): MatchPlayerProfile => {
+      const member = team?.members.find((candidate) => candidate.playerId === participant.player_id)
+        || team?.members.find((candidate) => normalizeName(candidate.name) === normalizeName(participant.source_player_name || ""));
+      return {
+        id: participant.player_id || participant.id,
+        name: participant.source_player_name || member?.name || "Player",
+        profilePhotoUrl: member?.profilePhotoUrl || ""
+      };
+    };
+    const playerProfilesA = participants.filter((participant) => participant.side === "A").map((participant) => mapParticipantProfile(participant, teamA));
+    const playerProfilesB = participants.filter((participant) => participant.side === "B").map((participant) => mapParticipantProfile(participant, teamB));
+    const playersA = playerProfilesA.map((player) => player.name);
+    const playersB = playerProfilesB.map((player) => player.name);
+    const format: TeamCourtScheduleMatch["format"] = match.format === "Doubles" ? "Doubles" : "Singles";
 
     return {
       id: match.id,
@@ -5638,8 +5892,11 @@ function mapTeamCourtScheduleMatches(matchRows: PlayerScheduleMatchRow[], player
       teamBName: teamB?.name || match.team_b_label || "Team B",
       teamAColor: teamA?.jerseyColor || "#eaf3de",
       teamBColor: teamB?.jerseyColor || "#e5f1ff",
+      format,
       playersA,
       playersB,
+      playerProfilesA,
+      playerProfilesB,
       score: scoresByMatch[match.id] || null,
       sortOrder: match.sort_order || 0
     };
