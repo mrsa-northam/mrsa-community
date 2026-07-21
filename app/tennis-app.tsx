@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, Clock, DollarSign, Dumbbell, ExternalLink, House, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, Clock, DollarSign, Dumbbell, ExternalLink, House, Info, LogIn, LogOut, Mail, MapPin, Pencil, RefreshCw, Search, Shield, Shirt, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -3528,19 +3528,17 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
 
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
   const openedFromRoster = searchParams.get("from") === "roster";
+  const backHref = openedFromRoster ? "/tournaments/teams" : "/tournaments/schedule";
+  const backLabel = openedFromRoster ? "Back to team rosters" : "Back to schedule";
 
   return (
     <AppFrame active="tournament">
       <div className={memberPageClass}>
         <AppTopBar />
         <main className={memberMainClass}>
-          <ScheduleDetailBackLink
-            label={openedFromRoster ? "Back to team rosters" : "Back to schedule"}
-            href={openedFromRoster ? "/tournaments/teams" : "/tournaments/schedule"}
-          />
           {loading && <SkeletonRow />}
           {message && !team && <StatusMessage tone="error">{message}</StatusMessage>}
-          {team && <TeamDetailPageCard matches={matches} team={team} />}
+          {team && <TeamDetailPageCard backHref={backHref} backLabel={backLabel} matches={matches} team={team} />}
         </main>
       </div>
     </AppFrame>
@@ -4908,15 +4906,6 @@ function ScheduleTimeHeader({ label, count }: { label: string; count: number }) 
   );
 }
 
-function ScheduleDetailBackLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Link className="tap-card inline-flex min-h-10 w-fit items-center gap-2 rounded-full border-hairline border-line bg-white px-3 text-[13px] font-medium text-brand shadow-[0_8px_18px_rgba(24,24,26,0.06)]" href={href}>
-      <ArrowLeft size={15} />
-      {label}
-    </Link>
-  );
-}
-
 function ScheduleLoadingNotice({ label, overlay = false }: { label: string; overlay?: boolean }) {
   if (overlay) {
     return (
@@ -5112,50 +5101,61 @@ function ScoreSideLabel({ playerNames, color }: { playerNames: string; color: st
   );
 }
 
-function TeamDetailPageCard({ team, matches }: { team: PublishedTeam; matches: TeamCourtScheduleMatch[] }) {
+function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: PublishedTeam; matches: TeamCourtScheduleMatch[]; backHref: string; backLabel: string }) {
   const teamRecord = getTeamPerformanceSummary(team, matches);
+  const teamColor = normalizeTeamColor(team.jerseyColor);
+  const shirtStroke = getHexLuminance(teamColor) > 0.72 ? "#16331e" : teamColor;
+  const completedMatches = teamRecord.wins + teamRecord.losses;
+
   return (
     <section className="grid gap-4">
-      <article className="overflow-hidden rounded-[26px] border-hairline border-white/80 bg-white shadow-[0_20px_55px_rgba(12,59,32,0.10)]">
-        <div className="relative overflow-hidden p-5 text-white sm:p-6" style={{ background: getTeamCardTone(team.jerseyColor).background }}>
-          <CourtBackdrop />
-          <div className="relative grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            <span className="grid gap-2">
-              <em className="text-[13px] font-medium not-italic text-white/72">Team page</em>
-              <h1 className="text-[34px] font-medium leading-tight tracking-[-0.6px]">{team.name}</h1>
-              <p className="text-[15px] text-white/72">{team.members.length} players · {matches.length} scheduled matches</p>
+      <article className="relative overflow-hidden rounded-[26px] border-hairline border-white/25 bg-[linear-gradient(135deg,#0c3b20,#155c34)] text-white shadow-[0_20px_55px_rgba(12,59,32,0.16)]">
+        <CourtBackdrop />
+        <Link className="tap-card absolute left-4 top-4 z-20 inline-grid h-9 max-h-9 min-h-9 w-9 max-w-9 min-w-9 place-items-center rounded-full border-hairline border-white/60 bg-white/90 p-0 text-brand shadow-[0_8px_18px_rgba(0,0,0,0.10)] backdrop-blur transition-transform hover:-translate-x-0.5 active:scale-[0.98]" href={backHref} aria-label={backLabel}>
+          <ArrowLeft size={16} strokeWidth={2.2} />
+        </Link>
+        <span className="pointer-events-none absolute right-4 top-4 z-20 grid h-14 w-14 rotate-[6deg] place-items-center rounded-[17px] border border-dashed border-brand/30 bg-white/92 shadow-[0_10px_24px_rgba(0,0,0,0.14)] backdrop-blur" role="img" aria-label="Team jersey color">
+          <span className="absolute inset-1 rounded-[13px] border-hairline border-brand/10" aria-hidden="true" />
+          <Shirt size={27} strokeWidth={1.8} style={{ color: shirtStroke, fill: teamColor }} />
+        </span>
+        <div className="relative grid gap-5 p-5 pt-20 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:p-7 sm:pt-16">
+          <div className="flex min-w-0 items-center gap-4">
+            {team.logoUrl ? (
+              <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[16px] border-hairline border-white/70 bg-white p-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.16)] sm:h-20 sm:w-20 sm:rounded-[19px]">
+                <img src={team.logoUrl} alt={`${team.name} logo`} className="h-full w-full object-contain" />
+              </span>
+            ) : (
+              <span className="grid h-16 w-16 shrink-0 place-items-center rounded-[16px] border-hairline border-white/70 bg-white text-[18px] font-medium text-brand shadow-[0_10px_24px_rgba(0,0,0,0.16)] sm:h-20 sm:w-20 sm:rounded-[19px]">{getInitials(team.name)}</span>
+            )}
+            <span className="grid min-w-0 gap-1.5">
+              <em className="text-[11px] font-medium not-italic uppercase tracking-[0.14em] text-white/85">Tournament team</em>
+              <h1 className="break-words text-[30px] font-medium leading-[1.04] tracking-[-0.7px] text-white sm:text-[42px]">{team.name}</h1>
+              <p className="text-[13px] font-medium text-white/85 sm:text-[14px]">{formatPlayerCount(team.members.length)} · {matches.length} scheduled matches</p>
             </span>
-            <span className="grid grid-cols-2 gap-2 text-center">
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+              <TeamHeroStat label="Played" value={completedMatches} />
               <TeamHeroStat label="Wins" value={teamRecord.wins} />
               <TeamHeroStat label="Losses" value={teamRecord.losses} />
-            </span>
           </div>
         </div>
       </article>
 
-      <article className="grid gap-3 rounded-[22px] border-hairline border-line bg-white p-4 shadow-[0_14px_34px_rgba(24,24,26,0.06)] sm:p-5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[20px] font-medium text-text-primary">Roster and performance</h2>
-          <span className="rounded-full bg-brand-light px-3 py-1 text-[12px] font-medium text-[#3b6d11]">{team.members.length} players</span>
-        </div>
-        <div className="grid gap-2">
-          {team.members.map((member) => {
-            const performance = getMemberPerformance(member, team, matches);
-            return (
-              <article className="grid gap-3 rounded-[18px] border-hairline border-line bg-surface/45 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" key={member.id}>
-                <span className="grid gap-1">
-                  <strong className="text-[16px] font-medium text-text-primary">{member.name}</strong>
-                  <em className="text-[13px] not-italic text-text-secondary">{member.city} · {member.tier} · Rating {member.rating || "N/A"}</em>
-                </span>
-                <span className="grid grid-cols-3 gap-1 text-center">
-                  <TeamPerformancePill label="Played" value={performance.played} />
-                  <TeamPerformancePill label="Won" value={performance.wins} />
-                  <TeamPerformancePill label="Lost" value={performance.losses} />
-                </span>
-              </article>
-            );
-          })}
-        </div>
+      <article className="grid content-start gap-4 rounded-[24px] border-hairline border-line bg-white p-4 shadow-[0_14px_34px_rgba(24,24,26,0.06)] sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <span className="grid gap-0.5">
+              <em className="text-[10px] font-medium not-italic uppercase tracking-[0.13em] text-text-muted">The lineup</em>
+              <h2 className="text-[21px] font-medium tracking-[-0.25px] text-text-primary">Team roster</h2>
+            </span>
+            <span className="rounded-full bg-brand-light px-3 py-1 text-[12px] font-medium text-[#3b6d11]">{formatPlayerCount(team.members.length)}</span>
+          </div>
+          {team.members.length ? (
+            <div className="grid gap-2 md:grid-cols-2">
+              {team.members.map((member) => <TeamRosterMemberCard key={member.id} matches={matches} member={member} team={team} />)}
+            </div>
+          ) : (
+            <p className="rounded-[16px] bg-surface/60 p-4 text-[13px] text-text-secondary">Players will appear here once the roster is finalized.</p>
+          )}
       </article>
     </section>
   );
@@ -5163,10 +5163,31 @@ function TeamDetailPageCard({ team, matches }: { team: PublishedTeam; matches: T
 
 function TeamHeroStat({ label, value }: { label: string; value: number }) {
   return (
-    <span className="grid min-w-[76px] gap-1 rounded-[16px] bg-white/14 px-3 py-2">
-      <strong className="text-[22px] font-medium leading-none text-white">{value}</strong>
-      <em className="text-[11px] not-italic text-white/64">{label}</em>
+    <span className="grid min-w-0 gap-1 rounded-[14px] border-hairline border-white bg-white px-2.5 py-2.5 shadow-[0_8px_20px_rgba(0,0,0,0.10)] sm:min-w-[78px] sm:px-3">
+      <strong className="text-[20px] font-semibold leading-none text-[#0c3b20] sm:text-[22px]">{value}</strong>
+      <em className="text-[10px] font-semibold not-italic uppercase tracking-[0.05em] text-[#5f5e5a]">{label}</em>
     </span>
+  );
+}
+
+function TeamRosterMemberCard({ member, team, matches }: { member: PublishedTeamMember; team: PublishedTeam; matches: TeamCourtScheduleMatch[] }) {
+  const performance = getMemberPerformance(member, team, matches);
+  return (
+    <article className="grid min-w-0 grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[16px] border-hairline border-line bg-surface/40 p-2.5 transition hover:border-brand/20 hover:bg-white hover:shadow-[0_10px_22px_rgba(12,59,32,0.07)]">
+      <Avatar className="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-light text-[12px] font-medium text-[#3b6d11] shadow-[0_6px_14px_rgba(12,59,32,0.10)]" name={member.name} photoUrl={member.profilePhotoUrl} ariaLabel={`${member.name} profile photo`} sizes="42px" />
+      <span className="grid min-w-0 gap-0.5">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <strong className="truncate text-[14px] font-medium leading-tight text-text-primary">{member.name}</strong>
+          {member.isCaptain && <em className="shrink-0 rounded-full bg-[#b8ff2c] px-1.5 py-0.5 text-[8px] font-medium not-italic uppercase tracking-[0.06em] text-[#16331e]">Captain</em>}
+        </span>
+        <em className="truncate text-[10px] not-italic text-text-secondary">{member.city || "City TBD"} · {member.tier} · Rating {member.rating || "N/A"}</em>
+      </span>
+      <span className="grid grid-cols-3 gap-0.5 text-center">
+        <TeamPerformancePill label="Played" value={performance.played} />
+        <TeamPerformancePill label="Won" value={performance.wins} />
+        <TeamPerformancePill label="Lost" value={performance.losses} />
+      </span>
+    </article>
   );
 }
 
@@ -5196,9 +5217,9 @@ function ScoreSetInputs({ draft, setNumber, optional = false, disabled, onChange
 
 function TeamPerformancePill({ label, value }: { label: string; value: number }) {
   return (
-    <span className="grid min-w-[58px] gap-0.5 rounded-[12px] bg-surface px-2 py-1">
-      <strong className="text-[14px] font-medium text-brand">{value}</strong>
-      <em className="text-[10px] not-italic text-text-secondary">{label}</em>
+    <span className="grid min-w-[32px] gap-0.5 rounded-[9px] bg-white px-1 py-1.5">
+      <strong className="text-[13px] font-medium leading-none text-brand">{value}</strong>
+      <em className="text-[7px] font-medium not-italic uppercase tracking-[0.02em] text-text-muted">{label}</em>
     </span>
   );
 }
