@@ -8,6 +8,9 @@ import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useState } f
 import { getSupabaseClient } from "../lib/supabase";
 
 type AdminTab = "overview" | "tournaments" | "players" | "payments" | "claims";
+type AdminTournamentWorkspaceSection = "setup" | "content" | "teams" | "players" | "waitlist";
+type AdminTournamentPlayerSection = "registered" | "undrafted" | "interested";
+type AdminTournamentContentSection = "faqs" | "rules";
 type CountMap = {
   players: number;
   tournaments: number;
@@ -969,6 +972,9 @@ export function AdminTournamentsScreen() {
 
 export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: string }) {
   const [tournament, setTournament] = useState<AdminTournament | null>(null);
+  const [activeWorkspaceSection, setActiveWorkspaceSection] = useState<AdminTournamentWorkspaceSection>("setup");
+  const [activePlayerSection, setActivePlayerSection] = useState<AdminTournamentPlayerSection>("registered");
+  const [activeContentSection, setActiveContentSection] = useState<AdminTournamentContentSection>("faqs");
   const [scheduleNotes, setScheduleNotes] = useState<AdminScheduleNote[]>([]);
   const [registeredPlayers, setRegisteredPlayers] = useState<AdminRegisteredPlayer[]>([]);
   const [teams, setTeams] = useState<AdminTeam[]>([]);
@@ -1853,40 +1859,81 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     URL.revokeObjectURL(url);
   };
 
+  const assignedRegistrationIds = new Set(teams.flatMap((team) => team.members.map((member) => member.registrationId)));
+  const unassignedPlayers = registeredPlayers.filter((player) => !assignedRegistrationIds.has(player.registrationId));
+  const undraftedPlayers = registeredPlayers.filter((player) => player.draftStatus === "not_drafted");
+  const publishedTeams = teams.filter((team) => team.isPublished).length;
+  const workspaceSections: {
+    id: AdminTournamentWorkspaceSection;
+    label: string;
+    detail: string;
+    count: string;
+    icon: ReactNode;
+  }[] = [
+    { id: "setup", label: "Setup", detail: "Dates, venue, fees", count: tournament ? formatAdminTournamentStatus(tournament.status) : "Loading", icon: <Pencil size={16} /> },
+    { id: "content", label: "Content", detail: "FAQs, considerations, match rules", count: `${normalizeAdminTournamentFaqs(tournament?.faqs).length + scheduleNotes.length} items`, icon: <CheckCircle2 size={16} /> },
+    { id: "teams", label: "Teams", detail: "Draft, captains, logos", count: `${teams.length} teams`, icon: <Trophy size={16} /> },
+    { id: "players", label: "Players", detail: "Registered, undrafted, interested", count: `${registeredPlayers.length + interestedPlayers.length} total`, icon: <UsersRound size={16} /> },
+    { id: "waitlist", label: "Waitlist", detail: "Accept or reject slots", count: `${waitlistedPlayers.length} players`, icon: <CheckCircle2 size={16} /> }
+  ];
+  const playerSections: {
+    id: AdminTournamentPlayerSection;
+    label: string;
+    count: number;
+    icon: ReactNode;
+  }[] = [
+    { id: "registered", label: "Registered", count: registeredPlayers.length, icon: <UsersRound size={15} /> },
+    { id: "undrafted", label: "Undrafted", count: undraftedPlayers.length, icon: <BadgeDollarSign size={15} /> },
+    { id: "interested", label: "Interested", count: interestedPlayers.length, icon: <ArrowRight size={15} /> }
+  ];
+  const contentSections: {
+    id: AdminTournamentContentSection;
+    label: string;
+    title: string;
+    count: number;
+  }[] = [
+    { id: "faqs", label: "FAQs", title: "FAQs", count: normalizeAdminTournamentFaqs(tournament?.faqs).length },
+    { id: "rules", label: "Rules", title: "Considerations and match rules", count: scheduleNotes.length }
+  ];
+
   return (
     <AdminFrame active="tournaments">
-      <div className="grid gap-3 rounded-[22px] border-hairline border-line bg-card p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-6">
+      <div className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:rounded-[22px] md:p-6">
         <div className="grid gap-2">
           <Link className="tap-card w-max text-[14px] font-medium text-brand" href="/admin/tournaments">← Tournaments</Link>
           <span className="text-[13px] text-text-secondary">Tournament workspace</span>
-          <h1 className="text-3xl font-medium leading-tight tracking-[-0.4px] text-text-primary">{tournament?.name || "Tournament"}</h1>
-          <p className="max-w-[720px] text-[15px] leading-relaxed text-text-secondary">Manage this tournament’s setup, registrations, tiers, and future operational workflows.</p>
+          <h1 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary md:text-3xl">{tournament?.name || "Tournament"}</h1>
+          <p className="max-w-[720px] text-[14px] leading-relaxed text-text-secondary md:text-[15px]">Manage setup, player-facing content, teams, registrations, and waitlist decisions.</p>
         </div>
         <div className="grid gap-2 md:justify-items-end">
-          <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{registeredPlayers.length} registered</span>
-          {tournament && <span className="rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-text-secondary">{formatAdminTournamentStatus(tournament.status)}</span>}
+          <div className="flex flex-wrap gap-2 md:justify-end">
+            <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{registeredPlayers.length} registered</span>
+            {tournament && <span className="rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-text-secondary">{formatAdminTournamentStatus(tournament.status)}</span>}
+          </div>
           {tournament && (
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
-                className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-brand disabled:opacity-50 sm:col-span-2"
+                className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-3 text-center text-xs font-medium text-brand disabled:opacity-50 sm:px-4"
                 type="button"
                 onClick={downloadRegisteredPlayersCsv}
                 disabled={!registeredPlayers.length}
               >
                 <Download size={15} />
-                Download registered CSV
+                <span className="hidden sm:inline">Download registered CSV</span>
+                <span className="sm:hidden">Registered CSV</span>
               </button>
               <button
-                className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-brand disabled:opacity-50 sm:col-span-2"
+                className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-3 text-center text-xs font-medium text-brand disabled:opacity-50 sm:px-4"
                 type="button"
                 onClick={downloadTeamsCsv}
                 disabled={!teams.some((team) => team.members.length)}
               >
                 <Download size={15} />
-                Download teams CSV
+                <span className="hidden sm:inline">Download teams CSV</span>
+                <span className="sm:hidden">Teams CSV</span>
               </button>
               <button
-                className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-4 text-xs font-medium text-[#8a4a22] disabled:opacity-50"
+                className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-3 text-center text-xs font-medium text-[#8a4a22] disabled:opacity-50 sm:px-4"
                 type="button"
                 onClick={() => updateTournamentRegistrationStatus("registration_closed")}
                 disabled={saving || tournament.status === "registration_closed"}
@@ -1894,7 +1941,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                 Stop registration
               </button>
               <button
-                className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] bg-brand px-4 text-xs font-medium text-white disabled:opacity-50"
+                className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] bg-brand px-3 text-center text-xs font-medium text-white disabled:opacity-50 sm:px-4"
                 type="button"
                 onClick={() => updateTournamentRegistrationStatus("registration_open")}
                 disabled={saving || tournament.status === "registration_open"}
@@ -1910,127 +1957,219 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
 
       {tournament ? (
         <>
-          <section className="grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-            <div className="grid gap-1">
-              <span className="text-[13px] text-text-secondary">Details</span>
-              <strong className="text-xl font-medium tracking-[-0.4px] text-text-primary">Tournament setup</strong>
-            </div>
-            <form className="grid gap-3" onSubmit={saveTournamentDetails}>
-              <label className="grid gap-2 text-[13px] text-text-secondary">
-                Name
-                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="name" defaultValue={tournament.name} required />
-              </label>
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="grid gap-2 text-[13px] text-text-secondary">
-                  Start date
-                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="startsOn" type="date" defaultValue={tournament.starts_on || ""} required />
-                </label>
-                <label className="grid gap-2 text-[13px] text-text-secondary">
-                  End date
-                  <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="endsOn" type="date" defaultValue={tournament.ends_on || ""} required />
-                </label>
+          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-3 md:p-4">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              <div className="grid gap-1 rounded-[14px] bg-surface px-3 py-2">
+                <span className="text-[12px] font-medium text-text-secondary">Registered</span>
+                <strong className="text-[20px] font-medium text-text-primary">{registeredPlayers.length}</strong>
               </div>
-              <label className="grid gap-2 text-[13px] text-text-secondary">
-                Registration ends
-                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" defaultValue={formatAdminDateTimeInput(tournament.registration_closes_at)} required />
-              </label>
-              <label className="grid gap-2 text-[13px] text-text-secondary">
-                Venue name
-                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="venueName" defaultValue={tournament.venue_name || ""} required />
-              </label>
-              <label className="grid gap-2 text-[13px] text-text-secondary">
-                Venue Google Maps URL
-                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" defaultValue={tournament.venue_maps_url || ""} required />
-              </label>
-              <label className="grid gap-2 text-[13px] text-text-secondary">
-                Tournament fees
-                <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" defaultValue={tournament.registration_fee_cents / 100} required />
-              </label>
-              <label className="grid gap-2 text-[13px] text-text-secondary">
-                Maximum players (slots)
-                <input
-                  className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
-                  name="maxPlayers"
-                  type="number"
-                  min="1"
-                  step="1"
-                  defaultValue={tournament.max_players ?? ""}
+              <div className="grid gap-1 rounded-[14px] bg-surface px-3 py-2">
+                <span className="text-[12px] font-medium text-text-secondary">Assigned</span>
+                <strong className="text-[20px] font-medium text-text-primary">{assignedRegistrationIds.size}</strong>
+              </div>
+              <div className="grid gap-1 rounded-[14px] bg-surface px-3 py-2">
+                <span className="text-[12px] font-medium text-text-secondary">Unassigned</span>
+                <strong className="text-[20px] font-medium text-text-primary">{unassignedPlayers.length}</strong>
+              </div>
+              <div className="grid gap-1 rounded-[14px] bg-surface px-3 py-2">
+                <span className="text-[12px] font-medium text-text-secondary">Published teams</span>
+                <strong className="text-[20px] font-medium text-text-primary">{publishedTeams}</strong>
+              </div>
+            </div>
+          </section>
+
+          <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)] xl:items-start">
+            <aside className="z-10 grid gap-2 rounded-[18px] border-hairline border-line bg-card p-2 md:p-3 xl:sticky xl:top-4" aria-label="Tournament workspace sections">
+              <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
+                {workspaceSections.map((section) => (
+                  <button
+                    className={activeWorkspaceSection === section.id ? "tap-card grid min-w-0 gap-2 rounded-[14px] bg-brand px-3 py-2.5 text-left text-white xl:py-3" : "tap-card grid min-w-0 gap-2 rounded-[14px] bg-surface px-3 py-2.5 text-left text-text-secondary transition hover:bg-white xl:py-3"}
+                    type="button"
+                    key={section.id}
+                    onClick={() => setActiveWorkspaceSection(section.id)}
+                    aria-pressed={activeWorkspaceSection === section.id}
+                  >
+                    <span className="grid min-w-0 gap-2 sm:flex sm:items-center sm:justify-between">
+                      <span className="inline-flex min-w-0 items-center gap-2 text-[14px] font-medium">
+                        {section.icon}
+                        <span className="truncate">{section.label}</span>
+                      </span>
+                      <b className={activeWorkspaceSection === section.id ? "w-max max-w-full rounded-full bg-white/18 px-2 py-0.5 text-[11px] font-medium text-white" : "w-max max-w-full rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-text-secondary"}>{section.count}</b>
+                    </span>
+                    <span className={activeWorkspaceSection === section.id ? "line-clamp-2 text-[12px] leading-snug text-white/75" : "line-clamp-2 text-[12px] leading-snug text-text-secondary"}>{section.detail}</span>
+                  </button>
+                ))}
+              </div>
+            </aside>
+
+            <div className="grid gap-4">
+              <form className={activeWorkspaceSection === "setup" || activeWorkspaceSection === "content" ? "grid gap-4" : "hidden"} onSubmit={saveTournamentDetails} noValidate>
+                <section className={activeWorkspaceSection === "setup" ? "grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" : "hidden"}>
+                  <div className="grid gap-1">
+                    <span className="text-[13px] text-text-secondary">Details</span>
+                    <strong className="text-xl font-medium tracking-[-0.4px] text-text-primary">Tournament setup</strong>
+                  </div>
+                  <div className="grid gap-3">
+                    <label className="grid gap-2 text-[13px] text-text-secondary">
+                      Name
+                      <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="name" defaultValue={tournament.name} required />
+                    </label>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="grid gap-2 text-[13px] text-text-secondary">
+                        Start date
+                        <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="startsOn" type="date" defaultValue={tournament.starts_on || ""} required />
+                      </label>
+                      <label className="grid gap-2 text-[13px] text-text-secondary">
+                        End date
+                        <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="endsOn" type="date" defaultValue={tournament.ends_on || ""} required />
+                      </label>
+                    </div>
+                    <label className="grid gap-2 text-[13px] text-text-secondary">
+                      Registration ends
+                      <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-light" name="registrationClosesAt" type="datetime-local" defaultValue={formatAdminDateTimeInput(tournament.registration_closes_at)} required />
+                    </label>
+                    <label className="grid gap-2 text-[13px] text-text-secondary">
+                      Venue name
+                      <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="venueName" defaultValue={tournament.venue_name || ""} required />
+                    </label>
+                    <label className="grid gap-2 text-[13px] text-text-secondary">
+                      Venue Google Maps URL
+                      <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="mapsUrl" type="url" defaultValue={tournament.venue_maps_url || ""} required />
+                    </label>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="grid gap-2 text-[13px] text-text-secondary">
+                        Tournament fees
+                        <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="fee" type="number" min="0" step="0.01" defaultValue={tournament.registration_fee_cents / 100} required />
+                      </label>
+                      <label className="grid gap-2 text-[13px] text-text-secondary">
+                        Maximum players (slots)
+                        <input
+                          className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
+                          name="maxPlayers"
+                          type="number"
+                          min="1"
+                          step="1"
+                          defaultValue={tournament.max_players ?? ""}
+                        />
+                      </label>
+                    </div>
+                    <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save setup"}</button>
+                  </div>
+                </section>
+
+                <section className={activeWorkspaceSection === "content" ? "grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" : "hidden"}>
+                  <div className="grid gap-3">
+                    <div className="grid gap-1">
+                      <span className="text-[13px] text-text-secondary">Player-facing content</span>
+                      <strong className="text-xl font-medium tracking-[-0.4px] text-text-primary">FAQs, considerations and match rules</strong>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 rounded-[14px] bg-surface p-1" aria-label="Content sections">
+                      {contentSections.map((section) => (
+                        <button
+                          className={activeContentSection === section.id ? "tap-card inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-[12px] bg-brand px-2 text-center text-xs font-medium text-white sm:px-3" : "tap-card inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-[12px] bg-white px-2 text-center text-xs font-medium text-text-secondary sm:px-3"}
+                          type="button"
+                          key={section.id}
+                          onClick={() => setActiveContentSection(section.id)}
+                          aria-pressed={activeContentSection === section.id}
+                          title={section.title}
+                        >
+                          <span className="min-w-0 truncate">{section.label}</span>
+                          <span className={activeContentSection === section.id ? "rounded-full bg-white/18 px-2 py-0.5 text-[11px] text-white" : "rounded-full bg-surface px-2 py-0.5 text-[11px] text-text-secondary"}>{section.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className={activeContentSection === "faqs" ? "grid gap-3" : "hidden"}>
+                    <AdminFaqFields faqs={normalizeAdminTournamentFaqs(tournament.faqs)} />
+                  </div>
+                  <div className={activeContentSection === "rules" ? "grid gap-3" : "hidden"}>
+                    <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-3">
+                      <h3 className="text-[15px] font-medium text-text-primary">Considerations and match rules</h3>
+                    </div>
+                    <AdminScheduleNoteFields notes={scheduleNotes} />
+                  </div>
+                  <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save content"}</button>
+                </section>
+              </form>
+
+              <section className={activeWorkspaceSection === "teams" ? "grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" : "hidden"}>
+                <AdminTeamBuilder
+                  teams={teams}
+                  players={registeredPlayers}
+                  actionKey={teamActionKey}
+                  onCreateTeam={createTeam}
+                  onRenameTeam={renameTeam}
+                  onUpdateTeamColor={updateTeamColor}
+                  onReplaceTeamLogo={replaceTeamLogo}
+                  onRemoveTeamLogo={removeTeamLogo}
+                  onDeleteTeam={deleteTeam}
+                  onTogglePublished={toggleTeamPublished}
+                  onAssignPlayer={assignPlayerToTeam}
+                  onRemovePlayer={removePlayerFromTeam}
+                  onSetCaptain={setTeamCaptain}
+                  onUpdateShirtName={updateTeamMemberShirtName}
                 />
-              </label>
-              <AdminFaqFields faqs={normalizeAdminTournamentFaqs(tournament.faqs)} />
-              <AdminScheduleNoteFields notes={scheduleNotes} />
-              <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save details"}</button>
-            </form>
-          </section>
+              </section>
 
-          <section className="grid gap-3 md:grid-cols-1">
-            <AdminFutureCard title="Match creation" copy="Build singles, doubles, and scheduled match flows here." />
-          </section>
+              <section className={activeWorkspaceSection === "players" ? "grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" : "hidden"}>
+                <div className="grid gap-3">
+                  <div className="grid gap-1">
+                    <span className="text-[13px] text-text-secondary">Player management</span>
+                    <strong className="text-xl font-medium tracking-[-0.4px] text-text-primary">Registrations, draft gaps and checkout interest</strong>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 rounded-[14px] bg-surface p-1" aria-label="Player sections">
+                    {playerSections.map((section) => (
+                      <button
+                        className={activePlayerSection === section.id ? "tap-card grid min-h-12 min-w-0 place-items-center gap-1 rounded-[12px] bg-brand px-1.5 py-2 text-center text-[11px] font-medium text-white sm:inline-flex sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs" : "tap-card grid min-h-12 min-w-0 place-items-center gap-1 rounded-[12px] bg-white px-1.5 py-2 text-center text-[11px] font-medium text-text-secondary sm:inline-flex sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs"}
+                        type="button"
+                        key={section.id}
+                        onClick={() => setActivePlayerSection(section.id)}
+                        aria-pressed={activePlayerSection === section.id}
+                      >
+                        {section.icon}
+                        <span className="min-w-0 truncate">{section.label}</span>
+                        <span className={activePlayerSection === section.id ? "rounded-full bg-white/18 px-2 py-0.5 text-[11px] text-white" : "rounded-full bg-surface px-2 py-0.5 text-[11px] text-text-secondary"}>{section.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-            <AdminTeamBuilder
-              teams={teams}
-              players={registeredPlayers}
-              actionKey={teamActionKey}
-              onCreateTeam={createTeam}
-              onRenameTeam={renameTeam}
-              onUpdateTeamColor={updateTeamColor}
-              onReplaceTeamLogo={replaceTeamLogo}
-              onRemoveTeamLogo={removeTeamLogo}
-              onDeleteTeam={deleteTeam}
-              onTogglePublished={toggleTeamPublished}
-              onAssignPlayer={assignPlayerToTeam}
-              onRemovePlayer={removePlayerFromTeam}
-              onSetCaptain={setTeamCaptain}
-              onUpdateShirtName={updateTeamMemberShirtName}
-            />
-          </section>
+                <div className={activePlayerSection === "registered" ? "grid gap-3" : "hidden"}>
+                  <TieredRegisteredPlayers
+                    players={registeredPlayers}
+                    onTierChange={updateRegisteredPlayerTier}
+                    onVideoReview={reviewRegisteredPlayerVideo}
+                    reviewingVideoPlayerId={reviewingVideoPlayerId}
+                    onRemoveAndRefund={removeAndRefundRegisteredPlayer}
+                    removingPlayerKey={removingPlayerKey}
+                    confirmRemoveKey={confirmRemoveKey}
+                    onCancelRemove={() => setConfirmRemoveKey(null)}
+                  />
+                </div>
+                <div className={activePlayerSection === "undrafted" ? "grid gap-3" : "hidden"}>
+                  <UndraftedPlayersList
+                    players={undraftedPlayers}
+                    onRemoveAndRefund={removeAndRefundRegisteredPlayer}
+                    removingPlayerKey={removingPlayerKey}
+                    confirmRemoveKey={confirmRemoveKey}
+                    onCancelRemove={() => setConfirmRemoveKey(null)}
+                  />
+                </div>
+                <div className={activePlayerSection === "interested" ? "grid gap-3" : "hidden"}>
+                  <InterestedPlayersList players={interestedPlayers} />
+                </div>
+              </section>
 
-          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-            <UndraftedPlayersList
-              players={registeredPlayers.filter((player) => player.draftStatus === "not_drafted")}
-              onRemoveAndRefund={removeAndRefundRegisteredPlayer}
-              removingPlayerKey={removingPlayerKey}
-              confirmRemoveKey={confirmRemoveKey}
-              onCancelRemove={() => setConfirmRemoveKey(null)}
-            />
-          </section>
-
-          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-            <TieredRegisteredPlayers
-              players={registeredPlayers}
-              onTierChange={updateRegisteredPlayerTier}
-              onVideoReview={reviewRegisteredPlayerVideo}
-              reviewingVideoPlayerId={reviewingVideoPlayerId}
-              onRemoveAndRefund={removeAndRefundRegisteredPlayer}
-              removingPlayerKey={removingPlayerKey}
-              confirmRemoveKey={confirmRemoveKey}
-              onCancelRemove={() => setConfirmRemoveKey(null)}
-            />
-          </section>
-
-          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-            <InterestedPlayersList players={interestedPlayers} />
-          </section>
-
-          <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5">
-            <WaitlistedPlayersList players={waitlistedPlayers} onReview={reviewWaitlistPlayer} saving={saving} />
-          </section>
+              <section className={activeWorkspaceSection === "waitlist" ? "grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" : "hidden"}>
+                <WaitlistedPlayersList players={waitlistedPlayers} onReview={reviewWaitlistPlayer} saving={saving} />
+              </section>
+            </div>
+          </div>
         </>
       ) : (
         <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[15px] text-text-secondary">Loading tournament workspace...</div>
       )}
     </AdminFrame>
-  );
-}
-
-function AdminFutureCard({ title, copy }: { title: string; copy: string }) {
-  return (
-    <article className="grid gap-2 rounded-[18px] border-hairline border-line bg-card p-4">
-      <span className="inline-flex w-max rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-text-secondary">Coming soon</span>
-      <strong className="text-lg font-medium leading-tight text-text-primary">{title}</strong>
-      <em className="text-[15px] not-italic leading-relaxed text-text-secondary">{copy}</em>
-    </article>
   );
 }
 
