@@ -5104,7 +5104,6 @@ function ScoreSideLabel({ playerNames, color }: { playerNames: string; color: st
 function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: PublishedTeam; matches: TeamCourtScheduleMatch[]; backHref: string; backLabel: string }) {
   const teamRecord = getTeamPerformanceSummary(team, matches);
   const teamColor = normalizeTeamColor(team.jerseyColor);
-  const shirtStroke = getHexLuminance(teamColor) > 0.72 ? "#16331e" : teamColor;
   const completedMatches = teamRecord.wins + teamRecord.losses;
 
   return (
@@ -5114,9 +5113,9 @@ function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: Publ
         <Link className="tap-card absolute left-4 top-4 z-20 inline-grid h-9 max-h-9 min-h-9 w-9 max-w-9 min-w-9 place-items-center rounded-full border-hairline border-white/60 bg-white/90 p-0 text-brand shadow-[0_8px_18px_rgba(0,0,0,0.10)] backdrop-blur transition-transform hover:-translate-x-0.5 active:scale-[0.98]" href={backHref} aria-label={backLabel}>
           <ArrowLeft size={16} strokeWidth={2.2} />
         </Link>
-        <span className="pointer-events-none absolute right-4 top-4 z-20 grid h-14 w-14 rotate-[6deg] place-items-center rounded-[17px] border border-dashed border-brand/30 bg-white/92 shadow-[0_10px_24px_rgba(0,0,0,0.14)] backdrop-blur" role="img" aria-label="Team jersey color">
-          <span className="absolute inset-1 rounded-[13px] border-hairline border-brand/10" aria-hidden="true" />
-          <Shirt size={27} strokeWidth={1.8} style={{ color: shirtStroke, fill: teamColor }} />
+        <span className="pointer-events-none absolute right-4 top-4 z-20 grid h-14 w-14 rotate-[6deg] place-items-center rounded-[17px] border border-dashed border-black/35 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.18)]" role="img" aria-label="Team jersey color">
+          <span className="absolute inset-1 rounded-[13px] border-hairline border-black/10" aria-hidden="true" />
+          <Shirt size={28} strokeWidth={1.9} style={{ color: "#18181b", fill: teamColor }} />
         </span>
         <div className="relative grid gap-5 p-5 pt-20 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:p-7 sm:pt-16">
           <div className="flex min-w-0 items-center gap-4">
