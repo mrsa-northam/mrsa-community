@@ -2353,7 +2353,24 @@ function AdminTeamBuilder({
           };
 
           return (
-            <article className="grid gap-3 rounded-[16px] border-hairline border-line bg-white p-3" key={team.id}>
+            <details className="group overflow-hidden rounded-[16px] border-hairline border-line bg-white shadow-[0_8px_20px_rgba(24,24,26,0.035)]" key={team.id}>
+              <summary className="grid cursor-pointer list-none grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 p-3 transition hover:bg-surface/35 [&::-webkit-details-marker]:hidden">
+                <span className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-[13px] border-hairline border-line bg-surface text-[12px] font-medium text-brand" style={{ boxShadow: `inset 0 -14px 24px ${normalizeTeamColor(team.jerseyColor)}24` }}>
+                  {team.logoUrl ? <img className="h-full w-full object-contain p-1" src={team.logoUrl} alt="" aria-hidden="true" /> : getAdminInitials(team.name)}
+                </span>
+                <span className="grid min-w-0 gap-1">
+                  <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <strong className="truncate text-[15px] font-medium text-text-primary">{team.name}</strong>
+                    <em className={team.isPublished ? "rounded-full bg-brand-light px-2 py-0.5 text-[9px] font-medium not-italic text-[#3b6d11]" : "rounded-full bg-[#fff4d8] px-2 py-0.5 text-[9px] font-medium not-italic text-[#8a5a00]"}>{team.isPublished ? "Published" : "Draft"}</em>
+                  </span>
+                  <em className="truncate text-[11px] not-italic text-text-secondary">{team.members.length} players · {team.sponsors.length} {team.sponsors.length === 1 ? "sponsor" : "sponsors"} · Captain: {captainPlayer?.fullName || "Not assigned"}</em>
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border-hairline border-line bg-white px-2.5 py-1.5 text-[11px] font-medium text-brand">
+                  <span className="hidden sm:inline">Manage</span>
+                  <ChevronDown className="transition-transform duration-200 group-open:rotate-180" size={15} />
+                </span>
+              </summary>
+              <div className="grid gap-3 border-t-hairline border-line p-3">
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                 <div className="grid gap-3">
                   <div className="grid gap-3 md:grid-cols-[58px_minmax(0,1fr)] md:items-start">
@@ -2484,7 +2501,8 @@ function AdminTeamBuilder({
               ) : (
                 <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">No players assigned yet.</div>
               )}
-            </article>
+              </div>
+            </details>
           );
         })}
         {!orderedTeams.length && <div className="rounded-[14px] border-hairline border-line bg-surface/60 p-4 text-[15px] text-text-secondary">Create a team to start assigning drafted players.</div>}
@@ -2568,8 +2586,8 @@ function AdminTeamSponsorEditor({ team, actionKey, onSave, onReplaceLogo }: {
           <strong className="text-[13px] font-medium text-text-primary">Team sponsors</strong>
           <em className="text-[10px] not-italic text-text-secondary">Add each sponsor name and logo separately.</em>
         </span>
-        <button className="tap-card inline-flex min-h-9 w-auto items-center justify-center gap-1.5 rounded-[11px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand disabled:opacity-50" type="button" onClick={() => setSponsors((current) => [...current, emptySponsor()])} disabled={sponsors.length >= 12}>
-          <Plus size={13} /> Add sponsor
+        <button className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-[11px] bg-brand px-3 text-xs font-medium text-white shadow-[0_7px_16px_rgba(12,59,32,0.14)] disabled:opacity-50 sm:w-auto" type="button" onClick={() => setSponsors((current) => [...current, emptySponsor()])} disabled={sponsors.length >= 12}>
+          <Plus size={14} /> Add another sponsor
         </button>
       </div>
       <div className="grid gap-2">
@@ -2592,7 +2610,7 @@ function AdminTeamSponsorEditor({ team, actionKey, onSave, onReplaceLogo }: {
                 Sponsor {index + 1} logo
                 <label className={actionKey === uploadKey ? "inline-flex min-h-10 cursor-wait items-center justify-center gap-2 rounded-[11px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand opacity-60" : "tap-card inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-[11px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand"}>
                   {sponsor.logoUrl ? <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-[8px] border-hairline border-line bg-white"><img className="h-full w-full object-contain p-0.5" src={sponsor.logoUrl} alt="" /></span> : <ImagePlus size={14} />}
-                  {actionKey === uploadKey ? "Uploading..." : sponsor.logoUrl ? "Replace logo" : "Upload logo"}
+                  {actionKey === uploadKey ? "Uploading..." : sponsor.logoUrl ? "Replace this logo" : "Upload sponsor logo"}
                   <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" onChange={onLogoChange} disabled={actionKey === uploadKey} />
                 </label>
               </span>
