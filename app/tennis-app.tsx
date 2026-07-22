@@ -1798,7 +1798,6 @@ export function HomeScreen() {
       setDashboardUstaMessage("Add your USTA number or skip this for now.");
       return;
     }
-
     setSavingDashboardUsta(true);
     setDashboardUstaMessage("");
     const { error } = await supabase
@@ -1972,7 +1971,7 @@ export function HomeScreen() {
                   MRSA is now affiliated with USTA. Scores from the upcoming MRSA tournament may count toward your ITF / WTN ranking.
                 </p>
                 <p className="rounded-[14px] border-hairline border-[#dbe8cd] bg-brand-light p-3 text-[14px] leading-relaxed text-[#3b6d11]">
-                  If you do not have a USTA profile, create one with the same email you used for MRSA.
+                  If you do not have a USTA profile, create one with the same email you used for MRSA. Please also download the USTA Serve app and log in using that account.
                 </p>
                 <a className="inline-flex w-max items-center gap-1.5 text-[13px] font-medium text-brand" href="https://www.usta.com/" target="_blank" rel="noreferrer">
                   Create or view USTA profile
@@ -2448,6 +2447,13 @@ type FitnessDay = {
   day: number;
   exercises: string[];
 };
+type CommunityFitnessPlayer = {
+  playerId: string;
+  name: string;
+  city: string;
+  profilePhotoUrl: string;
+  completedDays: number;
+};
 
 const tennisFitnessRegimen: FitnessDay[] = [
   { day: 1, exercises: ["Push ups - 5", "Squats - 25", "Crunches - 10", "Lunges - 20"] },
@@ -2524,6 +2530,8 @@ export function FitnessScreen() {
   const [completedDays, setCompletedDays] = useState<number[]>([]);
   const [selectedFitnessDay, setSelectedFitnessDay] = useState(1);
   const [tournamentStartsOn, setTournamentStartsOn] = useState<string | null>(null);
+  const [communityPlayers, setCommunityPlayers] = useState<CommunityFitnessPlayer[]>([]);
+  const [communityMessage, setCommunityMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingDay, setSavingDay] = useState<number | null>(null);
   const [message, setMessage] = useState("");
@@ -2540,6 +2548,8 @@ export function FitnessScreen() {
       return;
     }
 
+    setCommunityMessage("");
+    const today = new Date().toISOString().slice(0, 10);
     const [progressResult, tournamentResult] = await Promise.all([
       supabase
         .from("player_fitness_progress")
@@ -2548,21 +2558,79 @@ export function FitnessScreen() {
         .order("day_number", { ascending: true }),
       supabase
         .from("tournaments")
-        .select("starts_on")
+        .select("id, starts_on")
+        .gte("starts_on", today)
         .in("status", ["registration_open", "registration_closed", "live"])
         .order("starts_on", { ascending: true })
         .limit(1)
         .maybeSingle()
     ]);
 
-    if (progressResult.error) {
-      setMessage(getFriendlyError(progressResult.error));
+    if (progressResult.error || tournamentResult.error) {
+      setMessage(getFriendlyError(progressResult.error || tournamentResult.error));
       setLoading(false);
       return;
     }
 
     const completed = (progressResult.data || []).map((row) => Number(row.day_number)).filter(Boolean);
     const startsOn = tournamentResult.data?.starts_on || null;
+    const tournamentId = tournamentResult.data?.id || "";
+
+    if (tournamentId) {
+      const registrationsResult = await supabase
+        .from("tournament_registrations")
+        .select("player_id, players(id, full_name, jamaat_city, profile_photo_url)")
+        .eq("tournament_id", tournamentId)
+        .neq("status", "cancelled")
+        .in("payment_status", ["paid", "waived"])
+        .order("registered_at", { ascending: true });
+
+      if (registrationsResult.error) {
+        setCommunityPlayers([]);
+        setCommunityMessage("Community progress is temporarily unavailable.");
+      } else {
+        const registrations = registrationsResult.data || [];
+        const registeredPlayerIds = [...new Set(registrations.map((row) => row.player_id).filter(Boolean))];
+        const communityProgressResult = registeredPlayerIds.length
+          ? await supabase
+              .from("player_fitness_progress")
+              .select("player_id, day_number")
+              .in("player_id", registeredPlayerIds)
+          : { data: [], error: null };
+
+        if (communityProgressResult.error) {
+          setCommunityPlayers([]);
+          setCommunityMessage("Community progress is temporarily unavailable.");
+        } else {
+          const completedByPlayer = new Map<string, Set<number>>();
+          (communityProgressResult.data || []).forEach((row) => {
+            const playerId = row.player_id || "";
+            const dayNumber = Number(row.day_number);
+            if (!playerId || !dayNumber) return;
+            const playerDays = completedByPlayer.get(playerId) || new Set<number>();
+            playerDays.add(dayNumber);
+            completedByPlayer.set(playerId, playerDays);
+          });
+          setCommunityPlayers(registrations
+            .map((row) => {
+              const player = Array.isArray(row.players) ? row.players[0] : row.players;
+              const playerId = row.player_id || player?.id || "";
+              return {
+                playerId,
+                name: player?.full_name || "Player",
+                city: player?.jamaat_city || "MRSA",
+                profilePhotoUrl: player?.profile_photo_url || "",
+                completedDays: completedByPlayer.get(playerId)?.size || 0
+              };
+            })
+            .filter((player) => player.playerId)
+            .sort((a, b) => b.completedDays - a.completedDays || a.name.localeCompare(b.name)));
+        }
+      }
+    } else {
+      setCommunityPlayers([]);
+    }
+
     const paceDay = getFitnessPaceDay(getFitnessDaysUntilTournament(startsOn));
     const highestCompletedDay = completed.length ? Math.max(...completed) : 0;
     const suggestedDay = Math.min(30, Math.max(paceDay, highestCompletedDay + 1));
@@ -2592,6 +2660,8 @@ export function FitnessScreen() {
     return () => window.cancelAnimationFrame(frame);
   }, [loading, selectedFitnessDay]);
 
+  const fitnessTournamentCountdown = useTournamentCountdown(tournamentStartsOn);
+
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
   const completedCount = completedDays.length;
   const progressPercent = Math.round((completedCount / tennisFitnessRegimen.length) * 100);
@@ -2611,6 +2681,11 @@ export function FitnessScreen() {
         : `Plan pace: Day ${paceDay}`;
   const recommendedDayNumber = Math.min(30, Math.max(paceDay, highestCompletedDay + 1));
   const recommendedOpenDay = tennisFitnessRegimen.find((day) => day.day >= recommendedDayNumber && !completedDays.includes(day.day)) || nextDay;
+  const communityActivePlayers = communityPlayers.filter((player) => player.completedDays > 0).length;
+  const communityCompletedWorkouts = communityPlayers.reduce((total, player) => total + player.completedDays, 0);
+  const fitnessTournamentTime = fitnessTournamentCountdown.state === "countdown"
+    ? `${fitnessTournamentCountdown.days}d ${formatCountdownValue(fitnessTournamentCountdown.hours)}h ${formatCountdownValue(fitnessTournamentCountdown.minutes)}m ${formatCountdownValue(fitnessTournamentCountdown.seconds)}s`
+    : fitnessTournamentCountdown.label;
   const openedFromTournament = searchParams.get("from") === "tournament";
   const fitnessBackHref = openedFromTournament ? "/tournaments" : "/dashboard";
   const fitnessBackLabel = openedFromTournament ? "Back to tournament" : "Back to dashboard";
@@ -2643,6 +2718,11 @@ export function FitnessScreen() {
     }
 
     setCompletedDays((current) => currentlyDone ? current.filter((value) => value !== day) : [...new Set([...current, day])].sort((a, b) => a - b));
+    setCommunityPlayers((current) => current
+      .map((player) => player.playerId === appSession.player?.id
+        ? { ...player, completedDays: Math.max(0, Math.min(30, player.completedDays + (currentlyDone ? -1 : 1))) }
+        : player)
+      .sort((a, b) => b.completedDays - a.completedDays || a.name.localeCompare(b.name)));
   };
 
   const selectPreviousFitnessDay = () => setSelectedFitnessDay((current) => Math.max(1, current - 1));
@@ -2684,7 +2764,7 @@ export function FitnessScreen() {
               <span className="grid grid-cols-2 gap-2 md:min-w-[270px]">
                 <span className="grid gap-0.5 rounded-[14px] border-hairline border-white/12 bg-white/10 px-3 py-2 backdrop-blur">
                   <em className="inline-flex items-center gap-1.5 text-[10px] font-medium not-italic uppercase tracking-[0.06em] text-white/52"><Calendar size={12} /> Tournament</em>
-                  <strong className="text-[17px] font-medium leading-tight text-white">{daysUntilTournament == null ? "Date TBD" : daysUntilTournament === 0 ? "Today" : `${daysUntilTournament} days`}</strong>
+                  <strong className="whitespace-nowrap text-[13px] font-medium leading-tight tabular-nums text-white sm:text-[14px]">{fitnessTournamentTime}</strong>
                 </span>
                 <span className="grid gap-0.5 rounded-[14px] border-hairline border-white/12 bg-white/10 px-3 py-2 backdrop-blur">
                   <em className="inline-flex items-center gap-1.5 text-[10px] font-medium not-italic uppercase tracking-[0.06em] text-white/52"><CheckCircle2 size={12} /> Progress</em>
@@ -2834,6 +2914,66 @@ export function FitnessScreen() {
                 </button>
               </div>
             </article>
+          </section>
+
+          <section className="grid gap-3 rounded-[20px] border-hairline border-line bg-white p-4 shadow-[0_12px_30px_rgba(12,59,32,0.06)]" aria-labelledby="community-fitness-title">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <span className="grid gap-0.5">
+                <em className="text-[10px] font-medium not-italic uppercase tracking-[0.1em] text-[#3b6d11]">Training together</em>
+                <h2 className="text-[19px] font-medium tracking-[-0.2px] text-text-primary" id="community-fitness-title">Fitness Leaderboard</h2>
+                <p className="text-[12px] text-text-secondary">See every registered player’s progress and keep each other moving.</p>
+              </span>
+              <span className="grid grid-cols-2 gap-2 text-center">
+                <span className="grid min-w-[86px] gap-0.5 rounded-[12px] bg-brand-light px-2.5 py-2">
+                  <strong className="text-[16px] font-medium leading-none text-brand">{communityActivePlayers}/{communityPlayers.length}</strong>
+                  <em className="text-[9px] font-medium not-italic uppercase tracking-[0.04em] text-[#3b6d11]">Training</em>
+                </span>
+                <span className="grid min-w-[86px] gap-0.5 rounded-[12px] bg-surface px-2.5 py-2">
+                  <strong className="text-[16px] font-medium leading-none text-brand">{communityCompletedWorkouts}</strong>
+                  <em className="text-[9px] font-medium not-italic uppercase tracking-[0.04em] text-text-secondary">Workouts</em>
+                </span>
+              </span>
+            </div>
+
+            {communityMessage && <StatusMessage tone="info">{communityMessage}</StatusMessage>}
+            {loading && (
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, index) => <span className="h-[58px] animate-pulse rounded-[14px] bg-surface" key={index} />)}
+              </div>
+            )}
+            {!loading && !communityPlayers.length && !communityMessage && (
+              <p className="rounded-[14px] bg-surface/60 p-3 text-[12px] text-text-secondary">Registered-player progress will appear here once tournament registration is available.</p>
+            )}
+            {!loading && !!communityPlayers.length && (
+              <div className="grid max-h-[330px] gap-2 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3" aria-label="Registered player fitness progress">
+                {communityPlayers.map((player, index) => {
+                  const playerProgressPercent = Math.round((player.completedDays / tennisFitnessRegimen.length) * 100);
+                  const isCurrentPlayer = player.playerId === appSession.player?.id;
+                  return (
+                    <article className={isCurrentPlayer ? "grid min-w-0 grid-cols-[24px_36px_minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] border-hairline border-brand/25 bg-brand-light/55 p-2" : "grid min-w-0 grid-cols-[24px_36px_minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] border-hairline border-line bg-surface/35 p-2"} key={player.playerId}>
+                      <span className={index < 3 ? "grid h-6 w-6 place-items-center rounded-full bg-brand text-[9px] font-medium text-white" : "grid h-6 w-6 place-items-center rounded-full bg-white text-[9px] font-medium text-text-secondary"}>#{index + 1}</span>
+                      <Avatar className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-light text-[10px] font-medium text-[#3b6d11] shadow-[0_5px_12px_rgba(12,59,32,0.08)]" name={player.name} photoUrl={player.profilePhotoUrl} ariaLabel={`${player.name} profile photo`} sizes="36px" />
+                      <span className="grid min-w-0 gap-1">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <strong className="truncate text-[12px] font-medium text-text-primary">{player.name}</strong>
+                          {isCurrentPlayer && <em className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[8px] font-medium not-italic uppercase text-brand">You</em>}
+                        </span>
+                        <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                          <span className="h-1.5 overflow-hidden rounded-full bg-white">
+                            <span className="block h-full rounded-full bg-[linear-gradient(90deg,#0c3b20,#4cde8c)]" style={{ width: `${playerProgressPercent}%` }} />
+                          </span>
+                          <em className="truncate text-[8px] not-italic text-text-muted">{player.city}</em>
+                        </span>
+                      </span>
+                      <span className="grid min-w-[40px] justify-items-center rounded-[10px] bg-white px-1.5 py-1.5">
+                        <strong className="text-[13px] font-medium leading-none text-brand">{player.completedDays}</strong>
+                        <em className="text-[7px] font-medium not-italic uppercase text-text-muted">of 30</em>
+                      </span>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
           <details className="group overflow-hidden rounded-[16px] border-hairline border-[#dbe8cd] bg-brand-light">
@@ -3087,7 +3227,7 @@ export function TournamentScheduleScreen() {
               </div>
 
               <Link className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[14px] border-hairline border-white/20 bg-white/10 px-4 text-[13px] font-medium text-white backdrop-blur sm:justify-self-center md:w-max" href="/tournaments/schedule/rules">
-                View considerations and match rules
+                Tournament Rules &amp; Regulations
                 <ArrowRight size={14} />
                 <span className="rounded-full bg-white/14 px-2 py-0.5 text-[11px] text-white/72">{notes.length}</span>
               </Link>
@@ -3105,7 +3245,7 @@ export function TournamentScheduleScreen() {
             {filter === "day2" && (
               <div className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2.5 rounded-[15px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-3 py-2.5 text-[#8a4a22]">
                 <span className="grid h-7 w-7 place-items-center rounded-full bg-white"><Info size={14} /></span>
-                <p className="text-[13px] leading-relaxed">No dedicated lunch break on Day 2—please coordinate and eat when your match schedule allows.</p>
+                <p className="text-[13px] leading-relaxed">No dedicated lunch break on Day 2. Lunch will be available from 11:30 AM onward—please eat when your match schedule allows.</p>
               </div>
             )}
             {filter === "matches" && (
@@ -4994,7 +5134,7 @@ function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, ownSide, ent
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <span className="grid gap-1">
             <strong className="text-[18px] font-medium text-text-primary">Score entry</strong>
-            <em className="text-[13px] not-italic text-text-secondary">Best of three sets. Set 3 only if needed.</em>
+            <em className="text-[13px] not-italic text-text-secondary">Best of three sets. Set 3 would be a tie-breaker.</em>
           </span>
           <span className={canSubmit ? "w-fit rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]" : "w-fit rounded-full bg-surface px-3 py-1.5 text-[12px] font-medium text-text-secondary"}>{entryLabel}</span>
         </div>

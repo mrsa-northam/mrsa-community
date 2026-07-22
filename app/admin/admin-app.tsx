@@ -109,6 +109,8 @@ type AdminTeam = {
   isPublished: boolean;
   logoUrl: string;
   jerseyColor: string;
+  sponsorName: string;
+  sponsorLogoUrl: string;
   members: AdminTeamMember[];
 };
 type AdminInterestedPlayer = {
@@ -1049,7 +1051,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .limit(500),
       supabase
         .from("tournament_teams")
-        .select("id, tournament_id, name, sort_order, is_published, logo_url, jersey_color, tournament_team_members(id, team_id, tournament_id, registration_id, player_id, is_captain, draft_order, tier_at_draft, shirt_name_snapshot)")
+        .select("id, tournament_id, name, sort_order, is_published, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, team_id, tournament_id, registration_id, player_id, is_captain, draft_order, tier_at_draft, shirt_name_snapshot)")
         .eq("tournament_id", tournamentId)
         .order("sort_order", { ascending: true })
         .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
@@ -1150,6 +1152,8 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
           isPublished: Boolean(team.is_published),
           logoUrl: team.logo_url || "",
           jerseyColor: normalizeTeamColor(team.jersey_color),
+          sponsorName: team.sponsor_name || "",
+          sponsorLogoUrl: team.sponsor_logo_url || "",
           members: members.map((member) => ({
             id: member.id,
             teamId: member.team_id,
@@ -1579,6 +1583,93 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
 
     setTeams((current) => current.map((item) => item.id === team.id ? { ...item, logoUrl: "" } : item));
     setNotice({ type: "success", text: "Team logo removed." });
+  };
+
+  const updateTeamSponsor = async (team: AdminTeam, sponsorName: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    const nextSponsorName = sponsorName.trim();
+    setTeamActionKey(`sponsor:${team.id}`);
+    setNotice(null);
+    const { error: teamError } = await supabase
+      .from("tournament_teams")
+      .update({ sponsor_name: nextSponsorName || null })
+      .eq("id", team.id)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (teamError) {
+      setNotice({ type: "error", text: teamError.message });
+      return;
+    }
+
+    setTeams((current) => current.map((item) => item.id === team.id ? { ...item, sponsorName: nextSponsorName } : item));
+    setNotice({ type: "success", text: nextSponsorName ? "Sponsor name saved." : "Sponsor name removed." });
+  };
+
+  const replaceTeamSponsorLogo = async (team: AdminTeam, file: File) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    const logoError = validateTeamLogoFile(file);
+    if (logoError) {
+      setNotice({ type: "error", text: logoError.replace("Logo", "Sponsor logo") });
+      return;
+    }
+
+    setTeamActionKey(`sponsor-logo:${team.id}`);
+    setNotice(null);
+    const path = getTeamSponsorLogoStoragePath(tournament.id, team.id, file);
+    const upload = await supabase.storage.from(TEAM_LOGO_BUCKET).upload(path, file, {
+      cacheControl: "3600",
+      contentType: file.type,
+      upsert: false
+    });
+
+    if (upload.error) {
+      setTeamActionKey(null);
+      setNotice({ type: "error", text: upload.error.message });
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage.from(TEAM_LOGO_BUCKET).getPublicUrl(path);
+    const { error: teamError } = await supabase
+      .from("tournament_teams")
+      .update({ sponsor_logo_url: publicUrlData.publicUrl })
+      .eq("id", team.id)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (teamError) {
+      setNotice({ type: "error", text: teamError.message });
+      return;
+    }
+
+    setTeams((current) => current.map((item) => item.id === team.id ? { ...item, sponsorLogoUrl: publicUrlData.publicUrl } : item));
+    setNotice({ type: "success", text: "Sponsor logo saved." });
+  };
+
+  const removeTeamSponsorLogo = async (team: AdminTeam) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+
+    setTeamActionKey(`remove-sponsor-logo:${team.id}`);
+    setNotice(null);
+    const { error: teamError } = await supabase
+      .from("tournament_teams")
+      .update({ sponsor_logo_url: null })
+      .eq("id", team.id)
+      .eq("tournament_id", tournament.id);
+    setTeamActionKey(null);
+
+    if (teamError) {
+      setNotice({ type: "error", text: teamError.message });
+      return;
+    }
+
+    setTeams((current) => current.map((item) => item.id === team.id ? { ...item, sponsorLogoUrl: "" } : item));
+    setNotice({ type: "success", text: "Sponsor logo removed." });
   };
 
   const deleteTeam = async (team: AdminTeam) => {
@@ -2102,6 +2193,9 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                   onUpdateTeamColor={updateTeamColor}
                   onReplaceTeamLogo={replaceTeamLogo}
                   onRemoveTeamLogo={removeTeamLogo}
+                  onUpdateTeamSponsor={updateTeamSponsor}
+                  onReplaceTeamSponsorLogo={replaceTeamSponsorLogo}
+                  onRemoveTeamSponsorLogo={removeTeamSponsorLogo}
                   onDeleteTeam={deleteTeam}
                   onTogglePublished={toggleTeamPublished}
                   onAssignPlayer={assignPlayerToTeam}
@@ -2182,6 +2276,9 @@ function AdminTeamBuilder({
   onUpdateTeamColor,
   onReplaceTeamLogo,
   onRemoveTeamLogo,
+  onUpdateTeamSponsor,
+  onReplaceTeamSponsorLogo,
+  onRemoveTeamSponsorLogo,
   onDeleteTeam,
   onTogglePublished,
   onAssignPlayer,
@@ -2197,6 +2294,9 @@ function AdminTeamBuilder({
   onUpdateTeamColor: (team: AdminTeam, color: string) => Promise<void>;
   onReplaceTeamLogo: (team: AdminTeam, file: File) => Promise<void>;
   onRemoveTeamLogo: (team: AdminTeam) => Promise<void>;
+  onUpdateTeamSponsor: (team: AdminTeam, sponsorName: string) => Promise<void>;
+  onReplaceTeamSponsorLogo: (team: AdminTeam, file: File) => Promise<void>;
+  onRemoveTeamSponsorLogo: (team: AdminTeam) => Promise<void>;
   onDeleteTeam: (team: AdminTeam) => Promise<void>;
   onTogglePublished: (team: AdminTeam) => Promise<void>;
   onAssignPlayer: (player: AdminRegisteredPlayer, teamId: string) => Promise<void>;
@@ -2206,6 +2306,7 @@ function AdminTeamBuilder({
 }) {
   const [renameValues, setRenameValues] = useState<Record<string, string>>({});
   const [teamColors, setTeamColors] = useState<Record<string, string>>({});
+  const [sponsorNames, setSponsorNames] = useState<Record<string, string>>({});
   const [selectedTeams, setSelectedTeams] = useState<Record<string, string>>({});
   const [shirtNames, setShirtNames] = useState<Record<string, string>>({});
   const assignedRegistrationIds = new Set(teams.flatMap((team) => team.members.map((member) => member.registrationId)));
@@ -2260,10 +2361,16 @@ function AdminTeamBuilder({
           const captainPlayer = captain ? playerByRegistration.get(captain.registrationId) : null;
           const renameValue = renameValues[team.id] ?? team.name;
           const teamColor = teamColors[team.id] ?? team.jerseyColor;
+          const sponsorNameValue = sponsorNames[team.id] ?? team.sponsorName;
           const onLogoChange = (event: ChangeEvent<HTMLInputElement>) => {
             const file = event.target.files?.[0];
             event.target.value = "";
             if (file) void onReplaceTeamLogo(team, file);
+          };
+          const onSponsorLogoChange = (event: ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) void onReplaceTeamSponsorLogo(team, file);
           };
 
           return (
@@ -2325,6 +2432,38 @@ function AdminTeamBuilder({
                           </button>
                           <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-3 text-xs font-medium text-[#a32d2d] disabled:opacity-50" type="button" onClick={() => onRemoveTeamLogo(team)} disabled={!team.logoUrl || actionKey === `remove-logo:${team.id}`}>
                             Remove logo
+                          </button>
+                        </span>
+                      </div>
+                      <div className="grid gap-2 rounded-[14px] border-hairline border-[#dbe8cd] bg-[#f7fbf3] p-2 lg:grid-cols-[minmax(180px,1fr)_minmax(210px,1fr)_auto] lg:items-end">
+                        <label className="grid gap-1 text-[12px] text-text-secondary">
+                          Sponsor name
+                          <input
+                            className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light"
+                            value={sponsorNameValue}
+                            maxLength={100}
+                            placeholder="Optional sponsor"
+                            onChange={(event) => setSponsorNames((current) => ({ ...current, [team.id]: event.target.value }))}
+                          />
+                        </label>
+                        <span className="grid gap-1 text-[12px] text-text-secondary">
+                          Sponsor logo
+                          <label className={actionKey === `sponsor-logo:${team.id}` ? "inline-flex min-h-10 cursor-wait items-center justify-center gap-2 rounded-[12px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand opacity-60" : "tap-card inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-[12px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand"}>
+                            {team.sponsorLogoUrl ? (
+                              <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-[8px] border-hairline border-line bg-white">
+                                <img className="h-full w-full object-contain p-0.5" src={team.sponsorLogoUrl} alt="" />
+                              </span>
+                            ) : <ImagePlus size={14} />}
+                            {actionKey === `sponsor-logo:${team.id}` ? "Uploading..." : team.sponsorLogoUrl ? "Replace sponsor logo" : "Upload sponsor logo"}
+                            <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" onChange={onSponsorLogoChange} disabled={actionKey === `sponsor-logo:${team.id}`} />
+                          </label>
+                        </span>
+                        <span className="flex flex-wrap gap-2 lg:justify-end">
+                          <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-brand px-3 text-xs font-medium text-white disabled:opacity-50" type="button" onClick={() => onUpdateTeamSponsor(team, sponsorNameValue)} disabled={actionKey === `sponsor:${team.id}` || sponsorNameValue.trim() === team.sponsorName}>
+                            {actionKey === `sponsor:${team.id}` ? "Saving..." : "Save sponsor"}
+                          </button>
+                          <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-3 text-xs font-medium text-[#a32d2d] disabled:opacity-50" type="button" onClick={() => onRemoveTeamSponsorLogo(team)} disabled={!team.sponsorLogoUrl || actionKey === `remove-sponsor-logo:${team.id}`}>
+                            {actionKey === `remove-sponsor-logo:${team.id}` ? "Removing..." : "Remove logo"}
                           </button>
                         </span>
                       </div>
@@ -3013,6 +3152,8 @@ function isAdminDraftSchemaMissing(message: string) {
     || normalized.includes("jersey_name")
     || normalized.includes("logo_url")
     || normalized.includes("jersey_color")
+    || normalized.includes("sponsor_name")
+    || normalized.includes("sponsor_logo_url")
     || normalized.includes("tournament_teams")
     || normalized.includes("tournament_team_members")
     || normalized.includes("could not find")
@@ -3506,6 +3647,10 @@ function getTeamLogoExtension(file: File) {
 
 function getTeamLogoStoragePath(tournamentId: string, teamId: string, file: File) {
   return `${tournamentId}/${teamId}-${Date.now()}.${getTeamLogoExtension(file)}`;
+}
+
+function getTeamSponsorLogoStoragePath(tournamentId: string, teamId: string, file: File) {
+  return `${tournamentId}/${teamId}-sponsor-${Date.now()}.${getTeamLogoExtension(file)}`;
 }
 
 function formatAdminClaimStatus(status: string) {
