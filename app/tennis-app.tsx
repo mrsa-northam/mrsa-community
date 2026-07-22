@@ -60,10 +60,10 @@ type TournamentFaq = { question: string; answer: string };
 type RegisteredPlayer = { id: string; name: string; age: string; city: string; rating: string; tennisVideoUrl: string };
 type TournamentProfileReminder = { missingPhoto: boolean; missingJerseyName: boolean; missingJerseySize: boolean };
 type PublishedTeamMember = { id: string; playerId: string; name: string; age: string; city: string; tier: string; rating: string; profilePhotoUrl: string; isCaptain: boolean; draftOrder: number | null };
-type PublishedTeam = { id: string; name: string; sortOrder: number; logoUrl: string; jerseyColor: string; members: PublishedTeamMember[] };
+type PublishedTeam = { id: string; name: string; sortOrder: number; logoUrl: string; jerseyColor: string; sponsorName: string; sponsorLogoUrl: string; members: PublishedTeamMember[] };
 type PublishedTeamPlayerRow = { id?: string | null; full_name?: string | null; jamaat_city?: string | null; age?: number | null; date_of_birth?: string | null; rating?: number | string | null; profile_photo_url?: string | null };
 type PublishedTeamMemberRow = { id?: string | null; is_captain?: boolean | null; draft_order?: number | null; tier_at_draft?: number | null; players?: PublishedTeamPlayerRow | PublishedTeamPlayerRow[] | null };
-type PublishedTeamRow = { id?: string | null; name?: string | null; sort_order?: number | null; logo_url?: string | null; jersey_color?: string | null; tournament_team_members?: PublishedTeamMemberRow | PublishedTeamMemberRow[] | null };
+type PublishedTeamRow = { id?: string | null; name?: string | null; sort_order?: number | null; logo_url?: string | null; jersey_color?: string | null; sponsor_name?: string | null; sponsor_logo_url?: string | null; tournament_team_members?: PublishedTeamMemberRow | PublishedTeamMemberRow[] | null };
 type ScheduleNote = { id: string; title: string; body: string; sortOrder: number };
 type ScheduleItem = {
   id: string;
@@ -139,6 +139,8 @@ type TeamCourtScheduleMatch = {
   teamAColor: string;
   teamBColor: string;
   format: "Singles" | "Doubles";
+  matchType: string;
+  tierRule: string;
   playersA: string[];
   playersB: string[];
   playerProfilesA: MatchPlayerProfile[];
@@ -153,6 +155,77 @@ type TeamCourtScheduleBlock = {
   primaryTeam: string;
   opponentTeam: string;
   matches: TeamCourtScheduleMatch[];
+};
+type TeamStanding = {
+  team: PublishedTeam;
+  seed: number;
+  completedMatches: number;
+  scheduledMatches: number;
+  matchWins: number;
+  matchLosses: number;
+  setsWon: number;
+  setsLost: number;
+  gamesWon: number;
+  gamesLost: number;
+  tieBreakWins: number;
+  setWinPercentage: number;
+  gameWinPercentage: number;
+  requiresReview: boolean;
+};
+type PlayerStanding = {
+  player: PublishedTeamMember;
+  team: PublishedTeam;
+  tier: string;
+  tierNumber: number;
+  tierRank: number;
+  completedMatches: number;
+  matchWins: number;
+  matchLosses: number;
+  setsWon: number;
+  setsLost: number;
+  gamesWon: number;
+  gamesLost: number;
+  tieBreakWins: number;
+  setWinPercentage: number;
+  gameWinPercentage: number;
+};
+type BracketStageKey = "quarterfinals" | "second-chance" | "re-entry" | "semifinals" | "final";
+type BracketSlot = {
+  team: PublishedTeam | null;
+  seed: number | null;
+  fallbackLabel: string;
+};
+type TeamTieResult = {
+  matches: TeamCourtScheduleMatch[];
+  scheduledMatches: number;
+  completedMatches: number;
+  matchWinsA: number;
+  matchWinsB: number;
+  setsWonA: number;
+  setsWonB: number;
+  gamesWonA: number;
+  gamesWonB: number;
+  winnerTeamId: string;
+  loserTeamId: string;
+  decidedBy: "match wins" | "set percentage" | "game percentage" | "pending" | "organizer review";
+  isClinched: boolean;
+  hasTieBreaker: boolean;
+};
+type LiveBracketNode = {
+  id: string;
+  label: string;
+  phase: string;
+  timeLabel: string;
+  timeMinutes: number[];
+  sideA: BracketSlot;
+  sideB: BracketSlot;
+  result: TeamTieResult;
+};
+type LiveBracketStage = {
+  key: BracketStageKey;
+  label: string;
+  helper: string;
+  nodes: LiveBracketNode[];
 };
 type PlayerScheduleMatchRow = {
   id: string;
@@ -2088,7 +2161,7 @@ export function DrawScreen() {
       ,
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", mappedTournament.id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -2126,6 +2199,8 @@ export function DrawScreen() {
         sortOrder: team.sort_order || 0,
         logoUrl: team.logo_url || "",
         jerseyColor: normalizeTeamColor(team.jersey_color),
+        sponsorName: team.sponsor_name || "",
+        sponsorLogoUrl: team.sponsor_logo_url || "",
         members: members
           .map((member) => {
             const player = Array.isArray(member.players) ? member.players[0] : member.players;
@@ -2292,7 +2367,7 @@ export function DrawScreen() {
           )}
 
           {tournament && (
-            <section className="grid gap-3 md:grid-cols-2">
+            <section className="grid gap-3 md:grid-cols-3">
               <Link className="tap-card group relative grid min-h-[136px] overflow-hidden rounded-[22px] border-hairline border-white/40 bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-4 text-white shadow-[0_18px_42px_rgba(12,59,32,0.16)]" href="/tournaments/schedule">
                 <span className="pointer-events-none absolute inset-0 opacity-25 court-lines" aria-hidden="true" />
                 <span className="relative grid h-full content-between gap-4">
@@ -2305,6 +2380,27 @@ export function DrawScreen() {
                   </span>
                   <span className="inline-flex w-max items-center gap-2 rounded-full bg-[#b7ff2f] px-3 py-1.5 text-[13px] font-medium text-[#14340f]">
                     View schedule
+                    <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </span>
+              </Link>
+
+              <Link className="tap-card group relative grid min-h-[136px] overflow-hidden rounded-[22px] border-hairline border-white/30 bg-[linear-gradient(145deg,#082d19,#104d2c_62%,#176638)] p-4 text-white shadow-[0_18px_42px_rgba(12,59,32,0.16)]" href="/tournaments/bracket">
+                <span className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full border border-white/10" aria-hidden="true" />
+                <span className="pointer-events-none absolute right-8 top-8 h-16 w-16 rounded-full border border-white/10" aria-hidden="true" />
+                <span className="relative grid h-full content-between gap-4">
+                  <span className="grid gap-1">
+                    <span className="inline-grid h-10 w-10 place-items-center rounded-[14px] bg-[#b7ff2f] text-[#14340f] shadow-[0_8px_18px_rgba(0,0,0,0.14)]">
+                      <Trophy size={19} />
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <strong className="text-[21px] font-medium leading-tight tracking-[-0.2px]">Live bracket &amp; leaderboard</strong>
+                      <em className="rounded-full bg-white/12 px-2 py-0.5 text-[9px] font-medium not-italic uppercase tracking-[0.08em] text-[#b7ff2f]">Live</em>
+                    </span>
+                    <em className="text-[13px] not-italic leading-relaxed text-white/65">Follow team seeds, advancement, scores, and the championship path.</em>
+                  </span>
+                  <span className="inline-flex w-max items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[13px] font-medium text-brand">
+                    Open bracket
                     <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
                   </span>
                 </span>
@@ -3048,7 +3144,7 @@ export function TournamentScheduleScreen() {
     const [teamsResult, itemsResult, notesResult, scheduleMatchesResult, schedulePlayersResult, scoresResult] = await Promise.all([
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", mappedTournament.id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -3105,6 +3201,8 @@ export function TournamentScheduleScreen() {
         sortOrder: team.sort_order || 0,
         logoUrl: team.logo_url || "",
         jerseyColor: normalizeTeamColor(team.jersey_color),
+        sponsorName: team.sponsor_name || "",
+        sponsorLogoUrl: team.sponsor_logo_url || "",
         members: members.map((member) => {
           const player = Array.isArray(member.players) ? member.players[0] : member.players;
           return {
@@ -3441,6 +3539,7 @@ export function TournamentScheduleRulesScreen() {
 
 export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) {
   const appSession = useProtectedRoute(`/tournaments/schedule/matches/${matchId}`, true);
+  const searchParams = useSearchParams();
   const [match, setMatch] = useState<TeamCourtScheduleMatch | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [isOwnMatch, setIsOwnMatch] = useState(false);
@@ -3479,7 +3578,7 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
         .maybeSingle(),
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", matchRow.tournament_id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -3526,6 +3625,7 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
 
   const entryWindow = getScoreEntryWindow(tournament?.startsOn || null, tournament?.endsOn || null);
   const canSubmitScore = Boolean(isOwnMatch && entryWindow.canEdit);
+  const openedFromBracket = searchParams.get("from") === "bracket";
   const submitScore = async () => {
     if (!match || !appSession.player?.id || !canSubmitScore) return;
     const supabase = getSupabaseClient();
@@ -3577,6 +3677,8 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
           {match && (
             <MatchDetailPageCard
               canSubmit={canSubmitScore}
+              backHref={openedFromBracket ? "/tournaments/bracket" : "/tournaments/schedule"}
+              backLabel={openedFromBracket ? "Back to live bracket" : "Back to schedule"}
               draft={draft}
               entryLabel={isOwnMatch ? entryWindow.label : "Read only"}
               isOwnMatch={isOwnMatch}
@@ -3612,7 +3714,7 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
     }
     const { data: teamRow, error: teamError } = await supabase
       .from("tournament_teams")
-      .select("id, tournament_id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+      .select("id, tournament_id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
       .eq("id", teamId)
       .maybeSingle();
     if (teamError || !teamRow) {
@@ -3623,7 +3725,7 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
     const [teamsResult, matchesResult, participantsResult, scoresResult] = await Promise.all([
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", teamRow.tournament_id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -3685,6 +3787,178 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
   );
 }
 
+export function TournamentBracketScreen() {
+  const appSession = useProtectedRoute("/tournaments/bracket", true);
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [teams, setTeams] = useState<PublishedTeam[]>([]);
+  const [matches, setMatches] = useState<TeamCourtScheduleMatch[]>([]);
+  const [activeView, setActiveView] = useState<"bracket" | "team-leaderboard" | "player-leaderboard">("bracket");
+  const [selectedBracketDay, setSelectedBracketDay] = useState<1 | 2>(1);
+  const [selectedStage, setSelectedStage] = useState<BracketStageKey>("quarterfinals");
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const loadBracket = useCallback(async () => {
+    if (!appSession.ready || !appSession.userId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setMessage("Supabase env vars are missing.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: tournamentData, error: tournamentError } = await supabase
+      .from("tournaments")
+      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
+      .in("status", ["registration_open", "registration_closed", "live"])
+      .order("starts_on", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (tournamentError || !tournamentData) {
+      setTournament(null);
+      setTeams([]);
+      setMatches([]);
+      setMessage(tournamentError ? getFriendlyError(tournamentError) : "No active tournament found.");
+      setLoading(false);
+      return;
+    }
+
+    const mappedTournament = mapTournament(tournamentData);
+    const [teamsResult, matchesResult, participantsResult, scoresResult] = await Promise.all([
+      supabase
+        .from("tournament_teams")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .eq("tournament_id", mappedTournament.id)
+        .eq("is_published", true)
+        .order("sort_order", { ascending: true })
+        .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
+        .limit(40),
+      supabase
+        .from("tournament_schedule_matches")
+        .select("id, tournament_id, day_number, day_label, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
+        .eq("tournament_id", mappedTournament.id)
+        .eq("is_published", true)
+        .order("day_number", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .limit(600),
+      supabase
+        .from("tournament_schedule_match_players")
+        .select("id, schedule_match_id, team_id, player_id, side, slot, source_player_name")
+        .eq("tournament_id", mappedTournament.id)
+        .limit(2400),
+      supabase
+        .from("tournament_match_scores")
+        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+        .eq("tournament_id", mappedTournament.id)
+        .limit(800)
+    ]);
+
+    const scheduleSchemaMissing = isScheduleSchemaMissing(matchesResult.error?.message || participantsResult.error?.message || "");
+    const scoreSchemaMissing = isScoreSchemaMissing(scoresResult.error?.message || "");
+    if (teamsResult.error || (!scheduleSchemaMissing && (matchesResult.error || participantsResult.error)) || (!scoreSchemaMissing && scoresResult.error)) {
+      setMessage(getFriendlyError(teamsResult.error || matchesResult.error || participantsResult.error || scoresResult.error));
+      setLoading(false);
+      return;
+    }
+
+    const mappedTeams = mapPublishedTeamsFromRows(teamsResult.data || []);
+    const mappedScores = scoreSchemaMissing ? [] : mapMatchScores(scoresResult.data || []);
+    const mappedMatches = scheduleSchemaMissing ? [] : mapTeamCourtScheduleMatches(matchesResult.data || [], participantsResult.data || [], mappedTeams, mappedScores);
+    setTournament(mappedTournament);
+    setTeams(mappedTeams);
+    setMatches(mappedMatches);
+    setMessage(scoreSchemaMissing || scheduleSchemaMissing ? "The live bracket will activate after the tournament score migrations are applied." : "");
+    setLoading(false);
+  }, [appSession.ready, appSession.userId]);
+
+  useEffect(() => {
+    loadBracket();
+  }, [loadBracket]);
+
+  useEffect(() => {
+    if (!appSession.ready || !appSession.userId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const channel = supabase
+      .channel("live-team-bracket")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_match_scores" }, loadBracket)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_matches" }, loadBracket)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_match_players" }, loadBracket)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_teams" }, loadBracket)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [appSession.ready, appSession.userId, loadBracket]);
+
+  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+
+  const dayOneMatches = matches.filter((match) => match.dayNumber === 1);
+  const dayTwoMatches = matches.filter((match) => match.dayNumber === 2);
+  const dayOneRoundNodes = buildDayOneRoundNodes(teams, dayOneMatches);
+  const standings = getLiveTeamStandings(teams, dayOneMatches);
+  const playerStandings = getLivePlayerStandings(teams, matches);
+  const completedDayOneMatches = dayOneMatches.filter((match) => Boolean(match.score?.winnerSide)).length;
+  const seedingIsFinal = Boolean(dayOneMatches.length && completedDayOneMatches === dayOneMatches.length && !standings.some((standing) => standing.requiresReview));
+  const seedingStatus: "waiting" | "projected" | "final" = seedingIsFinal ? "final" : completedDayOneMatches ? "projected" : "waiting";
+  const bracketStages = buildLiveTeamBracket(standings, dayTwoMatches, seedingStatus !== "waiting");
+
+  return (
+    <AppFrame active="tournament">
+      <div className={memberPageClass}>
+        <AppTopBar />
+        <main className={memberMainClass}>
+          <section className={`${memberHeroClass} min-h-[150px] content-center p-4 pt-14 sm:min-h-[220px] sm:p-7 sm:pt-20`}>
+            <TournamentHeroAmbience />
+            <Link className="tap-card absolute left-3 top-3 z-20 inline-grid h-8 max-h-8 min-h-8 w-8 max-w-8 min-w-8 place-items-center rounded-full border-hairline border-white/25 bg-white/12 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)] backdrop-blur transition-transform hover:-translate-x-0.5 active:scale-[0.98] sm:left-4 sm:top-4 sm:h-9 sm:max-h-9 sm:min-h-9 sm:w-9 sm:max-w-9 sm:min-w-9" href="/tournaments" aria-label="Back to tournament">
+              <ArrowLeft size={15} />
+            </Link>
+            <span className="absolute right-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full border-hairline border-white/20 bg-white/12 px-2 py-1 text-[8px] font-medium uppercase tracking-[0.08em] text-[#b7ff2f] backdrop-blur sm:right-4 sm:top-4 sm:px-2.5 sm:py-1.5 sm:text-[10px]">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#b7ff2f]" />
+              Live results
+            </span>
+            <div className="relative z-10 mx-auto grid w-full justify-items-center gap-1.5 text-center sm:max-w-[720px] sm:gap-2">
+              <h1 className="max-w-[330px] text-[26px] font-medium leading-[1.02] tracking-[-0.6px] text-white sm:max-w-none sm:text-[48px] sm:tracking-[-0.8px]">Live bracket &amp; leaderboard</h1>
+              <p className="hidden max-w-[660px] text-[15px] leading-relaxed text-white/70 sm:block">Day 1 sets the seeds. Every submitted score then updates the team path through Advantage, Survival, Re-entry, Semifinals, and the Final.</p>
+            </div>
+          </section>
+
+          {message && <StatusMessage tone="warning">{message}</StatusMessage>}
+          {loading && Array.from({ length: 3 }).map((_, index) => <SkeletonRow key={index} />)}
+
+          {!loading && !teams.length && !message && <StatusMessage tone="info">Published teams will appear here once the rosters are ready.</StatusMessage>}
+
+          {!loading && !!teams.length && (
+            <>
+              <section className="grid grid-cols-3 gap-1 rounded-[17px] border-hairline border-line bg-white p-1.5 shadow-[0_10px_26px_rgba(24,24,26,0.05)]" aria-label="Bracket page view">
+                <button className={activeView === "bracket" ? "tap-card grid min-h-11 place-items-center rounded-[13px] bg-brand px-1.5 !text-center text-[11px] font-medium leading-tight text-white shadow-[0_8px_18px_rgba(12,59,32,0.14)] sm:px-3 sm:text-[13px]" : "tap-card grid min-h-11 place-items-center rounded-[13px] bg-surface/45 px-1.5 !text-center text-[11px] font-medium leading-tight text-text-secondary sm:px-3 sm:text-[13px]"} type="button" onClick={() => setActiveView("bracket")} aria-pressed={activeView === "bracket"}>Bracket</button>
+                <button className={activeView === "team-leaderboard" ? "tap-card grid min-h-11 place-items-center rounded-[13px] bg-brand px-1.5 !text-center text-[10px] font-medium leading-tight text-white shadow-[0_8px_18px_rgba(12,59,32,0.14)] sm:px-3 sm:text-[13px]" : "tap-card grid min-h-11 place-items-center rounded-[13px] bg-surface/45 px-1.5 !text-center text-[10px] font-medium leading-tight text-text-secondary sm:px-3 sm:text-[13px]"} type="button" onClick={() => setActiveView("team-leaderboard")} aria-pressed={activeView === "team-leaderboard"}>Team leaderboard</button>
+                <button className={activeView === "player-leaderboard" ? "tap-card grid min-h-11 place-items-center rounded-[13px] bg-brand px-1.5 !text-center text-[10px] font-medium leading-tight text-white shadow-[0_8px_18px_rgba(12,59,32,0.14)] sm:px-3 sm:text-[13px]" : "tap-card grid min-h-11 place-items-center rounded-[13px] bg-surface/45 px-1.5 !text-center text-[10px] font-medium leading-tight text-text-secondary sm:px-3 sm:text-[13px]"} type="button" onClick={() => setActiveView("player-leaderboard")} aria-pressed={activeView === "player-leaderboard"}>Player leaderboard</button>
+              </section>
+
+              {activeView === "team-leaderboard" && <LiveTeamLeaderboard completedMatches={completedDayOneMatches} matches={dayOneMatches.length} seasonYear={tournament?.seasonYear} seedingIsFinal={seedingIsFinal} standings={standings} />}
+              {activeView === "player-leaderboard" && <LivePlayerLeaderboard seasonYear={tournament?.seasonYear} standings={playerStandings} />}
+
+              {activeView === "bracket" && (
+                <>
+                  <section className="grid grid-cols-2 gap-1.5 rounded-[17px] border-hairline border-[#dbe8cd] bg-brand-light/65 p-1.5" aria-label="Bracket day filter">
+                    <button className={selectedBracketDay === 1 ? "tap-card flex min-h-11 items-center justify-center gap-2 rounded-[13px] bg-white px-2 text-brand shadow-[0_7px_16px_rgba(12,59,32,0.10)]" : "tap-card flex min-h-11 items-center justify-center gap-2 rounded-[13px] px-2 text-[#4f775b]"} type="button" onClick={() => setSelectedBracketDay(1)} aria-pressed={selectedBracketDay === 1}><strong className="text-[13px] font-medium">Day</strong><span className={selectedBracketDay === 1 ? "grid h-7 w-7 place-items-center rounded-full bg-brand text-[11px] font-semibold text-white" : "grid h-7 w-7 place-items-center rounded-full bg-white/75 text-[11px] font-semibold"}>1</span></button>
+                    <button className={selectedBracketDay === 2 ? "tap-card flex min-h-11 items-center justify-center gap-2 rounded-[13px] bg-white px-2 text-brand shadow-[0_7px_16px_rgba(12,59,32,0.10)]" : "tap-card flex min-h-11 items-center justify-center gap-2 rounded-[13px] px-2 text-[#4f775b]"} type="button" onClick={() => setSelectedBracketDay(2)} aria-pressed={selectedBracketDay === 2}><strong className="text-[13px] font-medium">Day</strong><span className={selectedBracketDay === 2 ? "grid h-7 w-7 place-items-center rounded-full bg-brand text-[11px] font-semibold text-white" : "grid h-7 w-7 place-items-center rounded-full bg-white/75 text-[11px] font-semibold"}>2</span></button>
+                  </section>
+                  {selectedBracketDay === 1
+                    ? <LiveDayOneRound nodes={dayOneRoundNodes} />
+                    : <LiveBracketBoard seedingStatus={seedingStatus} selectedStage={selectedStage} stages={bracketStages} onSelectStage={setSelectedStage} />}
+                </>
+              )}
+            </>
+          )}
+        </main>
+      </div>
+    </AppFrame>
+  );
+}
+
 export function TournamentTeamsScreen() {
   const appSession = useProtectedRoute("/tournaments/teams", true);
   const [teams, setTeams] = useState<PublishedTeam[]>([]);
@@ -3717,7 +3991,7 @@ export function TournamentTeamsScreen() {
 
     const { data: teamsData, error: teamsError } = await supabase
       .from("tournament_teams")
-      .select("id, name, sort_order, logo_url, jersey_color, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+      .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
       .eq("tournament_id", tournamentData.id)
       .eq("is_published", true)
       .order("sort_order", { ascending: true })
@@ -3795,7 +4069,20 @@ export function TournamentTeamsScreen() {
                         </span>
                       ))}
                     </span>
-                    <span className="inline-flex w-max rounded-full bg-white/85 px-2.5 py-1 text-[12px] font-medium text-[#24412c]">{formatPlayerCount(team.members.length)}</span>
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="inline-flex w-max rounded-full bg-white/85 px-2.5 py-1 text-[12px] font-medium text-[#24412c]">{formatPlayerCount(team.members.length)}</span>
+                      {team.sponsorName && (
+                        <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border-hairline border-white/45 bg-white/85 py-1 pl-1.5 pr-2.5 text-[#24412c]">
+                          {team.sponsorLogoUrl && (
+                            <span className="grid h-5 w-5 shrink-0 place-items-center overflow-hidden rounded-full bg-white p-0.5 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
+                              <img className="h-full w-full object-contain" src={team.sponsorLogoUrl} alt="" aria-hidden="true" />
+                            </span>
+                          )}
+                          <em className="shrink-0 text-[9px] font-medium not-italic uppercase tracking-[0.06em] opacity-60">Sponsored by</em>
+                          <strong className="truncate text-[11px] font-medium">{team.sponsorName}</strong>
+                        </span>
+                      )}
+                    </span>
                   </Link>
                 );
               })}
@@ -5086,7 +5373,7 @@ function PlayerScheduleTimeCard({ label, matches, onOpenMatch, isFeatured }: { l
   );
 }
 
-function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, ownSide, entryLabel, message, saving, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; draft: ScoreDraft; canSubmit: boolean; isOwnMatch: boolean; ownSide: "A" | "B" | null; entryLabel: string; message: string; saving: boolean; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
+function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, ownSide, entryLabel, message, saving, backHref, backLabel, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; draft: ScoreDraft; canSubmit: boolean; isOwnMatch: boolean; ownSide: "A" | "B" | null; entryLabel: string; message: string; saving: boolean; backHref: string; backLabel: string; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
   const showSideBOnLeft = ownSide === "B";
   const fallbackProfilesA = match.playersA.length
     ? match.playersA.map((name, index) => ({ id: `a-${index}`, name, profilePhotoUrl: "" }))
@@ -5107,7 +5394,7 @@ function MatchDetailPageCard({ match, draft, canSubmit, isOwnMatch, ownSide, ent
   return (
     <section className="grid gap-3">
       <article className="relative overflow-hidden rounded-[24px] border-hairline border-white/80 bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-3 pt-12 text-white shadow-[0_18px_44px_rgba(12,59,32,0.10)] sm:p-5 sm:pt-14">
-        <Link className="tap-card absolute left-3 top-3 z-10 inline-grid h-8 max-h-8 min-h-8 w-8 min-w-8 max-w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/10 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)]" href="/tournaments/schedule" aria-label="Back to schedule">
+        <Link className="tap-card absolute left-3 top-3 z-10 inline-grid h-8 max-h-8 min-h-8 w-8 min-w-8 max-w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/10 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)]" href={backHref} aria-label={backLabel}>
           <ArrowLeft size={15} />
         </Link>
         <div className="relative grid gap-4">
@@ -5241,6 +5528,771 @@ function ScoreSideLabel({ playerNames, color }: { playerNames: string; color: st
   );
 }
 
+function LiveDayOneRound({ nodes }: { nodes: LiveBracketNode[] }) {
+  const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
+  const timeTabsRef = useRef<HTMLDivElement | null>(null);
+  const timeCardsRef = useRef<HTMLDivElement | null>(null);
+  const groups = nodes.reduce<Array<{ key: string; label: string; nodes: LiveBracketNode[] }>>((list, node) => {
+    const key = String(node.timeMinutes[0] ?? node.timeLabel);
+    const existing = list.find((group) => group.key === key);
+    if (existing) existing.nodes.push(node);
+    else list.push({ key, label: node.timeLabel, nodes: [node] });
+    return list;
+  }, []);
+  const playerMatches = nodes.flatMap((node) => node.result.matches);
+  const completedMatches = playerMatches.filter((match) => Boolean(match.score?.winnerSide)).length;
+  const activeTimeIndex = Math.min(selectedTimeIndex, Math.max(0, groups.length - 1));
+  const selectTime = (index: number) => {
+    setSelectedTimeIndex(index);
+    const card = timeCardsRef.current?.children[index] as HTMLElement | undefined;
+    card?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+  };
+
+  return (
+    <section className="overflow-hidden rounded-[22px] border-hairline border-line bg-white shadow-[0_14px_34px_rgba(24,24,26,0.06)]" aria-labelledby="day-one-round-title">
+      <div className="grid gap-3 border-b-hairline border-line p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5">
+        <span className="grid gap-1">
+          <em className="text-[10px] font-medium not-italic uppercase tracking-[0.13em] text-brand">Day 1 · Round 1</em>
+          <h2 className="text-[22px] font-medium tracking-[-0.3px] text-text-primary" id="day-one-round-title">Every team and player matchup</h2>
+          <p className="max-w-[760px] text-[12px] leading-relaxed text-text-secondary">Follow each time slot from left to right. Every submitted player result updates its team path and the live Day 1 seeding.</p>
+        </span>
+        <span className="inline-flex w-max items-center gap-2 rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]">
+          <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+          {completedMatches} of {playerMatches.length} player matches
+        </span>
+      </div>
+
+      <div className="grid gap-3 bg-[#062b18] p-3 lg:hidden">
+        {!!groups.length && (
+          <>
+            <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1" aria-label="Day 1 time slots" ref={timeTabsRef}>
+              {groups.map((group, index) => {
+                const groupMatches = group.nodes.flatMap((node) => node.result.matches);
+                const groupCompleted = groupMatches.filter((match) => Boolean(match.score?.winnerSide)).length;
+                return (
+                  <button className={index === activeTimeIndex ? "tap-card grid min-w-[94px] snap-start gap-0.5 rounded-[12px] border-hairline border-[#b7ff2f]/50 bg-[#b7ff2f] px-3 py-2 text-left text-[#14340f] shadow-[0_8px_18px_rgba(0,0,0,0.16)]" : "tap-card grid min-w-[94px] snap-start gap-0.5 rounded-[12px] border-hairline border-white/12 bg-white/[0.07] px-3 py-2 text-left text-white"} type="button" onClick={() => selectTime(index)} aria-pressed={index === activeTimeIndex} key={group.key}>
+                    <strong className="text-[12px] font-medium leading-none">{group.label}</strong>
+                    <em className={index === activeTimeIndex ? "text-[8px] font-medium not-italic text-[#315114]" : "text-[8px] font-medium not-italic text-white/45"}>{groupCompleted}/{groupMatches.length} results</em>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto" ref={timeCardsRef} onScroll={(event) => {
+              const scroller = event.currentTarget;
+              const cards = Array.from(scroller.children) as HTMLElement[];
+              if (!cards.length) return;
+              const nextIndex = cards.reduce((closestIndex, card, index) => Math.abs(card.offsetLeft - scroller.scrollLeft) < Math.abs(cards[closestIndex].offsetLeft - scroller.scrollLeft) ? index : closestIndex, 0);
+              if (nextIndex === activeTimeIndex) return;
+              setSelectedTimeIndex(nextIndex);
+              const timeTab = timeTabsRef.current?.children[nextIndex] as HTMLElement | undefined;
+              timeTab?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+            }}>
+              {groups.map((group) => (
+                <section className="grid min-w-full snap-start content-start gap-2" key={group.key} aria-label={`${group.label} match cards`}>
+                  {group.nodes.map((node) => <LiveBracketMatchCard node={node} key={node.id} />)}
+                </section>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto bg-[#062b18] p-4 lg:block">
+        <div className="grid w-max grid-flow-col auto-cols-[230px] items-start gap-3">
+        {groups.map((group, index) => {
+          const groupMatches = group.nodes.flatMap((node) => node.result.matches);
+          const groupCompleted = groupMatches.filter((match) => Boolean(match.score?.winnerSide)).length;
+          return (
+            <section className="relative grid content-start gap-2" key={group.key} aria-label={`${group.label} matchups`}>
+              {index > 0 && <span className="pointer-events-none absolute -left-3 top-5 h-px w-3 bg-white/30" aria-hidden="true" />}
+              <span className="flex min-h-10 items-center justify-between gap-2 border-b-hairline border-white/12 px-1 pb-2">
+                <span className="grid gap-0.5">
+                  <strong className="text-[14px] font-medium text-white">{group.label}</strong>
+                  <em className="text-[8px] font-medium not-italic uppercase tracking-[0.05em] text-white/45">Time slot {index + 1}</em>
+                </span>
+                <em className="rounded-full bg-white/10 px-2 py-1 text-[8px] font-medium not-italic uppercase tracking-[0.05em] text-white/60">{groupCompleted}/{groupMatches.length}</em>
+              </span>
+              <div className="grid gap-2">{group.nodes.map((node) => <LiveBracketMatchCard node={node} key={node.id} />)}</div>
+            </section>
+          );
+        })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LiveTeamLeaderboard({ standings, completedMatches, matches, seedingIsFinal, seasonYear }: { standings: TeamStanding[]; completedMatches: number; matches: number; seedingIsFinal: boolean; seasonYear: number | null | undefined }) {
+  return (
+    <section className="overflow-hidden rounded-[22px] border-hairline border-line bg-white shadow-[0_14px_34px_rgba(24,24,26,0.06)]" aria-labelledby="team-leaderboard-title">
+      <div className="grid gap-3 border-b-hairline border-line p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5">
+        <span className="grid gap-1">
+          <em className="text-[10px] font-medium not-italic uppercase tracking-[0.13em] text-text-muted">Day 1 seeding</em>
+          <h2 className="text-[22px] font-medium tracking-[-0.3px] text-text-primary" id="team-leaderboard-title">Team leaderboard</h2>
+          <p className="text-[12px] leading-relaxed text-text-secondary">{seasonYear || new Date().getFullYear()} tournament results only: match wins, then set percentage, then game percentage.</p>
+        </span>
+        <span className={seedingIsFinal ? "inline-flex w-max items-center gap-2 rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]" : "inline-flex w-max items-center gap-2 rounded-full bg-[#fff4d8] px-3 py-1.5 text-[12px] font-medium text-[#8a5a00]"}>
+          {seedingIsFinal ? <CheckCircle2 size={14} /> : <RefreshCw size={13} />}
+          {seedingIsFinal ? "Final seeds" : `${completedMatches} of ${matches} results`}
+        </span>
+      </div>
+      <div className="grid gap-1.5 p-2.5 sm:p-3">
+        <div className="hidden grid-cols-[38px_minmax(180px,1fr)_72px_72px_72px] items-center gap-2 px-3 text-[9px] font-medium uppercase tracking-[0.08em] text-text-muted sm:grid">
+          <span>Seed</span>
+          <span>Team</span>
+          <span className="text-center">Wins</span>
+          <span className="text-center">Set %</span>
+          <span className="text-center">Game %</span>
+        </div>
+        {standings.map((standing) => (
+          <article className={standing.seed <= 4 ? "grid grid-cols-[34px_minmax(0,1fr)_132px] items-center gap-2 rounded-[15px] border-hairline border-[#dbe8cd] bg-[#f7fbf3] p-2.5 sm:grid-cols-[38px_minmax(180px,1fr)_72px_72px_72px] sm:px-3" : "grid grid-cols-[34px_minmax(0,1fr)_132px] items-center gap-2 rounded-[15px] border-hairline border-line bg-surface/38 p-2.5 sm:grid-cols-[38px_minmax(180px,1fr)_72px_72px_72px] sm:px-3"} key={standing.team.id}>
+            <strong className={standing.seed === 1 ? "grid h-8 w-8 place-items-center rounded-full bg-[#b7ff2f] text-[14px] font-semibold text-[#14340f]" : "grid h-8 w-8 place-items-center rounded-full bg-white text-[13px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(12,59,32,0.08)]"}>{standing.seed}</strong>
+            <span className="grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-2.5">
+              <span className="grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-[10px] bg-white p-1 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]">
+                {standing.team.logoUrl ? <img className="h-full w-full object-contain" src={standing.team.logoUrl} alt="" aria-hidden="true" /> : <span className="text-[10px] font-medium text-brand">{getInitials(standing.team.name)}</span>}
+              </span>
+              <span className="grid min-w-0 gap-0.5">
+                <strong className="truncate text-[13px] font-medium text-text-primary sm:text-[14px]">{standing.team.name}</strong>
+                <em className="truncate text-[9px] not-italic text-text-secondary sm:text-[10px]">{standing.completedMatches}/{standing.scheduledMatches} played · {standing.matchLosses} losses{standing.tieBreakWins ? ` · ${standing.tieBreakWins} TB wins` : ""}</em>
+                {standing.requiresReview && <em className="w-max rounded-full bg-[#fff4d8] px-1.5 py-0.5 text-[8px] font-medium not-italic uppercase tracking-[0.05em] text-[#8a5a00]">Organizer review</em>}
+              </span>
+            </span>
+            <span className="grid grid-cols-3 gap-1 text-center sm:contents">
+              <LeaderboardMetric label="Wins" value={String(standing.matchWins)} />
+              <LeaderboardMetric label="Sets" value={`${formatBracketPercentage(standing.setWinPercentage)}%`} />
+              <LeaderboardMetric label="Games" value={`${formatBracketPercentage(standing.gameWinPercentage)}%`} />
+            </span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LivePlayerLeaderboard({ standings, seasonYear }: { standings: PlayerStanding[]; seasonYear: number | null | undefined }) {
+  const tierGroups = standings.reduce<Array<{ tier: string; standings: PlayerStanding[] }>>((groups, standing) => {
+    const existing = groups.find((group) => group.tier === standing.tier);
+    if (existing) existing.standings.push(standing);
+    else groups.push({ tier: standing.tier, standings: [standing] });
+    return groups;
+  }, []);
+  const submittedResults = standings.reduce((total, standing) => total + standing.completedMatches, 0);
+
+  return (
+    <section className="overflow-hidden rounded-[22px] border-hairline border-line bg-white shadow-[0_14px_34px_rgba(24,24,26,0.06)]" aria-labelledby="player-leaderboard-title">
+      <div className="grid gap-3 border-b-hairline border-line p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5">
+        <span className="grid gap-1">
+          <em className="text-[10px] font-medium not-italic uppercase tracking-[0.13em] text-text-muted">Tier performance · {seasonYear || new Date().getFullYear()}</em>
+          <h2 className="text-[22px] font-medium tracking-[-0.3px] text-text-primary" id="player-leaderboard-title">Player leaderboard</h2>
+          <p className="max-w-[720px] text-[12px] leading-relaxed text-text-secondary">Players are ranked inside their drafted tier by tournament wins, then set percentage, then game percentage. Singles and doubles results count.</p>
+        </span>
+        <span className="inline-flex w-max items-center gap-2 rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]"><RefreshCw size={13} />{submittedResults} player results</span>
+      </div>
+
+      <div className="grid gap-3 p-2.5 sm:p-3 lg:grid-cols-2">
+        {tierGroups.map((group) => (
+          <section className="overflow-hidden rounded-[18px] border-hairline border-line bg-surface/30" key={group.tier} aria-label={`${group.tier} player standings`}>
+            <div className="flex items-center justify-between gap-2 border-b-hairline border-line bg-[#f4f8f2] px-3 py-2.5">
+              <span className="flex items-center gap-2">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-brand text-[11px] font-semibold text-white">{group.tier.replace(/\D/g, "") || "—"}</span>
+                <strong className="text-[14px] font-medium text-text-primary">{group.tier}</strong>
+              </span>
+              <em className="text-[9px] font-medium not-italic uppercase tracking-[0.06em] text-text-muted">Tier topper first</em>
+            </div>
+            <div className="grid gap-1.5 p-2">
+              {group.standings.map((standing) => (
+                <article className={standing.tierRank === 1 && standing.completedMatches > 0 ? "grid grid-cols-[30px_34px_minmax(0,1fr)_116px] items-center gap-2 rounded-[13px] border-hairline border-[#dbe8cd] bg-[#f7fbf3] p-2" : "grid grid-cols-[30px_34px_minmax(0,1fr)_116px] items-center gap-2 rounded-[13px] border-hairline border-line bg-white p-2"} key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`}>
+                  <strong className={standing.tierRank === 1 && standing.completedMatches > 0 ? "grid h-7 w-7 place-items-center rounded-full bg-[#b7ff2f] text-[12px] font-semibold text-[#14340f]" : "grid h-7 w-7 place-items-center rounded-full bg-surface text-[11px] font-semibold text-brand"}>{standing.completedMatches ? standing.tierRank : "—"}</strong>
+                  <Avatar className="relative grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-full bg-brand text-[9px] font-medium text-white" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="34px" />
+                  <span className="grid min-w-0 gap-0.5">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <strong className="truncate text-[12px] font-medium text-text-primary">{standing.player.name}</strong>
+                      {standing.tierRank === 1 && standing.completedMatches > 0 && <Trophy className="shrink-0 text-[#6d8f13]" size={11} aria-label={`${group.tier} topper`} />}
+                    </span>
+                    <em className="truncate text-[8px] not-italic text-text-secondary">{standing.team.name} · {standing.completedMatches} played{standing.tieBreakWins ? ` · ${standing.tieBreakWins} TB wins` : ""}</em>
+                  </span>
+                  <span className="grid grid-cols-3 gap-1 text-center">
+                    <PlayerLeaderboardMetric label="W–L" value={`${standing.matchWins}–${standing.matchLosses}`} />
+                    <PlayerLeaderboardMetric label="Sets" value={`${formatBracketPercentage(standing.setWinPercentage)}%`} />
+                    <PlayerLeaderboardMetric label="Games" value={`${formatBracketPercentage(standing.gameWinPercentage)}%`} />
+                  </span>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LeaderboardMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="grid min-w-0 gap-0.5 rounded-[9px] bg-white px-1 py-1.5 sm:bg-transparent sm:p-0">
+      <strong className="truncate text-[12px] font-semibold leading-none text-brand sm:text-[13px]">{value}</strong>
+      <em className="text-[8px] font-medium not-italic uppercase tracking-[0.04em] text-text-muted sm:hidden">{label}</em>
+    </span>
+  );
+}
+
+function PlayerLeaderboardMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="grid min-w-0 gap-0.5 rounded-[8px] bg-surface/75 px-1 py-1.5">
+      <strong className="truncate text-[10px] font-semibold leading-none text-brand">{value}</strong>
+      <em className="text-[7px] font-medium not-italic uppercase tracking-[0.03em] text-text-muted">{label}</em>
+    </span>
+  );
+}
+
+function LiveBracketBoard({ stages, selectedStage, seedingStatus, onSelectStage }: { stages: LiveBracketStage[]; selectedStage: BracketStageKey; seedingStatus: "waiting" | "projected" | "final"; onSelectStage: (stage: BracketStageKey) => void }) {
+  const selectedIndex = Math.max(0, stages.findIndex((stage) => stage.key === selectedStage));
+  const stageTabsRef = useRef<HTMLDivElement | null>(null);
+  const stageCardsRef = useRef<HTMLDivElement | null>(null);
+  const finalNode = stages.find((stage) => stage.key === "final")?.nodes[0];
+  const championSlot = finalNode ? [finalNode.sideA, finalNode.sideB].find((slot) => slot.team?.id === finalNode.result.winnerTeamId) : null;
+  const selectStage = (index: number) => {
+    onSelectStage(stages[index].key);
+    const card = stageCardsRef.current?.children[index] as HTMLElement | undefined;
+    card?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+  };
+
+  return (
+    <section className="overflow-hidden rounded-[22px] border-hairline border-line bg-white text-text-primary shadow-[0_14px_34px_rgba(24,24,26,0.06)]" aria-labelledby="live-bracket-title">
+      <div className="grid gap-3 border-b-hairline border-line p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5">
+        <span className="grid gap-1">
+          <em className="text-[10px] font-medium not-italic uppercase tracking-[0.13em] text-brand">Day 2 · Championship path</em>
+          <h2 className="text-[22px] font-medium tracking-[-0.3px] text-text-primary" id="live-bracket-title">Live team bracket</h2>
+          <p className="max-w-[760px] text-[12px] leading-relaxed text-text-secondary">{seedingStatus === "waiting" ? "Quarterfinal slots stay as seed placeholders until the first Day 1 result is submitted." : seedingStatus === "projected" ? "Quarterfinal teams are projected from the live Day 1 leaderboard and will keep changing as scores arrive." : "Day 1 seeding is complete. Green rows show teams advancing through the final draw."}</p>
+        </span>
+        <span className="inline-flex w-max items-center gap-2 rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]">
+          {seedingStatus === "final" ? <CheckCircle2 size={14} /> : <RefreshCw size={13} />}
+          {seedingStatus === "final" ? "Final seeds" : seedingStatus === "projected" ? "Live projection" : "Awaiting Day 1"}
+        </span>
+      </div>
+
+      {championSlot?.team && (
+        <div className="grid gap-3 border-b-hairline border-white/10 bg-[#0b3a22] p-3 text-white sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#b7ff2f] text-[#14340f] shadow-[0_8px_20px_rgba(0,0,0,0.18)]"><Trophy size={20} /></span>
+            <span className="grid min-w-0 gap-0.5">
+              <em className="text-[9px] font-medium not-italic uppercase tracking-[0.1em] text-[#b7ff2f]">Tournament champions</em>
+              <strong className="truncate text-[18px] font-medium text-white">{championSlot.team.name}</strong>
+            </span>
+          </span>
+          <span className="rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/75">Won by {finalNode?.result.decidedBy}</span>
+        </div>
+      )}
+
+      <div className="grid gap-3 bg-[#062b18] p-3 lg:hidden">
+        <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1" aria-label="Day 2 bracket stages" ref={stageTabsRef}>
+          {stages.map((stage, index) => (
+            <button className={index === selectedIndex ? "tap-card grid min-w-[118px] snap-start gap-0.5 rounded-[12px] border-hairline border-[#b7ff2f]/50 bg-[#b7ff2f] px-3 py-2 text-left text-[#14340f] shadow-[0_8px_18px_rgba(0,0,0,0.16)]" : "tap-card grid min-w-[118px] snap-start gap-0.5 rounded-[12px] border-hairline border-white/12 bg-white/[0.07] px-3 py-2 text-left text-white"} type="button" onClick={() => selectStage(index)} aria-pressed={index === selectedIndex} key={stage.key}>
+              <strong className="truncate text-[12px] font-medium leading-none">{stage.label}</strong>
+              <em className={index === selectedIndex ? "text-[8px] font-medium not-italic text-[#315114]" : "text-[8px] font-medium not-italic text-white/45"}>{stage.nodes.length} {stage.nodes.length === 1 ? "matchup" : "matchups"}</em>
+            </button>
+          ))}
+        </div>
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto" ref={stageCardsRef} onScroll={(event) => {
+          const scroller = event.currentTarget;
+          const cards = Array.from(scroller.children) as HTMLElement[];
+          if (!cards.length) return;
+          const nextIndex = cards.reduce((closestIndex, card, index) => Math.abs(card.offsetLeft - scroller.scrollLeft) < Math.abs(cards[closestIndex].offsetLeft - scroller.scrollLeft) ? index : closestIndex, 0);
+          if (nextIndex === selectedIndex) return;
+          onSelectStage(stages[nextIndex].key);
+          const stageTab = stageTabsRef.current?.children[nextIndex] as HTMLElement | undefined;
+          stageTab?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+        }}>
+          {stages.map((stage) => <div className="min-w-full snap-start" key={stage.key}><BracketStageColumn hideHeading stage={stage} /></div>)}
+        </div>
+      </div>
+
+      <div className="hidden overflow-x-auto bg-[#062b18] p-4 lg:block">
+        <div className="grid min-w-[1180px] grid-cols-5 gap-3">
+          {stages.map((stage, index) => (
+            <div className="relative grid content-center gap-3" key={stage.key}>
+              {index > 0 && <span className="pointer-events-none absolute -left-3 top-1/2 h-px w-3 bg-white/30" aria-hidden="true" />}
+              <BracketStageColumn stage={stage} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BracketStageColumn({ stage, hideHeading = false }: { stage: LiveBracketStage; hideHeading?: boolean }) {
+  return (
+    <section className="grid min-w-0 content-center gap-2.5" aria-label={stage.label}>
+      {!hideHeading && <span className="grid gap-0.5 border-b-hairline border-white/12 px-1 pb-2">
+        <strong className="text-[14px] font-medium text-white">{stage.label}</strong>
+        <em className="text-[9px] not-italic text-white/45">{stage.helper}</em>
+      </span>}
+      <div className="grid gap-2.5">
+        {stage.nodes.map((node) => <LiveBracketMatchCard node={node} key={node.id} />)}
+      </div>
+    </section>
+  );
+}
+
+function LiveBracketMatchCard({ node }: { node: LiveBracketNode }) {
+  const hasTeams = Boolean(node.sideA.team && node.sideB.team);
+  const hasWinner = Boolean(node.result.winnerTeamId);
+  const sideAWon = node.result.winnerTeamId === node.sideA.team?.id;
+  const sideBWon = node.result.winnerTeamId === node.sideB.team?.id;
+  const status = node.result.decidedBy === "organizer review"
+    ? "Organizer review"
+    : hasWinner
+      ? node.result.isClinched && node.result.completedMatches < node.result.scheduledMatches ? "Clinched" : "Final"
+      : node.result.scheduledMatches
+        ? `${node.result.completedMatches}/${node.result.scheduledMatches} results`
+        : hasTeams ? "Awaiting match setup" : "Waiting on prior round";
+  return (
+    <article className="relative overflow-hidden rounded-[16px] border-hairline border-white/16 bg-white/[0.96] text-text-primary shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
+      <div className="flex items-center justify-between gap-2 border-b-hairline border-line bg-[#f4f8f2] px-2.5 py-1.5">
+        <span className="min-w-0">
+          <strong className="block truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-brand">{node.label}</strong>
+          <em className="block truncate text-[9px] not-italic text-text-muted">{node.timeLabel}</em>
+        </span>
+        <span className={hasWinner ? "shrink-0 rounded-full bg-brand-light px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.05em] text-[#3b6d11]" : node.result.decidedBy === "organizer review" ? "shrink-0 rounded-full bg-[#fff4d8] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.05em] text-[#8a5a00]" : "shrink-0 rounded-full bg-white px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.05em] text-text-muted"}>{status}</span>
+      </div>
+      <div className="grid divide-y divide-line">
+        <BracketTeamRow destination={getBracketTeamDestination(node, sideAWon)} isWinner={sideAWon} matchWins={node.result.matchWinsA} slot={node.sideA} />
+        <BracketTeamRow destination={getBracketTeamDestination(node, sideBWon)} isWinner={sideBWon} matchWins={node.result.matchWinsB} slot={node.sideB} />
+      </div>
+      {!!node.result.matches.length && (
+        <div className="grid gap-1 border-t-hairline border-line bg-surface/45 p-1.5">
+          {node.result.matches.map((match) => {
+            const firstTeamIsA = match.teamAId === node.sideA.team?.id;
+            const firstPlayers = firstTeamIsA ? match.playersA : match.playersB;
+            const secondPlayers = firstTeamIsA ? match.playersB : match.playersA;
+            const playerLabel = `${formatBracketPlayerNames(firstPlayers, node.sideA.team?.name || match.teamAName)} vs ${formatBracketPlayerNames(secondPlayers, node.sideB.team?.name || match.teamBName)}`;
+            const pausedFinalMatch = node.phase === "Final" && hasWinner && !match.score?.winnerSide;
+            const content = (
+              <>
+                <span className="grid min-w-0 gap-0.5">
+                  <strong className="truncate text-[9px] font-medium text-text-primary">{playerLabel}</strong>
+                  <em className="truncate text-[8px] not-italic text-text-muted">{match.tierRule || match.format} · {match.courtLabel || "Court TBD"}</em>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <strong className={pausedFinalMatch ? "text-[9px] font-semibold uppercase tracking-[0.04em] text-text-muted" : "text-[10px] font-semibold text-text-primary"}>{pausedFinalMatch ? "Paused" : formatBracketMatchScore(match, node.sideA.team?.id || "")}</strong>
+                  {hasMatchTieBreaker(match) && <em className="rounded bg-[#fff4d8] px-1 py-0.5 text-[7px] font-semibold not-italic uppercase tracking-[0.04em] text-[#8a5a00]">TB</em>}
+                  {!pausedFinalMatch && <ArrowRight size={9} className="text-brand" />}
+                </span>
+              </>
+            );
+            return pausedFinalMatch ? (
+              <span className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] bg-white/60 px-2 py-1.5" key={match.id}>{content}</span>
+            ) : (
+              <Link className="tap-card grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] bg-white px-2 py-1.5 text-left transition hover:bg-brand-light" href={`/tournaments/schedule/matches/${match.id}?from=bracket`} key={match.id}>{content}</Link>
+            );
+          })}
+        </div>
+      )}
+      {hasWinner && <span className="absolute bottom-0 left-0 top-[43px] w-0.5 bg-[#b7ff2f]" aria-hidden="true" />}
+    </article>
+  );
+}
+
+function getBracketTeamDestination(node: LiveBracketNode, isWinner: boolean) {
+  const isResolved = Boolean(node.result.winnerTeamId);
+  if (node.phase === "Day 1") {
+    if (!isResolved) return "Feeds live leaderboard";
+    return isWinner ? "+1 win · leaderboard updated" : "Result · leaderboard updated";
+  }
+  const pendingPaths: Record<string, string> = {
+    Quarterfinal: "Win → Advantage · Loss → Survival",
+    Advantage: "Win → Semifinal · Loss → Re-entry",
+    Survival: "Win → Re-entry · Loss → Eliminated",
+    "Re-entry": "Win → Semifinal · Loss → Eliminated",
+    Semifinal: "Win → Final · Loss → Eliminated",
+    Final: "Win → Champion"
+  };
+  if (!isResolved) return pendingPaths[node.phase] || "Waiting for result";
+  const resolvedPaths: Record<string, [string, string]> = {
+    Quarterfinal: ["Advances to Advantage", "Moves to Survival"],
+    Advantage: ["Advances to Semifinal", "Moves to Re-entry"],
+    Survival: ["Advances to Re-entry", "Eliminated"],
+    "Re-entry": ["Advances to Semifinal", "Eliminated"],
+    Semifinal: ["Advances to Final", "Eliminated"],
+    Final: ["Champion", "Runner-up"]
+  };
+  const destinations = resolvedPaths[node.phase];
+  return destinations ? destinations[isWinner ? 0 : 1] : "Result recorded";
+}
+
+function BracketTeamRow({ slot, matchWins, isWinner, destination }: { slot: BracketSlot; matchWins: number; isWinner: boolean; destination: string }) {
+  const team = slot.team;
+  const isEliminated = destination === "Eliminated" || destination === "Runner-up";
+  return (
+    <span className={isWinner ? "grid min-h-12 grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-2 bg-[#e4f6eb] px-2.5 py-2" : "grid min-h-12 grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2"}>
+      {team?.logoUrl ? (
+        <span className="grid h-6 w-6 place-items-center overflow-hidden rounded-[7px] bg-white p-0.5 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]"><img className="h-full w-full object-contain" src={team.logoUrl} alt="" aria-hidden="true" /></span>
+      ) : (
+        <span className="grid h-6 w-6 place-items-center rounded-[7px] bg-surface text-[8px] font-semibold text-brand">{team ? getInitials(team.name) : "—"}</span>
+      )}
+      <span className="grid min-w-0 gap-0.5">
+        <span className="flex min-w-0 items-center gap-1.5">
+          {slot.seed && <em className="shrink-0 text-[8px] font-semibold not-italic text-text-muted">{slot.seed}</em>}
+          <strong className={team ? "truncate text-[11px] font-medium text-text-primary" : "truncate text-[10px] font-medium text-text-muted"}>{team?.name || slot.fallbackLabel}</strong>
+          {isWinner && <CheckCircle2 size={11} className="shrink-0 text-brand" />}
+        </span>
+        {team && (
+          <em className={isEliminated ? "flex min-w-0 items-center gap-1 text-[7px] font-medium not-italic uppercase tracking-[0.035em] text-text-muted" : "flex min-w-0 items-center gap-1 text-[7px] font-medium not-italic uppercase tracking-[0.035em] text-[#3b6d11]"}>
+            <span className="h-px w-3 shrink-0 bg-current opacity-50" aria-hidden="true" />
+            <span className="truncate">{destination}</span>
+            {!isEliminated && <ArrowRight className="shrink-0" size={8} aria-hidden="true" />}
+          </em>
+        )}
+      </span>
+      <strong className={team ? "text-[16px] font-semibold leading-none text-brand" : "text-[14px] font-medium text-text-muted"}>{team && matchWins ? matchWins : team ? "0" : "—"}</strong>
+    </span>
+  );
+}
+
+function buildDayOneRoundNodes(teams: PublishedTeam[], matches: TeamCourtScheduleMatch[]): LiveBracketNode[] {
+  const grouped = new Map<string, TeamCourtScheduleMatch[]>();
+  matches.forEach((match) => {
+    const pair = [match.teamAId || normalizeName(match.teamAName), match.teamBId || normalizeName(match.teamBName)].sort().join(":");
+    const key = `${getScheduleTimeSortValue(match.timeLabel)}:${pair}`;
+    grouped.set(key, [...(grouped.get(key) || []), match]);
+  });
+  return Array.from(grouped.entries()).map(([key, teamMatches]) => {
+    const orderedMatches = teamMatches.slice().sort((left, right) => left.sortOrder - right.sortOrder || left.courtLabel.localeCompare(right.courtLabel));
+    const firstMatch = orderedMatches[0];
+    const teamA = teams.find((team) => team.id === firstMatch.teamAId) || null;
+    const teamB = teams.find((team) => team.id === firstMatch.teamBId) || null;
+    const sideA: BracketSlot = { team: teamA, seed: null, fallbackLabel: firstMatch.teamAName || "Team A" };
+    const sideB: BracketSlot = { team: teamB, seed: null, fallbackLabel: firstMatch.teamBName || "Team B" };
+    const podLabel = firstMatch.podLabel.replace(/\s*\([^)]*\)\s*/g, "").trim();
+    const matchType = firstMatch.matchType || "Round 1";
+    return {
+      id: `day-one:${key}`,
+      label: [matchType, podLabel].filter(Boolean).join(" · "),
+      phase: "Day 1",
+      timeLabel: firstMatch.timeLabel,
+      timeMinutes: [getScheduleTimeSortValue(firstMatch.timeLabel)],
+      sideA,
+      sideB,
+      result: getTeamTieResult(sideA, sideB, orderedMatches)
+    };
+  }).sort((left, right) => left.timeMinutes[0] - right.timeMinutes[0] || left.label.localeCompare(right.label));
+}
+
+function getLiveTeamStandings(teams: PublishedTeam[], matches: TeamCourtScheduleMatch[]): TeamStanding[] {
+  const rawStandings = teams.map((team) => {
+    const teamMatches = matches.filter((match) => match.teamAId === team.id || match.teamBId === team.id);
+    const metrics = teamMatches.reduce((total, match) => addTeamScoreMetrics(total, getTeamScoreMetrics(match, team.id)), getEmptyTeamScoreMetrics());
+    const setTotal = metrics.setsWon + metrics.setsLost;
+    const gameTotal = metrics.gamesWon + metrics.gamesLost;
+    return {
+      team,
+      seed: 0,
+      completedMatches: metrics.completedMatches,
+      scheduledMatches: teamMatches.length,
+      matchWins: metrics.matchWins,
+      matchLosses: metrics.matchLosses,
+      setsWon: metrics.setsWon,
+      setsLost: metrics.setsLost,
+      gamesWon: metrics.gamesWon,
+      gamesLost: metrics.gamesLost,
+      tieBreakWins: metrics.tieBreakWins,
+      setWinPercentage: setTotal ? (metrics.setsWon / setTotal) * 100 : 0,
+      gameWinPercentage: gameTotal ? (metrics.gamesWon / gameTotal) * 100 : 0,
+      requiresReview: false
+    };
+  }).sort(compareTeamStandings);
+  const allResultsComplete = rawStandings.length > 0 && rawStandings.every((standing) => standing.scheduledMatches > 0 && standing.completedMatches === standing.scheduledMatches);
+  return rawStandings.map((standing, index, sorted) => {
+    const tiedWithNeighbor = allResultsComplete && [sorted[index - 1], sorted[index + 1]].filter(Boolean).some((neighbor) => standingsRankingIsEqual(standing, neighbor));
+    return { ...standing, seed: index + 1, requiresReview: tiedWithNeighbor };
+  });
+}
+
+function getLivePlayerStandings(teams: PublishedTeam[], matches: TeamCourtScheduleMatch[]): PlayerStanding[] {
+  type PlayerStandingDraft = Omit<PlayerStanding, "tierRank" | "setWinPercentage" | "gameWinPercentage">;
+  const drafts = new Map<string, PlayerStandingDraft>();
+  const getPlayerKey = (team: PublishedTeam, member: PublishedTeamMember) => member.playerId || `${team.id}:${normalizeName(member.name)}`;
+
+  teams.forEach((team) => {
+    team.members.forEach((player) => {
+      const tierNumber = Number(player.tier.match(/\d+/)?.[0] || 99);
+      drafts.set(getPlayerKey(team, player), {
+        player,
+        team,
+        tier: tierNumber === 99 ? "Tier TBD" : `Tier ${tierNumber}`,
+        tierNumber,
+        completedMatches: 0,
+        matchWins: 0,
+        matchLosses: 0,
+        setsWon: 0,
+        setsLost: 0,
+        gamesWon: 0,
+        gamesLost: 0,
+        tieBreakWins: 0
+      });
+    });
+  });
+
+  matches.forEach((match) => {
+    ([
+      { teamId: match.teamAId, profiles: match.playerProfilesA, side: "A" as const },
+      { teamId: match.teamBId, profiles: match.playerProfilesB, side: "B" as const }
+    ]).forEach(({ teamId, profiles, side }) => {
+      const team = teams.find((candidate) => candidate.id === teamId);
+      if (!team) return;
+      const result = getSideScoreMetrics(match, side);
+      profiles.forEach((profile) => {
+        const member = team.members.find((candidate) => candidate.playerId && candidate.playerId === profile.id)
+          || team.members.find((candidate) => normalizeName(candidate.name) === normalizeName(profile.name));
+        if (!member) return;
+        const key = getPlayerKey(team, member);
+        const current = drafts.get(key);
+        if (!current) return;
+        drafts.set(key, {
+          ...current,
+          completedMatches: current.completedMatches + result.completedMatches,
+          matchWins: current.matchWins + result.matchWins,
+          matchLosses: current.matchLosses + result.matchLosses,
+          setsWon: current.setsWon + result.setsWon,
+          setsLost: current.setsLost + result.setsLost,
+          gamesWon: current.gamesWon + result.gamesWon,
+          gamesLost: current.gamesLost + result.gamesLost,
+          tieBreakWins: current.tieBreakWins + result.tieBreakWins
+        });
+      });
+    });
+  });
+
+  const ranked = Array.from(drafts.values()).map((standing) => {
+    const setTotal = standing.setsWon + standing.setsLost;
+    const gameTotal = standing.gamesWon + standing.gamesLost;
+    return {
+      ...standing,
+      tierRank: 0,
+      setWinPercentage: setTotal ? (standing.setsWon / setTotal) * 100 : 0,
+      gameWinPercentage: gameTotal ? (standing.gamesWon / gameTotal) * 100 : 0
+    };
+  }).sort((left, right) => left.tierNumber - right.tierNumber
+    || right.matchWins - left.matchWins
+    || right.setWinPercentage - left.setWinPercentage
+    || right.gameWinPercentage - left.gameWinPercentage
+    || right.completedMatches - left.completedMatches
+    || left.player.name.localeCompare(right.player.name));
+
+  const tierPositions = new Map<number, { position: number; rank: number; previous: PlayerStanding | null }>();
+  return ranked.map((standing) => {
+    const tierState = tierPositions.get(standing.tierNumber) || { position: 0, rank: 0, previous: null };
+    const position = tierState.position + 1;
+    const sharesPreviousRank = Boolean(tierState.previous
+      && standing.matchWins === tierState.previous.matchWins
+      && Math.abs(standing.setWinPercentage - tierState.previous.setWinPercentage) < 0.0001
+      && Math.abs(standing.gameWinPercentage - tierState.previous.gameWinPercentage) < 0.0001
+      && standing.completedMatches === tierState.previous.completedMatches);
+    const tierRank = sharesPreviousRank ? tierState.rank : position;
+    tierPositions.set(standing.tierNumber, { position, rank: tierRank, previous: standing });
+    return { ...standing, tierRank };
+  });
+}
+
+type TeamScoreMetrics = { completedMatches: number; matchWins: number; matchLosses: number; setsWon: number; setsLost: number; gamesWon: number; gamesLost: number; tieBreakWins: number };
+
+function getEmptyTeamScoreMetrics(): TeamScoreMetrics {
+  return { completedMatches: 0, matchWins: 0, matchLosses: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, tieBreakWins: 0 };
+}
+
+function addTeamScoreMetrics(total: TeamScoreMetrics, next: TeamScoreMetrics): TeamScoreMetrics {
+  return {
+    completedMatches: total.completedMatches + next.completedMatches,
+    matchWins: total.matchWins + next.matchWins,
+    matchLosses: total.matchLosses + next.matchLosses,
+    setsWon: total.setsWon + next.setsWon,
+    setsLost: total.setsLost + next.setsLost,
+    gamesWon: total.gamesWon + next.gamesWon,
+    gamesLost: total.gamesLost + next.gamesLost,
+    tieBreakWins: total.tieBreakWins + next.tieBreakWins
+  };
+}
+
+function getTeamScoreMetrics(match: TeamCourtScheduleMatch, teamId: string): TeamScoreMetrics {
+  const side = match.teamAId === teamId ? "A" : match.teamBId === teamId ? "B" : "";
+  return side ? getSideScoreMetrics(match, side) : getEmptyTeamScoreMetrics();
+}
+
+function getSideScoreMetrics(match: TeamCourtScheduleMatch, side: "A" | "B"): TeamScoreMetrics {
+  const metrics = getEmptyTeamScoreMetrics();
+  const score = match.score;
+  if (!score?.winnerSide) return metrics;
+  metrics.completedMatches = 1;
+  if (score.winnerSide === side) metrics.matchWins = 1;
+  else metrics.matchLosses = 1;
+  const ownScores = side === "A" ? [score.sideASet1, score.sideASet2, score.sideASet3] : [score.sideBSet1, score.sideBSet2, score.sideBSet3];
+  const opponentScores = side === "A" ? [score.sideBSet1, score.sideBSet2, score.sideBSet3] : [score.sideASet1, score.sideASet2, score.sideASet3];
+  const setOneWinner = getSetWinner(score.sideASet1, score.sideBSet1);
+  const setTwoWinner = getSetWinner(score.sideASet2, score.sideBSet2);
+  const thirdSetWasRequired = Boolean(setOneWinner && setTwoWinner && setOneWinner !== setTwoWinner);
+  ownScores.forEach((ownScore, index) => {
+    if (index === 2 && !thirdSetWasRequired) return;
+    const opponentScore = opponentScores[index];
+    if (ownScore == null || opponentScore == null || ownScore === opponentScore) return;
+    const wonSet = ownScore > opponentScore;
+    if (wonSet) metrics.setsWon += 1;
+    else metrics.setsLost += 1;
+    if (index < 2) {
+      metrics.gamesWon += ownScore;
+      metrics.gamesLost += opponentScore;
+    } else {
+      if (wonSet) {
+        metrics.gamesWon += 1;
+        metrics.tieBreakWins += 1;
+      } else {
+        metrics.gamesLost += 1;
+      }
+    }
+  });
+  return metrics;
+}
+
+function compareTeamStandings(left: Omit<TeamStanding, "seed">, right: Omit<TeamStanding, "seed">) {
+  return right.matchWins - left.matchWins
+    || right.setWinPercentage - left.setWinPercentage
+    || right.gameWinPercentage - left.gameWinPercentage
+    || left.team.sortOrder - right.team.sortOrder
+    || left.team.name.localeCompare(right.team.name);
+}
+
+function standingsRankingIsEqual(left: Pick<TeamStanding, "matchWins" | "setWinPercentage" | "gameWinPercentage">, right: Pick<TeamStanding, "matchWins" | "setWinPercentage" | "gameWinPercentage">) {
+  return left.matchWins === right.matchWins
+    && Math.abs(left.setWinPercentage - right.setWinPercentage) < 0.0001
+    && Math.abs(left.gameWinPercentage - right.gameWinPercentage) < 0.0001;
+}
+
+function buildLiveTeamBracket(standings: TeamStanding[], dayTwoMatches: TeamCourtScheduleMatch[], revealProjectedTeams: boolean): LiveBracketStage[] {
+  const seedSlot = (seed: number): BracketSlot => {
+    const standing = standings[seed - 1];
+    return { team: revealProjectedTeams ? standing?.team || null : null, seed: standing?.seed || seed, fallbackLabel: `Seed ${seed}` };
+  };
+  const makeNode = (id: string, label: string, phase: string, timeLabel: string, timeMinutes: number[], sideA: BracketSlot, sideB: BracketSlot): LiveBracketNode => {
+    const nodeMatches = findBracketNodeMatches(dayTwoMatches, sideA.team?.id || "", sideB.team?.id || "", timeMinutes);
+    return { id, label, phase, timeLabel, timeMinutes, sideA, sideB, result: getTeamTieResult(sideA, sideB, nodeMatches, phase === "Final" ? 6 : 3) };
+  };
+  const outcomeSlot = (node: LiveBracketNode, outcome: "winner" | "loser", fallbackLabel: string): BracketSlot => {
+    const teamId = outcome === "winner" ? node.result.winnerTeamId : node.result.loserTeamId;
+    const source = [node.sideA, node.sideB].find((slot) => slot.team?.id === teamId);
+    return source ? { ...source, fallbackLabel } : { team: null, seed: null, fallbackLabel };
+  };
+
+  const qf1 = makeNode("qf1", "Quarterfinal 1", "Quarterfinal", "9:00 AM", [540], seedSlot(1), seedSlot(8));
+  const qf2 = makeNode("qf2", "Quarterfinal 2", "Quarterfinal", "9:00 AM", [540], seedSlot(4), seedSlot(5));
+  const qf3 = makeNode("qf3", "Quarterfinal 3", "Quarterfinal", "10:10 AM", [610], seedSlot(3), seedSlot(6));
+  const qf4 = makeNode("qf4", "Quarterfinal 4", "Quarterfinal", "10:10 AM", [610], seedSlot(2), seedSlot(7));
+  const survival1 = makeNode("survival1", "Survival 1", "Survival", "11:20 AM", [680], outcomeSlot(qf1, "loser", "QF1 loser"), outcomeSlot(qf2, "loser", "QF2 loser"));
+  const survival2 = makeNode("survival2", "Survival 2", "Survival", "11:20 AM", [680], outcomeSlot(qf3, "loser", "QF3 loser"), outcomeSlot(qf4, "loser", "QF4 loser"));
+  const advantage1 = makeNode("advantage1", "Advantage 1", "Advantage", "12:30 PM", [750], outcomeSlot(qf1, "winner", "QF1 winner"), outcomeSlot(qf2, "winner", "QF2 winner"));
+  const advantage2 = makeNode("advantage2", "Advantage 2", "Advantage", "12:30 PM", [750], outcomeSlot(qf3, "winner", "QF3 winner"), outcomeSlot(qf4, "winner", "QF4 winner"));
+  const reentry1 = makeNode("reentry1", "Re-entry 1", "Re-entry", "1:40 PM", [820], outcomeSlot(survival1, "winner", "Survival 1 winner"), outcomeSlot(advantage2, "loser", "Advantage 2 loser"));
+  const reentry2 = makeNode("reentry2", "Re-entry 2", "Re-entry", "1:40 PM", [820], outcomeSlot(survival2, "winner", "Survival 2 winner"), outcomeSlot(advantage1, "loser", "Advantage 1 loser"));
+  const semifinal1 = makeNode("semifinal1", "Semifinal 1", "Semifinal", "2:50 PM", [890], outcomeSlot(advantage1, "winner", "Advantage 1 winner"), outcomeSlot(reentry2, "winner", "Re-entry 2 winner"));
+  const semifinal2 = makeNode("semifinal2", "Semifinal 2", "Semifinal", "2:50 PM", [890], outcomeSlot(advantage2, "winner", "Advantage 2 winner"), outcomeSlot(reentry1, "winner", "Re-entry 1 winner"));
+  const final = makeNode("final", "Championship final", "Final", "4:00 PM onward", [960, 1030], outcomeSlot(semifinal1, "winner", "Semifinal 1 winner"), outcomeSlot(semifinal2, "winner", "Semifinal 2 winner"));
+
+  return [
+    { key: "quarterfinals", label: "Quarterfinals", helper: "Seeds 1–8 enter the draw", nodes: [qf1, qf2, qf3, qf4] },
+    { key: "second-chance", label: "Advantage + Survival", helper: "Winners and losers split paths", nodes: [advantage1, survival1, advantage2, survival2] },
+    { key: "re-entry", label: "Re-entry", helper: "One more route to the semifinals", nodes: [reentry1, reentry2] },
+    { key: "semifinals", label: "Semifinals", helper: "Four teams remain", nodes: [semifinal1, semifinal2] },
+    { key: "final", label: "Final", helper: "The championship team matchup", nodes: [final] }
+  ];
+}
+
+function findBracketNodeMatches(matches: TeamCourtScheduleMatch[], teamAId: string, teamBId: string, timeMinutes: number[]) {
+  if (!teamAId || !teamBId) return [];
+  return matches.filter((match) => {
+    const samePair = (match.teamAId === teamAId && match.teamBId === teamBId) || (match.teamAId === teamBId && match.teamBId === teamAId);
+    return samePair && timeMinutes.includes(getScheduleTimeSortValue(match.timeLabel));
+  }).sort((left, right) => left.sortOrder - right.sortOrder || left.courtLabel.localeCompare(right.courtLabel));
+}
+
+function getTeamTieResult(sideA: BracketSlot, sideB: BracketSlot, matches: TeamCourtScheduleMatch[], expectedMatches = 3): TeamTieResult {
+  const metricsA = matches.reduce((total, match) => addTeamScoreMetrics(total, sideA.team ? getTeamScoreMetrics(match, sideA.team.id) : getEmptyTeamScoreMetrics()), getEmptyTeamScoreMetrics());
+  const metricsB = matches.reduce((total, match) => addTeamScoreMetrics(total, sideB.team ? getTeamScoreMetrics(match, sideB.team.id) : getEmptyTeamScoreMetrics()), getEmptyTeamScoreMetrics());
+  const scheduledMatches = matches.length;
+  const completedMatches = Math.min(metricsA.completedMatches, metricsB.completedMatches);
+  const remainingMatches = Math.max(0, scheduledMatches - completedMatches);
+  const hasMinimumTeamTie = scheduledMatches >= expectedMatches;
+  const allScoresComplete = hasMinimumTeamTie && completedMatches === scheduledMatches;
+  const matchLead = Math.abs(metricsA.matchWins - metricsB.matchWins);
+  const clinchedByMatchWins = hasMinimumTeamTie && matchLead > remainingMatches;
+  let winnerTeamId = "";
+  let loserTeamId = "";
+  let decidedBy: TeamTieResult["decidedBy"] = "pending";
+  const chooseWinner = (aWins: boolean, decision: TeamTieResult["decidedBy"]) => {
+    winnerTeamId = (aWins ? sideA.team : sideB.team)?.id || "";
+    loserTeamId = (aWins ? sideB.team : sideA.team)?.id || "";
+    decidedBy = decision;
+  };
+
+  if (clinchedByMatchWins || (allScoresComplete && metricsA.matchWins !== metricsB.matchWins)) {
+    chooseWinner(metricsA.matchWins > metricsB.matchWins, "match wins");
+  } else if (allScoresComplete) {
+    const setsA = metricsA.setsWon + metricsA.setsLost;
+    const setsB = metricsB.setsWon + metricsB.setsLost;
+    const setPercentageA = setsA ? metricsA.setsWon / setsA : 0;
+    const setPercentageB = setsB ? metricsB.setsWon / setsB : 0;
+    if (Math.abs(setPercentageA - setPercentageB) > 0.0001) {
+      chooseWinner(setPercentageA > setPercentageB, "set percentage");
+    } else {
+      const gamesA = metricsA.gamesWon + metricsA.gamesLost;
+      const gamesB = metricsB.gamesWon + metricsB.gamesLost;
+      const gamePercentageA = gamesA ? metricsA.gamesWon / gamesA : 0;
+      const gamePercentageB = gamesB ? metricsB.gamesWon / gamesB : 0;
+      if (Math.abs(gamePercentageA - gamePercentageB) > 0.0001) chooseWinner(gamePercentageA > gamePercentageB, "game percentage");
+      else decidedBy = "organizer review";
+    }
+  }
+
+  return {
+    matches,
+    scheduledMatches,
+    completedMatches,
+    matchWinsA: metricsA.matchWins,
+    matchWinsB: metricsB.matchWins,
+    setsWonA: metricsA.setsWon,
+    setsWonB: metricsB.setsWon,
+    gamesWonA: metricsA.gamesWon,
+    gamesWonB: metricsB.gamesWon,
+    winnerTeamId,
+    loserTeamId,
+    decidedBy,
+    isClinched: Boolean(winnerTeamId),
+    hasTieBreaker: matches.some(hasMatchTieBreaker)
+  };
+}
+
+function hasMatchTieBreaker(match: TeamCourtScheduleMatch) {
+  const score = match.score;
+  if (!score || score.sideASet3 == null || score.sideBSet3 == null) return false;
+  const setOneWinner = getSetWinner(score.sideASet1, score.sideBSet1);
+  const setTwoWinner = getSetWinner(score.sideASet2, score.sideBSet2);
+  return Boolean(setOneWinner && setTwoWinner && setOneWinner !== setTwoWinner);
+}
+
+function formatBracketPlayerNames(players: string[], fallback: string) {
+  return players.length ? players.join(" / ") : fallback;
+}
+
+function formatBracketMatchScore(match: TeamCourtScheduleMatch, firstTeamId: string) {
+  const score = match.score;
+  if (!score) return "Pending";
+  const firstIsA = match.teamAId === firstTeamId;
+  const firstScores = firstIsA ? [score.sideASet1, score.sideASet2, score.sideASet3] : [score.sideBSet1, score.sideBSet2, score.sideBSet3];
+  const secondScores = firstIsA ? [score.sideBSet1, score.sideBSet2, score.sideBSet3] : [score.sideASet1, score.sideASet2, score.sideASet3];
+  return firstScores.flatMap((first, index) => first == null || secondScores[index] == null || (index === 2 && !hasMatchTieBreaker(match)) ? [] : [`${index === 2 ? "[" : ""}${first}–${secondScores[index]}${index === 2 ? "]" : ""}`]).join(" ") || "Pending";
+}
+
+function formatBracketPercentage(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
 function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: PublishedTeam; matches: TeamCourtScheduleMatch[]; backHref: string; backLabel: string }) {
   const teamRecord = getTeamPerformanceSummary(team, matches);
   const teamColor = normalizeTeamColor(team.jerseyColor);
@@ -5253,9 +6305,17 @@ function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: Publ
         <Link className="tap-card absolute left-4 top-4 z-20 inline-grid h-9 max-h-9 min-h-9 w-9 max-w-9 min-w-9 place-items-center rounded-full border-hairline border-white/60 bg-white/90 p-0 text-brand shadow-[0_8px_18px_rgba(0,0,0,0.10)] backdrop-blur transition-transform hover:-translate-x-0.5 active:scale-[0.98]" href={backHref} aria-label={backLabel}>
           <ArrowLeft size={16} strokeWidth={2.2} />
         </Link>
-        <span className="pointer-events-none absolute right-4 top-4 z-20 grid h-14 w-14 rotate-[6deg] place-items-center rounded-[17px] border border-dashed border-black/35 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.18)]" role="img" aria-label="Team jersey color">
-          <span className="absolute inset-1 rounded-[13px] border-hairline border-black/10" aria-hidden="true" />
-          <Shirt size={28} strokeWidth={1.9} style={{ color: "#18181b", fill: teamColor }} />
+        <span className="pointer-events-none absolute right-4 top-4 z-20 flex items-start gap-2">
+          {team.sponsorLogoUrl && (
+            <span className="relative grid h-14 w-14 -rotate-[5deg] place-items-center overflow-hidden rounded-[17px] border border-dashed border-black/35 bg-white p-2 shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
+              <span className="absolute inset-1 rounded-[13px] border-hairline border-black/10" aria-hidden="true" />
+              <img className="relative h-full w-full object-contain" src={team.sponsorLogoUrl} alt={`${team.sponsorName || team.name} sponsor logo`} />
+            </span>
+          )}
+          <span className="relative grid h-14 w-14 rotate-[6deg] place-items-center rounded-[17px] border border-dashed border-black/35 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.18)]" role="img" aria-label="Team jersey color">
+            <span className="absolute inset-1 rounded-[13px] border-hairline border-black/10" aria-hidden="true" />
+            <Shirt size={28} strokeWidth={1.9} style={{ color: "#18181b", fill: teamColor }} />
+          </span>
         </span>
         <div className="relative grid gap-5 p-5 pt-20 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:p-7 sm:pt-16">
           <div className="flex min-w-0 items-center gap-4">
@@ -5270,6 +6330,12 @@ function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: Publ
               <em className="text-[11px] font-medium not-italic uppercase tracking-[0.14em] text-white/85">Tournament team</em>
               <h1 className="break-words text-[30px] font-medium leading-[1.04] tracking-[-0.7px] text-white sm:text-[42px]">{team.name}</h1>
               <p className="text-[13px] font-medium text-white/85 sm:text-[14px]">{formatPlayerCount(team.members.length)} · {matches.length} scheduled matches</p>
+              {team.sponsorName && (
+                <span className="mt-0.5 inline-flex w-max max-w-full items-center gap-1.5 rounded-full border-hairline border-white/25 bg-white/12 px-2.5 py-1 text-white backdrop-blur-sm">
+                  <em className="shrink-0 text-[9px] font-medium not-italic uppercase tracking-[0.09em] text-white/65">Sponsored by</em>
+                  <strong className="truncate text-[12px] font-medium text-white">{team.sponsorName}</strong>
+                </span>
+              )}
             </span>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
@@ -5620,6 +6686,8 @@ function mapPublishedTeamsFromRows(rows: PublishedTeamRow[]): PublishedTeam[] {
       sortOrder: team.sort_order || 0,
       logoUrl: team.logo_url || "",
       jerseyColor: normalizeTeamColor(team.jersey_color),
+      sponsorName: team.sponsor_name || "",
+      sponsorLogoUrl: team.sponsor_logo_url || "",
       members: members.map((member) => {
         const player = Array.isArray(member.players) ? member.players[0] : member.players;
         return {
@@ -6053,6 +7121,8 @@ function mapTeamCourtScheduleMatches(matchRows: PlayerScheduleMatchRow[], player
       teamAColor: teamA?.jerseyColor || "#eaf3de",
       teamBColor: teamB?.jerseyColor || "#e5f1ff",
       format,
+      matchType: match.match_type || "",
+      tierRule: match.tier_rule || "",
       playersA,
       playersB,
       playerProfilesA,
