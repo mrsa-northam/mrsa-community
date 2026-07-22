@@ -4065,8 +4065,9 @@ export function TournamentTeamsScreen() {
                       </span>
                     </span>
                     <span className="grid gap-1.5 rounded-[14px] border-hairline border-white/35 bg-white/[0.86] p-2">
-                      {team.members.slice(0, 4).map((member) => (
-                        <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-text-primary" key={member.id}>
+                      {team.members.map((member) => (
+                        <span className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2 text-text-primary" key={member.id}>
+                          <Avatar className="relative grid h-[30px] w-[30px] place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-light text-[9px] font-medium text-[#3b6d11] shadow-[0_4px_10px_rgba(12,59,32,0.10)]" name={member.name} photoUrl={member.profilePhotoUrl} ariaLabel={`${member.name} profile photo`} sizes="30px" />
                           <strong className="truncate text-[13px] font-medium">{member.name}</strong>
                           <em className="text-[11px] not-italic text-text-secondary">{member.rating}</em>
                         </span>
