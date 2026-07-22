@@ -104,6 +104,7 @@ type AdminTeamMember = {
 type AdminTeamSponsor = {
   name: string;
   logoUrl: string;
+  websiteUrl: string;
 };
 type AdminTeam = {
   id: string;
@@ -1594,6 +1595,11 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
   const persistTeamSponsors = async (team: AdminTeam, sponsors: AdminTeamSponsor[]) => {
     const supabase = getSupabaseClient();
     if (!supabase || !tournament) return null;
+    const invalidWebsite = sponsors.find((sponsor) => sponsor.websiteUrl.trim() && !normalizeSponsorWebsiteUrl(sponsor.websiteUrl));
+    if (invalidWebsite) {
+      setNotice({ type: "error", text: `Enter a valid website for ${invalidWebsite.name.trim() || "the sponsor"}.` });
+      return null;
+    }
     const normalizedSponsors = normalizeAdminTeamSponsors(sponsors);
     const primarySponsor = normalizedSponsors[0] || null;
     const { error: teamError } = await supabase
@@ -1654,7 +1660,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
 
     const { data: publicUrlData } = supabase.storage.from(TEAM_LOGO_BUCKET).getPublicUrl(path);
     const nextSponsors = sponsors.slice();
-    nextSponsors[sponsorIndex] = { ...(nextSponsors[sponsorIndex] || { name: "", logoUrl: "" }), logoUrl: publicUrlData.publicUrl };
+    nextSponsors[sponsorIndex] = { ...(nextSponsors[sponsorIndex] || { name: "", logoUrl: "", websiteUrl: "" }), logoUrl: publicUrlData.publicUrl };
     const updatedSponsors = await persistTeamSponsors(team, nextSponsors);
     setTeamActionKey(null);
     if (updatedSponsors) setNotice({ type: "success", text: "Sponsor logo saved." });
@@ -2559,7 +2565,7 @@ function AdminTeamSponsorEditor({ team, actionKey, onSave, onReplaceLogo }: {
   onSave: (team: AdminTeam, sponsors: AdminTeamSponsor[]) => Promise<AdminTeamSponsor[] | null>;
   onReplaceLogo: (team: AdminTeam, sponsors: AdminTeamSponsor[], sponsorIndex: number, file: File) => Promise<AdminTeamSponsor[] | null>;
 }) {
-  const emptySponsor = (): AdminTeamSponsor => ({ name: "", logoUrl: "" });
+  const emptySponsor = (): AdminTeamSponsor => ({ name: "", logoUrl: "", websiteUrl: "" });
   const [sponsors, setSponsors] = useState<AdminTeamSponsor[]>(team.sponsors.length ? team.sponsors : [emptySponsor()]);
 
   useEffect(() => {
@@ -2601,10 +2607,14 @@ function AdminTeamSponsorEditor({ team, actionKey, onSave, onReplaceLogo }: {
             if (updated) setSponsors(updated.length ? updated : [emptySponsor()]);
           };
           return (
-            <article className="grid gap-2 rounded-[12px] border-hairline border-line bg-white p-2 lg:grid-cols-[minmax(180px,1fr)_minmax(210px,0.8fr)_auto] lg:items-end" key={`${team.id}:sponsor:${index}`}>
+            <article className="grid gap-2 rounded-[12px] border-hairline border-line bg-white p-2 lg:grid-cols-[minmax(160px,0.8fr)_minmax(190px,1fr)_minmax(190px,0.9fr)_auto] lg:items-end" key={`${team.id}:sponsor:${index}`}>
               <label className="grid gap-1 text-[12px] text-text-secondary">
                 Sponsor {index + 1} name
                 <input className="min-h-10 rounded-[11px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" value={sponsor.name} maxLength={100} placeholder="Sponsor name" onChange={(event) => updateSponsor(index, { name: event.target.value })} />
+              </label>
+              <label className="grid gap-1 text-[12px] text-text-secondary">
+                Website (optional)
+                <input className="min-h-10 rounded-[11px] border-hairline border-line bg-white px-3 text-[14px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" value={sponsor.websiteUrl} inputMode="url" maxLength={300} placeholder="sponsor.com" onChange={(event) => updateSponsor(index, { websiteUrl: event.target.value })} />
               </label>
               <span className="grid gap-1 text-[12px] text-text-secondary">
                 Sponsor {index + 1} logo
@@ -3677,27 +3687,41 @@ function normalizeAdminTeamSponsors(sponsors: AdminTeamSponsor[]) {
   return sponsors.flatMap((sponsor) => {
     const name = sponsor.name.trim();
     const logoUrl = sponsor.logoUrl.trim();
-    return name || logoUrl ? [{ name, logoUrl }] : [];
+    const websiteUrl = normalizeSponsorWebsiteUrl(sponsor.websiteUrl);
+    return name || logoUrl || websiteUrl ? [{ name, logoUrl, websiteUrl }] : [];
   }).slice(0, 12);
 }
 
 function mapAdminTeamSponsors(value: unknown, legacyName = "", legacyLogoUrl = ""): AdminTeamSponsor[] {
   const sponsors = Array.isArray(value) ? value.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
-    const row = item as { name?: unknown; logoUrl?: unknown; logo_url?: unknown };
+    const row = item as { name?: unknown; logoUrl?: unknown; logo_url?: unknown; websiteUrl?: unknown; website_url?: unknown };
     const name = typeof row.name === "string" ? row.name.trim() : "";
     const logoUrl = typeof row.logoUrl === "string"
       ? row.logoUrl.trim()
       : typeof row.logo_url === "string"
         ? row.logo_url.trim()
         : "";
-    return name || logoUrl ? [{ name, logoUrl }] : [];
+    const websiteUrl = normalizeSponsorWebsiteUrl(typeof row.websiteUrl === "string" ? row.websiteUrl : typeof row.website_url === "string" ? row.website_url : "");
+    return name || logoUrl || websiteUrl ? [{ name, logoUrl, websiteUrl }] : [];
   }) : [];
   if (sponsors.length) return sponsors.slice(0, 12);
 
   const name = legacyName.trim();
   const logoUrl = legacyLogoUrl.trim();
-  return name || logoUrl ? [{ name, logoUrl }] : [];
+  return name || logoUrl ? [{ name, logoUrl, websiteUrl: "" }] : [];
+}
+
+function normalizeSponsorWebsiteUrl(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return "";
+  const candidate = /^https?:\/\//i.test(text) ? text : `https://${text}`;
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : "";
+  } catch {
+    return "";
+  }
 }
 
 function validateTeamLogoFile(file: File | null) {

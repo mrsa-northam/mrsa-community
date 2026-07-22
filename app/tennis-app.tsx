@@ -60,7 +60,7 @@ type TournamentFaq = { question: string; answer: string };
 type RegisteredPlayer = { id: string; name: string; age: string; city: string; rating: string; tennisVideoUrl: string };
 type TournamentProfileReminder = { missingPhoto: boolean; missingJerseyName: boolean; missingJerseySize: boolean };
 type PublishedTeamMember = { id: string; playerId: string; name: string; age: string; city: string; tier: string; rating: string; profilePhotoUrl: string; isCaptain: boolean; draftOrder: number | null };
-type TeamSponsor = { name: string; logoUrl: string };
+type TeamSponsor = { name: string; logoUrl: string; websiteUrl: string };
 type PublishedTeam = { id: string; name: string; sortOrder: number; logoUrl: string; jerseyColor: string; sponsorName: string; sponsorLogoUrl: string; sponsors: TeamSponsor[]; members: PublishedTeamMember[] };
 type PublishedTeamPlayerRow = { id?: string | null; full_name?: string | null; jamaat_city?: string | null; age?: number | null; date_of_birth?: string | null; rating?: number | string | null; profile_photo_url?: string | null };
 type PublishedTeamMemberRow = { id?: string | null; is_captain?: boolean | null; draft_order?: number | null; tier_at_draft?: number | null; players?: PublishedTeamPlayerRow | PublishedTeamPlayerRow[] | null };
@@ -4049,8 +4049,9 @@ export function TournamentTeamsScreen() {
                 const teamTone = getTeamCardTone(team.jerseyColor);
                 const captain = team.members.find((member) => member.isCaptain);
                 return (
-                  <Link className="tap-card group grid gap-3 overflow-hidden rounded-[18px] border-hairline border-white/25 p-3 shadow-[0_14px_34px_rgba(12,59,32,0.12)]" href={`/tournaments/schedule/teams/${team.id}?from=roster`} key={team.id} style={{ background: teamTone.background, color: teamTone.textColor }}>
-                    <span className="grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3">
+                  <article className="tap-card group relative grid gap-3 overflow-hidden rounded-[18px] border-hairline border-white/25 p-3 shadow-[0_14px_34px_rgba(12,59,32,0.12)]" key={team.id} style={{ background: teamTone.background, color: teamTone.textColor }}>
+                    <Link className="absolute inset-0 z-0 rounded-[18px]" href={`/tournaments/schedule/teams/${team.id}?from=roster`} aria-label={`View ${team.name}`} />
+                    <span className="pointer-events-none relative z-[1] grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3">
                       {team.logoUrl ? (
                         <img className="h-12 w-12 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.16)]" src={team.logoUrl} alt={`${team.name} logo`} />
                       ) : (
@@ -4064,7 +4065,7 @@ export function TournamentTeamsScreen() {
                         <ArrowRight size={15} />
                       </span>
                     </span>
-                    <span className="grid gap-1.5 rounded-[14px] border-hairline border-white/35 bg-white/[0.86] p-2">
+                    <span className="pointer-events-none relative z-[1] grid gap-1.5 rounded-[14px] border-hairline border-white/35 bg-white/[0.86] p-2">
                       {team.members.map((member) => (
                         <span className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2 text-text-primary" key={member.id}>
                           <Avatar className="relative grid h-[30px] w-[30px] place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-light text-[9px] font-medium text-[#3b6d11] shadow-[0_4px_10px_rgba(12,59,32,0.10)]" name={member.name} photoUrl={member.profilePhotoUrl} ariaLabel={`${member.name} profile photo`} sizes="30px" />
@@ -4073,11 +4074,8 @@ export function TournamentTeamsScreen() {
                         </span>
                       ))}
                     </span>
-                    <span className="grid min-w-0 gap-2">
-                      <span className="inline-flex w-max rounded-full bg-white/85 px-2.5 py-1 text-[12px] font-medium text-[#24412c]">{formatPlayerCount(team.members.length)}</span>
-                      <TeamSponsorList sponsors={team.sponsors} tone="card" />
-                    </span>
-                  </Link>
+                    {!!team.sponsors.length && <TeamSponsorList sponsors={team.sponsors} tone="card" />}
+                  </article>
                 );
               })}
             </section>
@@ -6290,27 +6288,29 @@ function TeamSponsorList({ sponsors, tone }: { sponsors: TeamSponsor[]; tone: "c
   const isHero = tone === "hero";
 
   return (
-    <span className="grid min-w-0 gap-1.5">
-      <em className={isHero
-        ? "text-[9px] font-medium not-italic uppercase tracking-[0.11em] text-white/65"
-        : "text-[9px] font-medium not-italic uppercase tracking-[0.09em] text-current opacity-60"}>Sponsored by</em>
-      <span className="flex min-w-0 flex-wrap gap-1.5">
-        {sponsors.map((sponsor, index) => (
-          <span
-            className={isHero
-              ? "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border-hairline border-white/25 bg-white/12 py-1 pl-1 pr-2.5 text-white backdrop-blur-sm"
-              : "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border-hairline border-white/45 bg-white/85 py-1 pl-1 pr-2.5 text-[#24412c]"}
-            key={`${sponsor.name}:${sponsor.logoUrl}:${index}`}
-          >
-            {sponsor.logoUrl && (
-              <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-white p-0.5 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.07)]">
-                <img className="h-full w-full object-contain" src={sponsor.logoUrl} alt="" aria-hidden="true" />
-              </span>
-            )}
-            {sponsor.name && <strong className="max-w-[150px] truncate text-[11px] font-medium sm:max-w-[190px]">{sponsor.name}</strong>}
-          </span>
-        ))}
-      </span>
+    <span className="pointer-events-auto relative z-10 flex min-w-0 flex-wrap gap-1.5">
+        {sponsors.map((sponsor, index) => {
+          const className = isHero
+            ? "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border-hairline border-white/25 bg-white/12 py-1 pl-1 pr-2.5 text-white backdrop-blur-sm"
+            : "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border-hairline border-white/45 bg-white/85 py-1 pl-1 pr-2.5 text-[#24412c]";
+          const content = (
+            <>
+              {sponsor.logoUrl && (
+                <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-white p-0.5 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.07)]">
+                  <img className="h-full w-full object-contain" src={sponsor.logoUrl} alt="" aria-hidden="true" />
+                </span>
+              )}
+              <em className={isHero ? "shrink-0 text-[8px] font-medium not-italic uppercase tracking-[0.07em] text-white/65" : "shrink-0 text-[8px] font-medium not-italic uppercase tracking-[0.07em] opacity-60"}>Sponsored by</em>
+              {sponsor.name && <strong className="max-w-[150px] truncate text-[11px] font-medium sm:max-w-[190px]">{sponsor.name}</strong>}
+              {sponsor.websiteUrl && <ExternalLink className="shrink-0 opacity-65" size={10} aria-hidden="true" />}
+            </>
+          );
+          return sponsor.websiteUrl ? (
+            <a className={`${className} tap-card transition hover:-translate-y-0.5 hover:shadow-[0_6px_14px_rgba(0,0,0,0.10)]`} href={sponsor.websiteUrl} target="_blank" rel="noreferrer" aria-label={`Visit ${sponsor.name || "sponsor"} website`} key={`${sponsor.name}:${sponsor.logoUrl}:${index}`}>{content}</a>
+          ) : (
+            <span className={className} key={`${sponsor.name}:${sponsor.logoUrl}:${index}`}>{content}</span>
+          );
+        })}
     </span>
   );
 }
@@ -6722,20 +6722,33 @@ function mapPublishedTeamsFromRows(rows: PublishedTeamRow[]): PublishedTeam[] {
 function mapTeamSponsors(value: unknown, legacyName = "", legacyLogoUrl = ""): TeamSponsor[] {
   const sponsors = Array.isArray(value) ? value.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
-    const row = item as { name?: unknown; logoUrl?: unknown; logo_url?: unknown };
+    const row = item as { name?: unknown; logoUrl?: unknown; logo_url?: unknown; websiteUrl?: unknown; website_url?: unknown };
     const name = typeof row.name === "string" ? row.name.trim() : "";
     const logoUrl = typeof row.logoUrl === "string"
       ? row.logoUrl.trim()
       : typeof row.logo_url === "string"
         ? row.logo_url.trim()
         : "";
-    return name || logoUrl ? [{ name, logoUrl }] : [];
+    const websiteUrl = normalizeSponsorWebsiteUrl(typeof row.websiteUrl === "string" ? row.websiteUrl : typeof row.website_url === "string" ? row.website_url : "");
+    return name || logoUrl || websiteUrl ? [{ name, logoUrl, websiteUrl }] : [];
   }) : [];
   if (sponsors.length) return sponsors.slice(0, 12);
 
   const name = legacyName.trim();
   const logoUrl = legacyLogoUrl.trim();
-  return name || logoUrl ? [{ name, logoUrl }] : [];
+  return name || logoUrl ? [{ name, logoUrl, websiteUrl: "" }] : [];
+}
+
+function normalizeSponsorWebsiteUrl(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return "";
+  const candidate = /^https?:\/\//i.test(text) ? text : `https://${text}`;
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : "";
+  } catch {
+    return "";
+  }
 }
 
 function groupScheduleItemsByTime(items: ScheduleItem[]) {
