@@ -60,10 +60,11 @@ type TournamentFaq = { question: string; answer: string };
 type RegisteredPlayer = { id: string; name: string; age: string; city: string; rating: string; tennisVideoUrl: string };
 type TournamentProfileReminder = { missingPhoto: boolean; missingJerseyName: boolean; missingJerseySize: boolean };
 type PublishedTeamMember = { id: string; playerId: string; name: string; age: string; city: string; tier: string; rating: string; profilePhotoUrl: string; isCaptain: boolean; draftOrder: number | null };
-type PublishedTeam = { id: string; name: string; sortOrder: number; logoUrl: string; jerseyColor: string; sponsorName: string; sponsorLogoUrl: string; members: PublishedTeamMember[] };
+type TeamSponsor = { name: string; logoUrl: string };
+type PublishedTeam = { id: string; name: string; sortOrder: number; logoUrl: string; jerseyColor: string; sponsorName: string; sponsorLogoUrl: string; sponsors: TeamSponsor[]; members: PublishedTeamMember[] };
 type PublishedTeamPlayerRow = { id?: string | null; full_name?: string | null; jamaat_city?: string | null; age?: number | null; date_of_birth?: string | null; rating?: number | string | null; profile_photo_url?: string | null };
 type PublishedTeamMemberRow = { id?: string | null; is_captain?: boolean | null; draft_order?: number | null; tier_at_draft?: number | null; players?: PublishedTeamPlayerRow | PublishedTeamPlayerRow[] | null };
-type PublishedTeamRow = { id?: string | null; name?: string | null; sort_order?: number | null; logo_url?: string | null; jersey_color?: string | null; sponsor_name?: string | null; sponsor_logo_url?: string | null; tournament_team_members?: PublishedTeamMemberRow | PublishedTeamMemberRow[] | null };
+type PublishedTeamRow = { id?: string | null; name?: string | null; sort_order?: number | null; logo_url?: string | null; jersey_color?: string | null; sponsor_name?: string | null; sponsor_logo_url?: string | null; sponsors?: unknown; tournament_team_members?: PublishedTeamMemberRow | PublishedTeamMemberRow[] | null };
 type ScheduleNote = { id: string; title: string; body: string; sortOrder: number };
 type ScheduleItem = {
   id: string;
@@ -2161,7 +2162,7 @@ export function DrawScreen() {
       ,
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", mappedTournament.id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -2201,6 +2202,7 @@ export function DrawScreen() {
         jerseyColor: normalizeTeamColor(team.jersey_color),
         sponsorName: team.sponsor_name || "",
         sponsorLogoUrl: team.sponsor_logo_url || "",
+        sponsors: mapTeamSponsors(team.sponsors, team.sponsor_name || "", team.sponsor_logo_url || ""),
         members: members
           .map((member) => {
             const player = Array.isArray(member.players) ? member.players[0] : member.players;
@@ -3144,7 +3146,7 @@ export function TournamentScheduleScreen() {
     const [teamsResult, itemsResult, notesResult, scheduleMatchesResult, schedulePlayersResult, scoresResult] = await Promise.all([
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", mappedTournament.id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -3203,6 +3205,7 @@ export function TournamentScheduleScreen() {
         jerseyColor: normalizeTeamColor(team.jersey_color),
         sponsorName: team.sponsor_name || "",
         sponsorLogoUrl: team.sponsor_logo_url || "",
+        sponsors: mapTeamSponsors(team.sponsors, team.sponsor_name || "", team.sponsor_logo_url || ""),
         members: members.map((member) => {
           const player = Array.isArray(member.players) ? member.players[0] : member.players;
           return {
@@ -3578,7 +3581,7 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
         .maybeSingle(),
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", matchRow.tournament_id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -3714,7 +3717,7 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
     }
     const { data: teamRow, error: teamError } = await supabase
       .from("tournament_teams")
-      .select("id, tournament_id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+      .select("id, tournament_id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
       .eq("id", teamId)
       .maybeSingle();
     if (teamError || !teamRow) {
@@ -3725,7 +3728,7 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
     const [teamsResult, matchesResult, participantsResult, scoresResult] = await Promise.all([
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", teamRow.tournament_id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -3828,7 +3831,7 @@ export function TournamentBracketScreen() {
     const [teamsResult, matchesResult, participantsResult, scoresResult] = await Promise.all([
       supabase
         .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
         .eq("tournament_id", mappedTournament.id)
         .eq("is_published", true)
         .order("sort_order", { ascending: true })
@@ -3991,7 +3994,7 @@ export function TournamentTeamsScreen() {
 
     const { data: teamsData, error: teamsError } = await supabase
       .from("tournament_teams")
-      .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+      .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
       .eq("tournament_id", tournamentData.id)
       .eq("is_published", true)
       .order("sort_order", { ascending: true })
@@ -4069,19 +4072,9 @@ export function TournamentTeamsScreen() {
                         </span>
                       ))}
                     </span>
-                    <span className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="grid min-w-0 gap-2">
                       <span className="inline-flex w-max rounded-full bg-white/85 px-2.5 py-1 text-[12px] font-medium text-[#24412c]">{formatPlayerCount(team.members.length)}</span>
-                      {team.sponsorName && (
-                        <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border-hairline border-white/45 bg-white/85 py-1 pl-1.5 pr-2.5 text-[#24412c]">
-                          {team.sponsorLogoUrl && (
-                            <span className="grid h-5 w-5 shrink-0 place-items-center overflow-hidden rounded-full bg-white p-0.5 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
-                              <img className="h-full w-full object-contain" src={team.sponsorLogoUrl} alt="" aria-hidden="true" />
-                            </span>
-                          )}
-                          <em className="shrink-0 text-[9px] font-medium not-italic uppercase tracking-[0.06em] opacity-60">Sponsored by</em>
-                          <strong className="truncate text-[11px] font-medium">{team.sponsorName}</strong>
-                        </span>
-                      )}
+                      <TeamSponsorList sponsors={team.sponsors} tone="card" />
                     </span>
                   </Link>
                 );
@@ -5645,8 +5638,8 @@ function LiveTeamLeaderboard({ standings, completedMatches, matches, seedingIsFi
           <span className="text-center">Game %</span>
         </div>
         {standings.map((standing) => (
-          <article className={standing.seed <= 4 ? "grid grid-cols-[34px_minmax(0,1fr)_132px] items-center gap-2 rounded-[15px] border-hairline border-[#dbe8cd] bg-[#f7fbf3] p-2.5 sm:grid-cols-[38px_minmax(180px,1fr)_72px_72px_72px] sm:px-3" : "grid grid-cols-[34px_minmax(0,1fr)_132px] items-center gap-2 rounded-[15px] border-hairline border-line bg-surface/38 p-2.5 sm:grid-cols-[38px_minmax(180px,1fr)_72px_72px_72px] sm:px-3"} key={standing.team.id}>
-            <strong className={standing.seed === 1 ? "grid h-8 w-8 place-items-center rounded-full bg-[#b7ff2f] text-[14px] font-semibold text-[#14340f]" : "grid h-8 w-8 place-items-center rounded-full bg-white text-[13px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(12,59,32,0.08)]"}>{standing.seed}</strong>
+          <article className="grid grid-cols-[34px_minmax(0,1fr)_132px] items-center gap-2 rounded-[15px] border-hairline border-line bg-surface/38 p-2.5 sm:grid-cols-[38px_minmax(180px,1fr)_72px_72px_72px] sm:px-3" key={standing.team.id}>
+            <strong className="grid h-8 w-8 place-items-center rounded-full bg-white text-[13px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(12,59,32,0.08)]">{standing.seed}</strong>
             <span className="grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-2.5">
               <span className="grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-[10px] bg-white p-1 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]">
                 {standing.team.logoUrl ? <img className="h-full w-full object-contain" src={standing.team.logoUrl} alt="" aria-hidden="true" /> : <span className="text-[10px] font-medium text-brand">{getInitials(standing.team.name)}</span>}
@@ -5963,11 +5956,9 @@ function buildDayOneRoundNodes(teams: PublishedTeam[], matches: TeamCourtSchedul
     const teamB = teams.find((team) => team.id === firstMatch.teamBId) || null;
     const sideA: BracketSlot = { team: teamA, seed: null, fallbackLabel: firstMatch.teamAName || "Team A" };
     const sideB: BracketSlot = { team: teamB, seed: null, fallbackLabel: firstMatch.teamBName || "Team B" };
-    const podLabel = firstMatch.podLabel.replace(/\s*\([^)]*\)\s*/g, "").trim();
-    const matchType = firstMatch.matchType || "Round 1";
     return {
       id: `day-one:${key}`,
-      label: [matchType, podLabel].filter(Boolean).join(" · "),
+      label: "Team matchup",
       phase: "Day 1",
       timeLabel: firstMatch.timeLabel,
       timeMinutes: [getScheduleTimeSortValue(firstMatch.timeLabel)],
@@ -6293,6 +6284,36 @@ function formatBracketPercentage(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+function TeamSponsorList({ sponsors, tone }: { sponsors: TeamSponsor[]; tone: "card" | "hero" }) {
+  if (!sponsors.length) return null;
+  const isHero = tone === "hero";
+
+  return (
+    <span className="grid min-w-0 gap-1.5">
+      <em className={isHero
+        ? "text-[9px] font-medium not-italic uppercase tracking-[0.11em] text-white/65"
+        : "text-[9px] font-medium not-italic uppercase tracking-[0.09em] text-current opacity-60"}>Sponsored by</em>
+      <span className="flex min-w-0 flex-wrap gap-1.5">
+        {sponsors.map((sponsor, index) => (
+          <span
+            className={isHero
+              ? "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border-hairline border-white/25 bg-white/12 py-1 pl-1 pr-2.5 text-white backdrop-blur-sm"
+              : "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border-hairline border-white/45 bg-white/85 py-1 pl-1 pr-2.5 text-[#24412c]"}
+            key={`${sponsor.name}:${sponsor.logoUrl}:${index}`}
+          >
+            {sponsor.logoUrl && (
+              <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-white p-0.5 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.07)]">
+                <img className="h-full w-full object-contain" src={sponsor.logoUrl} alt="" aria-hidden="true" />
+              </span>
+            )}
+            {sponsor.name && <strong className="max-w-[150px] truncate text-[11px] font-medium sm:max-w-[190px]">{sponsor.name}</strong>}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
 function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: PublishedTeam; matches: TeamCourtScheduleMatch[]; backHref: string; backLabel: string }) {
   const teamRecord = getTeamPerformanceSummary(team, matches);
   const teamColor = normalizeTeamColor(team.jerseyColor);
@@ -6306,12 +6327,6 @@ function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: Publ
           <ArrowLeft size={16} strokeWidth={2.2} />
         </Link>
         <span className="pointer-events-none absolute right-4 top-4 z-20 flex items-start gap-2">
-          {team.sponsorLogoUrl && (
-            <span className="relative grid h-14 w-14 -rotate-[5deg] place-items-center overflow-hidden rounded-[17px] border border-dashed border-black/35 bg-white p-2 shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
-              <span className="absolute inset-1 rounded-[13px] border-hairline border-black/10" aria-hidden="true" />
-              <img className="relative h-full w-full object-contain" src={team.sponsorLogoUrl} alt={`${team.sponsorName || team.name} sponsor logo`} />
-            </span>
-          )}
           <span className="relative grid h-14 w-14 rotate-[6deg] place-items-center rounded-[17px] border border-dashed border-black/35 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.18)]" role="img" aria-label="Team jersey color">
             <span className="absolute inset-1 rounded-[13px] border-hairline border-black/10" aria-hidden="true" />
             <Shirt size={28} strokeWidth={1.9} style={{ color: "#18181b", fill: teamColor }} />
@@ -6330,12 +6345,7 @@ function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: Publ
               <em className="text-[11px] font-medium not-italic uppercase tracking-[0.14em] text-white/85">Tournament team</em>
               <h1 className="break-words text-[30px] font-medium leading-[1.04] tracking-[-0.7px] text-white sm:text-[42px]">{team.name}</h1>
               <p className="text-[13px] font-medium text-white/85 sm:text-[14px]">{formatPlayerCount(team.members.length)} · {matches.length} scheduled matches</p>
-              {team.sponsorName && (
-                <span className="mt-0.5 inline-flex w-max max-w-full items-center gap-1.5 rounded-full border-hairline border-white/25 bg-white/12 px-2.5 py-1 text-white backdrop-blur-sm">
-                  <em className="shrink-0 text-[9px] font-medium not-italic uppercase tracking-[0.09em] text-white/65">Sponsored by</em>
-                  <strong className="truncate text-[12px] font-medium text-white">{team.sponsorName}</strong>
-                </span>
-              )}
+              <TeamSponsorList sponsors={team.sponsors} tone="hero" />
             </span>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
@@ -6688,6 +6698,7 @@ function mapPublishedTeamsFromRows(rows: PublishedTeamRow[]): PublishedTeam[] {
       jerseyColor: normalizeTeamColor(team.jersey_color),
       sponsorName: team.sponsor_name || "",
       sponsorLogoUrl: team.sponsor_logo_url || "",
+      sponsors: mapTeamSponsors(team.sponsors, team.sponsor_name || "", team.sponsor_logo_url || ""),
       members: members.map((member) => {
         const player = Array.isArray(member.players) ? member.players[0] : member.players;
         return {
@@ -6705,6 +6716,25 @@ function mapPublishedTeamsFromRows(rows: PublishedTeamRow[]): PublishedTeam[] {
       })
     };
   });
+}
+
+function mapTeamSponsors(value: unknown, legacyName = "", legacyLogoUrl = ""): TeamSponsor[] {
+  const sponsors = Array.isArray(value) ? value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as { name?: unknown; logoUrl?: unknown; logo_url?: unknown };
+    const name = typeof row.name === "string" ? row.name.trim() : "";
+    const logoUrl = typeof row.logoUrl === "string"
+      ? row.logoUrl.trim()
+      : typeof row.logo_url === "string"
+        ? row.logo_url.trim()
+        : "";
+    return name || logoUrl ? [{ name, logoUrl }] : [];
+  }) : [];
+  if (sponsors.length) return sponsors.slice(0, 12);
+
+  const name = legacyName.trim();
+  const logoUrl = legacyLogoUrl.trim();
+  return name || logoUrl ? [{ name, logoUrl }] : [];
 }
 
 function groupScheduleItemsByTime(items: ScheduleItem[]) {
