@@ -3773,8 +3773,9 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
 
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
   const openedFromRoster = searchParams.get("from") === "roster";
-  const backHref = openedFromRoster ? "/tournaments/teams" : "/tournaments/schedule";
-  const backLabel = openedFromRoster ? "Back to team rosters" : "Back to schedule";
+  const openedFromLeaderboard = searchParams.get("from") === "team-leaderboard";
+  const backHref = openedFromRoster ? "/tournaments/teams" : openedFromLeaderboard ? "/tournaments/bracket?view=team-leaderboard" : "/tournaments/schedule";
+  const backLabel = openedFromRoster ? "Back to team rosters" : openedFromLeaderboard ? "Back to team leaderboard" : "Back to schedule";
 
   return (
     <AppFrame active="tournament">
@@ -3878,6 +3879,11 @@ export function TournamentBracketScreen() {
   useEffect(() => {
     loadBracket();
   }, [loadBracket]);
+
+  useEffect(() => {
+    const requestedView = new URLSearchParams(window.location.search).get("view");
+    if (requestedView === "team-leaderboard" || requestedView === "player-leaderboard" || requestedView === "bracket") setActiveView(requestedView);
+  }, []);
 
   useEffect(() => {
     if (!appSession.ready || !appSession.userId) return;
@@ -5637,7 +5643,7 @@ function LiveTeamLeaderboard({ standings, completedMatches, matches, seedingIsFi
           <span className="text-center">Game %</span>
         </div>
         {standings.map((standing) => (
-          <article className="grid grid-cols-[34px_minmax(0,1fr)_132px] items-center gap-2 rounded-[15px] border-hairline border-line bg-surface/38 p-2.5 sm:grid-cols-[38px_minmax(180px,1fr)_72px_72px_72px] sm:px-3" key={standing.team.id}>
+          <Link className="tap-card group grid grid-cols-[34px_minmax(0,1fr)_132px] items-center gap-2 rounded-[15px] border-hairline border-line bg-surface/38 p-2.5 transition hover:border-brand/25 hover:bg-brand-light/45 hover:shadow-[0_8px_20px_rgba(12,59,32,0.07)] sm:grid-cols-[38px_minmax(180px,1fr)_72px_72px_72px] sm:px-3" href={`/tournaments/schedule/teams/${standing.team.id}?from=team-leaderboard`} aria-label={`View ${standing.team.name} team page`} key={standing.team.id}>
             <strong className="grid h-8 w-8 place-items-center rounded-full bg-white text-[13px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(12,59,32,0.08)]">{standing.seed}</strong>
             <span className="grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-2.5">
               <span className="grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-[10px] bg-white p-1 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]">
@@ -5654,7 +5660,7 @@ function LiveTeamLeaderboard({ standings, completedMatches, matches, seedingIsFi
               <LeaderboardMetric label="Sets" value={`${formatBracketPercentage(standing.setWinPercentage)}%`} />
               <LeaderboardMetric label="Games" value={`${formatBracketPercentage(standing.gameWinPercentage)}%`} />
             </span>
-          </article>
+          </Link>
         ))}
       </div>
     </section>
@@ -6286,31 +6292,45 @@ function formatBracketPercentage(value: number) {
 function TeamSponsorList({ sponsors, tone }: { sponsors: TeamSponsor[]; tone: "card" | "hero" }) {
   if (!sponsors.length) return null;
   const isHero = tone === "hero";
+  const sponsorNames = sponsors.map((sponsor) => sponsor.name).filter(Boolean).join(" · ");
 
   return (
-    <span className="pointer-events-auto relative z-10 flex min-w-0 flex-wrap gap-1.5">
-        {sponsors.map((sponsor, index) => {
-          const className = isHero
-            ? "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border-hairline border-white/25 bg-white/12 py-1 pl-1 pr-2.5 text-white backdrop-blur-sm"
-            : "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border-hairline border-white/45 bg-white/85 py-1 pl-1 pr-2.5 text-[#24412c]";
-          const content = (
-            <>
-              {sponsor.logoUrl && (
-                <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-white p-0.5 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.07)]">
-                  <img className="h-full w-full object-contain" src={sponsor.logoUrl} alt="" aria-hidden="true" />
-                </span>
+    <span className={isHero
+      ? "pointer-events-auto relative z-10 flex min-w-0 items-center gap-1.5 whitespace-nowrap"
+      : "pointer-events-auto relative z-10 flex w-max max-w-full min-w-0 items-center gap-1.5 whitespace-nowrap rounded-full border-hairline border-white/55 bg-white/90 px-2.5 py-1.5 text-[#24412c] shadow-[0_5px_14px_rgba(0,0,0,0.08)]"}>
+        <em className={isHero ? "shrink-0 text-[8px] font-medium not-italic uppercase tracking-[0.07em] text-white/65" : "shrink-0 text-[8px] font-medium not-italic uppercase tracking-[0.07em] text-current opacity-60"}>Sponsored by</em>
+        <span className={isHero ? "block min-w-0 overflow-hidden text-ellipsis text-[11px] font-medium text-white" : "block min-w-0 overflow-hidden text-ellipsis text-[11px] font-medium text-[#24412c]"} title={sponsorNames}>
+          {sponsors.map((sponsor, index) => (
+            <span key={`${sponsor.name}:${sponsor.logoUrl}:${index}`}>
+              {index > 0 && <span className="px-1 opacity-45" aria-hidden="true">·</span>}
+              {sponsor.websiteUrl ? (
+                <a className="tap-card underline decoration-current/35 underline-offset-2 transition hover:decoration-current" href={sponsor.websiteUrl} target="_blank" rel="noreferrer" aria-label={`Visit ${sponsor.name || "sponsor"} website`}>{sponsor.name || `Sponsor ${index + 1}`}</a>
+              ) : (
+                <strong className="font-medium">{sponsor.name || `Sponsor ${index + 1}`}</strong>
               )}
-              <em className={isHero ? "shrink-0 text-[8px] font-medium not-italic uppercase tracking-[0.07em] text-white/65" : "shrink-0 text-[8px] font-medium not-italic uppercase tracking-[0.07em] opacity-60"}>Sponsored by</em>
-              {sponsor.name && <strong className="max-w-[150px] truncate text-[11px] font-medium sm:max-w-[190px]">{sponsor.name}</strong>}
-              {sponsor.websiteUrl && <ExternalLink className="shrink-0 opacity-65" size={10} aria-hidden="true" />}
-            </>
-          );
-          return sponsor.websiteUrl ? (
-            <a className={`${className} tap-card transition hover:-translate-y-0.5 hover:shadow-[0_6px_14px_rgba(0,0,0,0.10)]`} href={sponsor.websiteUrl} target="_blank" rel="noreferrer" aria-label={`Visit ${sponsor.name || "sponsor"} website`} key={`${sponsor.name}:${sponsor.logoUrl}:${index}`}>{content}</a>
-          ) : (
-            <span className={className} key={`${sponsor.name}:${sponsor.logoUrl}:${index}`}>{content}</span>
-          );
-        })}
+            </span>
+          ))}
+        </span>
+    </span>
+  );
+}
+
+function TeamSponsorLogoStamps({ sponsors }: { sponsors: TeamSponsor[] }) {
+  const logoSponsors = sponsors.filter((sponsor) => sponsor.logoUrl);
+  if (!logoSponsors.length) return null;
+  const visibleSponsors = logoSponsors.slice(0, 3);
+  const remainingCount = logoSponsors.length - visibleSponsors.length;
+  const rotations = ["-rotate-[6deg]", "rotate-[4deg]", "-rotate-[2deg]"];
+
+  return (
+    <span className="flex items-start -space-x-2" aria-label="Team sponsor logos">
+      {visibleSponsors.map((sponsor, index) => (
+        <span className={`relative grid h-12 w-12 place-items-center overflow-hidden rounded-[15px] border border-dashed border-black/35 bg-white p-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.18)] sm:h-14 sm:w-14 sm:rounded-[17px] ${rotations[index]}`} style={{ zIndex: visibleSponsors.length - index }} key={`${sponsor.logoUrl}:${index}`}>
+          <span className="absolute inset-1 rounded-[11px] border-hairline border-black/10" aria-hidden="true" />
+          <img className="relative h-full w-full object-contain" src={sponsor.logoUrl} alt={`${sponsor.name || "Team sponsor"} logo`} />
+        </span>
+      ))}
+      {remainingCount > 0 && <span className="relative z-10 grid h-7 min-w-7 place-items-center self-end rounded-full border-2 border-white bg-brand px-1 text-[9px] font-semibold text-white shadow-[0_6px_14px_rgba(0,0,0,0.16)]">+{remainingCount}</span>}
     </span>
   );
 }
@@ -6328,6 +6348,7 @@ function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: Publ
           <ArrowLeft size={16} strokeWidth={2.2} />
         </Link>
         <span className="pointer-events-none absolute right-4 top-4 z-20 flex items-start gap-2">
+          <TeamSponsorLogoStamps sponsors={team.sponsors} />
           <span className="relative grid h-14 w-14 rotate-[6deg] place-items-center rounded-[17px] border border-dashed border-black/35 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.18)]" role="img" aria-label="Team jersey color">
             <span className="absolute inset-1 rounded-[13px] border-hairline border-black/10" aria-hidden="true" />
             <Shirt size={28} strokeWidth={1.9} style={{ color: "#18181b", fill: teamColor }} />
