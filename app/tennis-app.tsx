@@ -5296,12 +5296,9 @@ function ScheduleItemCard({ item, teams, courtMatches = [], hideTime = false }: 
       </span>
       <span className="grid gap-2">
         <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-          <ScheduleTeamPill label={teamALabel} color={teamAColor} logoUrl={teamA?.logoUrl || ""} isFinalized={Boolean(teamA)} />
+          <ScheduleTeamPill label={teamALabel} color={teamAColor} logoUrl={teamA?.logoUrl || ""} isFinalized={Boolean(teamA)} showBallIcon={ballTeam?.id === teamA?.id} />
           <em className="text-[12px] not-italic text-text-muted">vs</em>
-          <ScheduleTeamPill label={teamBLabel} color={teamBColor} logoUrl={teamB?.logoUrl || ""} isFinalized={Boolean(teamB)} />
-        </span>
-        <span className="flex justify-end">
-          <BallTeamBadge teamName={ballTeam?.name || ""} pending={!ballTeam} compact />
+          <ScheduleTeamPill label={teamBLabel} color={teamBColor} logoUrl={teamB?.logoUrl || ""} isFinalized={Boolean(teamB)} showBallIcon={ballTeam?.id === teamB?.id} />
         </span>
         {!!courtMatches.length && (
           <span className="grid gap-1">
@@ -6518,18 +6515,15 @@ function PlayerScheduleMatchCard({ match, teams, isFeatured, onOpenMatch, hideTi
             </span>
           </div>
         )}
-        <div className="flex justify-end">
-          <BallTeamBadge teamName={ballTeam?.name || ""} pending={!ballTeam} compact />
-        </div>
-        <button className="tap-card group grid w-full gap-2.5 text-left" type="button" onClick={onOpenMatch} aria-label={`View match details: ${playerSideNames.join(" and ")} versus ${opponentNames.join(" and ")}`}>
+        <button className="tap-card group grid w-full grid-cols-[minmax(0,1fr)_30px] items-center gap-2 text-left" type="button" onClick={onOpenMatch} aria-label={`View match details: ${playerSideNames.join(" and ")} versus ${opponentNames.join(" and ")}`}>
           <span className="grid min-h-[88px] rounded-[18px] border-hairline border-[#dce4dc] bg-white p-2 transition group-hover:border-brand/30 group-hover:shadow-[0_12px_28px_rgba(12,59,32,0.07)] sm:min-h-[102px] sm:p-2.5">
             <span className="grid grid-cols-[minmax(0,1fr)_46px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] sm:gap-3">
-              <PlayerNameStack label="" names={playerSideNames} tone="primary" color={match.teamColor} centerOnWideScreens={isSingles} />
+              <PlayerNameStack label="" names={playerSideNames} tone="primary" color={match.teamColor} centerOnWideScreens={isSingles} showBallIcon={ballTeam?.id === match.teamId} />
               <CourtLineDivider label={courtNumber} />
-              <PlayerNameStack label="" names={opponentNames} tone="opponent" color={match.opposingTeamColor} centerOnWideScreens={isSingles} />
+              <PlayerNameStack label="" names={opponentNames} tone="opponent" color={match.opposingTeamColor} centerOnWideScreens={isSingles} showBallIcon={ballTeam?.id === match.opposingTeamId} />
             </span>
           </span>
-          <span className="justify-self-end">
+          <span className="justify-self-center">
             <MatchCardSideCue />
           </span>
         </button>
@@ -6546,7 +6540,7 @@ function MatchCardSideCue() {
   );
 }
 
-function PlayerNameStack({ label, names, tone, color, centerOnWideScreens = false }: { label: string; names: string[]; tone: "primary" | "opponent"; color?: string; centerOnWideScreens?: boolean }) {
+function PlayerNameStack({ label, names, tone, color, centerOnWideScreens = false, showBallIcon = false }: { label: string; names: string[]; tone: "primary" | "opponent"; color?: string; centerOnWideScreens?: boolean; showBallIcon?: boolean }) {
   const isPrimary = tone === "primary";
   const teamTone = color ? getTeamCardTone(color) : null;
   const chipStyle = teamTone
@@ -6561,13 +6555,24 @@ function PlayerNameStack({ label, names, tone, color, centerOnWideScreens = fals
             className={isPrimary ? "grid min-h-9 min-w-0 place-items-center rounded-[12px] border-hairline border-[#e3e8e1] bg-[#f3f5f1] px-2 py-1.5 text-center text-[11px] font-semibold leading-tight text-text-primary sm:min-h-11 sm:px-3 sm:py-2 sm:text-[14px]" : "grid min-h-9 min-w-0 place-items-center rounded-[12px] border-hairline border-white/25 bg-surface/70 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight text-text-primary sm:min-h-11 sm:px-3 sm:py-2 sm:text-[14px]"}
             style={chipStyle}
           >
-            <span className="block min-w-0 whitespace-normal break-words">{name}</span>
+            <span className="inline-flex min-w-0 items-center justify-center gap-1.5">
+              <span className="block min-w-0 whitespace-normal break-words">{name}</span>
+              {showBallIcon && index === 0 && <TennisBallIcon className="h-4 w-4 sm:h-5 sm:w-5" />}
+            </span>
           </strong>
           {index < names.length - 1 && (
             <em className="-my-1 justify-self-center text-[10px] font-semibold not-italic leading-none text-text-muted" aria-hidden="true">&amp;</em>
           )}
         </Fragment>
       ))}
+    </span>
+  );
+}
+
+function TennisBallIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <span className={`relative inline-block shrink-0 drop-shadow-[0_1px_2px_rgba(12,59,32,0.24)] ${className}`} aria-hidden="true">
+      <NextImage src="/images/tennis-countdown-ball.png" alt="" fill sizes="20px" className="object-contain" />
     </span>
   );
 }
@@ -6641,15 +6646,12 @@ function BallTeamBadge({ teamName, pending = false, compact = false }: { teamNam
     ? "The ball team will be assigned when both teams are confirmed."
     : `${teamName} opens the ball cans for this matchup.`;
   return (
-    <span
+      <span
       className={`${compact ? "min-h-7 gap-1.5 px-2.5 py-1 text-[10px]" : "min-h-8 gap-2 px-3 py-1.5 text-[11px]"} inline-flex min-w-0 max-w-full items-center rounded-full border-hairline ${pending ? "border-line bg-surface text-text-muted" : "border-[#d3dfc5] bg-[#f6f9ef] text-brand"} shadow-[0_6px_14px_rgba(12,59,32,0.05)]`}
       title={title}
       aria-label={title}
     >
-      <span className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} relative shrink-0 overflow-hidden rounded-full border border-[#9dbb35] bg-[#dfff4f]`} aria-hidden="true">
-        <span className="absolute -left-[35%] top-[-10%] h-[120%] w-[72%] rounded-full border-r border-white/90" />
-        <span className="absolute -right-[35%] top-[-10%] h-[120%] w-[72%] rounded-full border-l border-white/90" />
-      </span>
+      <TennisBallIcon className={compact ? "h-4 w-4" : "h-5 w-5"} />
       <em className="shrink-0 font-medium not-italic opacity-70">Balls:</em>
       <strong className="min-w-0 truncate font-medium text-current">{displayName}</strong>
     </span>
@@ -6667,16 +6669,13 @@ function TeamCourtScheduleBlock({ block, teams, isFeatured, onOpenMatch, onOpenT
       <span className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_top_right,rgba(24,95,165,0.12),transparent_58%)]" aria-hidden="true" />
       <div className="relative grid gap-3">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-          <ScheduleTeamPill label={block.primaryTeam} color={primaryTeam?.jerseyColor || "#eaf3de"} logoUrl={primaryTeam?.logoUrl || ""} isFinalized={Boolean(primaryTeam)} onClick={primaryTeam ? () => onOpenTeam(primaryTeam.id) : undefined} />
+          <ScheduleTeamPill label={block.primaryTeam} color={primaryTeam?.jerseyColor || "#eaf3de"} logoUrl={primaryTeam?.logoUrl || ""} isFinalized={Boolean(primaryTeam)} showBallIcon={ballTeam?.id === primaryTeam?.id} onClick={primaryTeam ? () => onOpenTeam(primaryTeam.id) : undefined} />
           <em className="text-[12px] not-italic text-text-muted">vs</em>
-          <ScheduleTeamPill label={block.opponentTeam} color={opponentTeam?.jerseyColor || "#e5f1ff"} logoUrl={opponentTeam?.logoUrl || ""} isFinalized={Boolean(opponentTeam)} onClick={opponentTeam ? () => onOpenTeam(opponentTeam.id) : undefined} />
-        </div>
-        <div className="flex justify-end">
-          <BallTeamBadge teamName={ballTeam?.name || ""} pending={!ballTeam} />
+          <ScheduleTeamPill label={block.opponentTeam} color={opponentTeam?.jerseyColor || "#e5f1ff"} logoUrl={opponentTeam?.logoUrl || ""} isFinalized={Boolean(opponentTeam)} showBallIcon={ballTeam?.id === opponentTeam?.id} onClick={opponentTeam ? () => onOpenTeam(opponentTeam.id) : undefined} />
         </div>
         <div className="grid gap-2">
           {block.matches.map((match) => (
-            <TeamCourtScheduleGame match={match} teamName={block.primaryTeam} onOpenMatch={onOpenMatch} key={match.id} />
+            <TeamCourtScheduleGame match={match} teamName={block.primaryTeam} ballTeamId={ballTeam?.id || ""} onOpenMatch={onOpenMatch} key={match.id} />
           ))}
         </div>
       </div>
@@ -6779,12 +6778,9 @@ function DayScheduleTeamBlock({ block, teams, isOpen, showMatchCount, onToggle, 
             )}
           </span>
           <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-            <ScheduleTeamPill label={block.primaryTeam} color={primaryTeam?.jerseyColor || "#eaf3de"} logoUrl={primaryTeam?.logoUrl || ""} isFinalized={Boolean(primaryTeam)} compact onClick={primaryTeam ? () => onOpenTeam(primaryTeam.id) : undefined} />
+            <ScheduleTeamPill label={block.primaryTeam} color={primaryTeam?.jerseyColor || "#eaf3de"} logoUrl={primaryTeam?.logoUrl || ""} isFinalized={Boolean(primaryTeam)} showBallIcon={ballTeam?.id === primaryTeam?.id} compact onClick={primaryTeam ? () => onOpenTeam(primaryTeam.id) : undefined} />
             <em className="text-[10px] not-italic text-text-muted">vs</em>
-            <ScheduleTeamPill label={block.opponentTeam} color={opponentTeam?.jerseyColor || "#e5f1ff"} logoUrl={opponentTeam?.logoUrl || ""} isFinalized={Boolean(opponentTeam)} compact onClick={opponentTeam ? () => onOpenTeam(opponentTeam.id) : undefined} />
-          </span>
-          <span className="flex justify-end">
-            <BallTeamBadge teamName={ballTeam?.name || ""} pending={!ballTeam} compact />
+            <ScheduleTeamPill label={block.opponentTeam} color={opponentTeam?.jerseyColor || "#e5f1ff"} logoUrl={opponentTeam?.logoUrl || ""} isFinalized={Boolean(opponentTeam)} showBallIcon={ballTeam?.id === opponentTeam?.id} compact onClick={opponentTeam ? () => onOpenTeam(opponentTeam.id) : undefined} />
           </span>
         </span>
         <span className="inline-grid h-9 w-9 place-items-center justify-self-center rounded-full bg-surface text-brand transition group-hover:bg-brand-light" aria-hidden="true">
@@ -6795,7 +6791,7 @@ function DayScheduleTeamBlock({ block, teams, isOpen, showMatchCount, onToggle, 
         <div className="border-t-hairline border-line bg-surface/45 p-3">
           <div className="divide-y divide-line overflow-hidden rounded-[17px] border-hairline border-[#dce4dc] bg-white">
             {block.matches.map((match) => (
-              <TeamCourtScheduleGame match={match} teamName={block.primaryTeam} onOpenMatch={onOpenMatch} grouped key={match.id} />
+              <TeamCourtScheduleGame match={match} teamName={block.primaryTeam} ballTeamId={ballTeam?.id || ""} onOpenMatch={onOpenMatch} grouped key={match.id} />
             ))}
           </div>
         </div>
@@ -6804,7 +6800,7 @@ function DayScheduleTeamBlock({ block, teams, isOpen, showMatchCount, onToggle, 
   );
 }
 
-function TeamCourtScheduleGame({ match, teamName, onOpenMatch, grouped = false }: { match: TeamCourtScheduleMatch; teamName: string; onOpenMatch: (match: TeamCourtScheduleMatch) => void; grouped?: boolean }) {
+function TeamCourtScheduleGame({ match, teamName, ballTeamId, onOpenMatch, grouped = false }: { match: TeamCourtScheduleMatch; teamName: string; ballTeamId: string; onOpenMatch: (match: TeamCourtScheduleMatch) => void; grouped?: boolean }) {
   const teamIsA = match.teamAName === teamName;
   const primaryPlayers = teamIsA ? match.playersA : match.playersB;
   const opponentPlayers = teamIsA ? match.playersB : match.playersA;
@@ -6813,13 +6809,15 @@ function TeamCourtScheduleGame({ match, teamName, onOpenMatch, grouped = false }
   const courtNumber = formatCourtNumber(match.courtLabel || "");
   const isSingles = displayPrimaryPlayers.length === 1 && displayOpponentPlayers.length === 1;
   const opponentColor = teamIsA ? match.teamBColor : match.teamAColor;
+  const primaryTeamId = teamIsA ? match.teamAId : match.teamBId;
+  const opponentTeamId = teamIsA ? match.teamBId : match.teamAId;
 
   return (
     <button className={grouped ? "tap-card group relative grid w-full grid-cols-[minmax(0,1fr)_30px] items-center gap-2 bg-white p-2.5 text-left transition hover:bg-[#fbfcf8] sm:p-3" : "tap-card group relative grid w-full grid-cols-[minmax(0,1fr)_30px] items-center gap-2 rounded-[17px] border-hairline border-[#dce4dc] bg-white p-2.5 text-left transition hover:border-brand/30 hover:shadow-[0_12px_28px_rgba(12,59,32,0.07)] sm:p-3"} type="button" onClick={() => onOpenMatch(match)} aria-label={`View match details: ${displayPrimaryPlayers.join(" and ")} versus ${displayOpponentPlayers.join(" and ")}`}>
       <span className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_46px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] sm:gap-3">
-        <PlayerNameStack label="" names={displayPrimaryPlayers} tone="primary" centerOnWideScreens={isSingles} />
+        <PlayerNameStack label="" names={displayPrimaryPlayers} tone="primary" centerOnWideScreens={isSingles} showBallIcon={ballTeamId === primaryTeamId} />
         <CourtLineDivider label={courtNumber} />
-        <PlayerNameStack label="" names={displayOpponentPlayers} tone="opponent" color={opponentColor} centerOnWideScreens={isSingles} />
+        <PlayerNameStack label="" names={displayOpponentPlayers} tone="opponent" color={opponentColor} centerOnWideScreens={isSingles} showBallIcon={ballTeamId === opponentTeamId} />
       </span>
       <span className="justify-self-center">
         <MatchCardSideCue />
@@ -6828,14 +6826,17 @@ function TeamCourtScheduleGame({ match, teamName, onOpenMatch, grouped = false }
   );
 }
 
-function ScheduleTeamPill({ label, color, logoUrl, isFinalized, wrapName = false, compact = false, onClick }: { label: string; color: string; logoUrl: string; isFinalized: boolean; wrapName?: boolean; compact?: boolean; onClick?: () => void }) {
+function ScheduleTeamPill({ label, color, logoUrl, isFinalized, wrapName = false, compact = false, showBallIcon = false, onClick }: { label: string; color: string; logoUrl: string; isFinalized: boolean; wrapName?: boolean; compact?: boolean; showBallIcon?: boolean; onClick?: () => void }) {
   const teamTone = getTeamCardTone(color);
   const pillStyle = isFinalized
     ? { background: teamTone.background, color: teamTone.textColor, borderColor: "rgba(255,255,255,0.28)" }
     : undefined;
   const Tag = onClick ? "button" : "span";
+  const gridColumns = showBallIcon
+    ? compact ? "grid-cols-[24px_minmax(0,1fr)_auto]" : "grid-cols-[28px_minmax(0,1fr)_auto]"
+    : compact ? "grid-cols-[24px_minmax(0,1fr)]" : "grid-cols-[28px_minmax(0,1fr)]";
   return (
-    <Tag className={isFinalized ? `${onClick ? "tap-card text-left" : ""} ${compact ? "grid-cols-[24px_minmax(0,1fr)] gap-1.5 px-1.5" : "grid-cols-[28px_minmax(0,1fr)] gap-2 px-2"} grid min-h-9 min-w-0 items-center rounded-full border-hairline py-1 shadow-[0_8px_18px_rgba(12,59,32,0.12)]` : `${onClick ? "tap-card text-left" : ""} ${compact ? "grid-cols-[24px_minmax(0,1fr)] gap-1.5 px-1.5" : "grid-cols-[28px_minmax(0,1fr)] gap-2 px-2"} grid min-h-9 min-w-0 items-center rounded-full border-hairline border-line bg-white py-1`} style={pillStyle} type={onClick ? "button" : undefined} onClick={(event) => {
+    <Tag className={isFinalized ? `${onClick ? "tap-card text-left" : ""} ${gridColumns} ${compact ? "gap-1.5 px-1.5" : "gap-2 px-2"} grid min-h-9 min-w-0 items-center rounded-full border-hairline py-1 shadow-[0_8px_18px_rgba(12,59,32,0.12)]` : `${onClick ? "tap-card text-left" : ""} ${gridColumns} ${compact ? "gap-1.5 px-1.5" : "gap-2 px-2"} grid min-h-9 min-w-0 items-center rounded-full border-hairline border-line bg-white py-1`} style={pillStyle} type={onClick ? "button" : undefined} onClick={(event) => {
       if (!onClick) return;
       event.stopPropagation();
       onClick();
@@ -6848,6 +6849,7 @@ function ScheduleTeamPill({ label, color, logoUrl, isFinalized, wrapName = false
         <span className={`${compact ? "h-6 w-6 text-[9px]" : "h-7 w-7 text-[10px]"} grid place-items-center rounded-full font-medium text-white`} style={{ backgroundColor: normalizeTeamColor(color) }}>{getInitials(label || "Team")}</span>
       )}
       <strong className={isFinalized ? `${wrapName ? "whitespace-normal break-words leading-tight" : "truncate whitespace-nowrap"} ${compact ? "text-[11px] sm:text-[12px]" : "text-[13px]"} font-medium text-current` : `${wrapName ? "whitespace-normal break-words leading-tight" : "truncate whitespace-nowrap"} ${compact ? "text-[11px] sm:text-[12px]" : "text-[13px]"} font-medium text-text-primary`}>{label || "TBD"}</strong>
+      {showBallIcon && <TennisBallIcon className={compact ? "h-4 w-4" : "h-5 w-5"} />}
     </Tag>
   );
 }
