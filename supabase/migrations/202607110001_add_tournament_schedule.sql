@@ -9,6 +9,7 @@ create table if not exists public.tournament_schedule_notes (
   updated_at timestamptz not null default now()
 );
 
+drop trigger if exists tournament_schedule_notes_set_updated_at on public.tournament_schedule_notes;
 create trigger tournament_schedule_notes_set_updated_at
 before update on public.tournament_schedule_notes
 for each row execute function public.set_updated_at();
@@ -38,6 +39,7 @@ create table if not exists public.tournament_schedule_items (
   updated_at timestamptz not null default now()
 );
 
+drop trigger if exists tournament_schedule_items_set_updated_at on public.tournament_schedule_items;
 create trigger tournament_schedule_items_set_updated_at
 before update on public.tournament_schedule_items
 for each row execute function public.set_updated_at();

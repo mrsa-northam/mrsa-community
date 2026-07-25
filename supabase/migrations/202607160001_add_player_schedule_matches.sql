@@ -27,6 +27,7 @@ create table if not exists public.tournament_schedule_matches (
   updated_at timestamptz not null default now()
 );
 
+drop trigger if exists tournament_schedule_matches_set_updated_at on public.tournament_schedule_matches;
 create trigger tournament_schedule_matches_set_updated_at
 before update on public.tournament_schedule_matches
 for each row execute function public.set_updated_at();
@@ -46,6 +47,7 @@ create table if not exists public.tournament_schedule_match_players (
   unique (schedule_match_id, side, slot)
 );
 
+drop trigger if exists tournament_schedule_match_players_set_updated_at on public.tournament_schedule_match_players;
 create trigger tournament_schedule_match_players_set_updated_at
 before update on public.tournament_schedule_match_players
 for each row execute function public.set_updated_at();

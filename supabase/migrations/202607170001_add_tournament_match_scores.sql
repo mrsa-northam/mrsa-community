@@ -16,6 +16,7 @@ create table if not exists public.tournament_match_scores (
   unique (schedule_match_id)
 );
 
+drop trigger if exists tournament_match_scores_set_updated_at on public.tournament_match_scores;
 create trigger tournament_match_scores_set_updated_at
 before update on public.tournament_match_scores
 for each row execute function public.set_updated_at();

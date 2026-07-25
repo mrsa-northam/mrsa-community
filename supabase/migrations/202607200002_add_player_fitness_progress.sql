@@ -8,6 +8,7 @@ create table if not exists public.player_fitness_progress (
   unique (player_id, day_number)
 );
 
+drop trigger if exists player_fitness_progress_set_updated_at on public.player_fitness_progress;
 create trigger player_fitness_progress_set_updated_at
 before update on public.player_fitness_progress
 for each row execute function public.set_updated_at();
