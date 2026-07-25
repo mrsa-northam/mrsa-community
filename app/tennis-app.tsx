@@ -5361,6 +5361,7 @@ function ScheduleLoadingNotice({ label, overlay = false }: { label: string; over
 
 function PlayerScheduleTimeCard({ label, matches, teams, onOpenMatch, isFeatured }: { label: string; matches: PlayerScheduleMatch[]; teams: PublishedTeam[]; onOpenMatch: (match: PlayerScheduleMatch) => void; isFeatured: boolean }) {
   const featuredMatch = matches.length === 1 ? matches[0] : null;
+  const featuredBallTeam = featuredMatch ? getBallTeamForMatchup(featuredMatch.dayNumber, featuredMatch.teamId, featuredMatch.opposingTeamId, featuredMatch.id, teams) : null;
   return (
     <section className={`overflow-hidden rounded-[24px] border-hairline border-[#d8e1d9] bg-[#fbfcf8] shadow-[0_20px_48px_rgba(12,59,32,0.11)] ${isFeatured ? "shadow-[0_24px_56px_rgba(12,59,32,0.15)]" : ""}`}>
       <div className="grid min-h-[66px] grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border-b-hairline border-[#dce4dc] bg-[linear-gradient(135deg,#eef4e7,#fbfcf8)] px-4 py-2.5 sm:min-h-[72px] sm:px-5">
@@ -5372,9 +5373,9 @@ function PlayerScheduleTimeCard({ label, matches, teams, onOpenMatch, isFeatured
         </span>
         {featuredMatch ? (
           <span className="min-w-0 justify-self-end text-right text-[11px] font-medium leading-tight sm:text-[13px]">
-            <ScheduleHeaderTeamName name={featuredMatch.teamName} />
+            <ScheduleHeaderTeamName name={featuredMatch.teamName} showBallIcon={featuredBallTeam?.id === featuredMatch.teamId} />
             <em className="mx-1 not-italic text-text-muted">vs</em>
-            <ScheduleHeaderTeamName name={featuredMatch.opposingTeamName} />
+            <ScheduleHeaderTeamName name={featuredMatch.opposingTeamName} showBallIcon={featuredBallTeam?.id === featuredMatch.opposingTeamId} />
           </span>
         ) : (
           <span className="justify-self-end rounded-full border-hairline border-[#d3dfc5] bg-white/75 px-3 py-1.5 text-[11px] font-medium text-brand/75 sm:text-[12px]">{matches.length} matches</span>
@@ -5389,13 +5390,14 @@ function PlayerScheduleTimeCard({ label, matches, teams, onOpenMatch, isFeatured
   );
 }
 
-function ScheduleHeaderTeamName({ name }: { name: string }) {
+function ScheduleHeaderTeamName({ name, showBallIcon = false }: { name: string; showBallIcon?: boolean }) {
   const parts = name.trim().split(/\s+/);
   const prefix = parts.length > 1 ? `${parts.shift()} ` : "";
   return (
-    <span className="inline">
+    <span className="inline-flex min-w-0 items-center gap-1 align-middle">
       {prefix && <span className="text-text-secondary">{prefix}</span>}
       <strong className="font-semibold text-brand">{parts.join(" ") || name}</strong>
+      {showBallIcon && <TennisBallIcon className="h-4 w-4" />}
     </span>
   );
 }
@@ -6510,17 +6512,19 @@ function PlayerScheduleMatchCard({ match, teams, isFeatured, onOpenMatch, hideTi
               <Clock size={13} />
               <strong className="text-[13px] font-medium leading-none sm:text-[14px]">{match.timeLabel || "Time TBD"}</strong>
             </span>
-            <span className="min-w-0 truncate text-right text-[12px] font-medium text-text-secondary sm:text-[13px]">
-              {match.teamName} vs {match.opposingTeamName}
+            <span className="min-w-0 justify-self-end text-right text-[12px] font-medium text-text-secondary sm:text-[13px]">
+              <ScheduleHeaderTeamName name={match.teamName} showBallIcon={ballTeam?.id === match.teamId} />
+              <em className="mx-1 not-italic text-text-muted">vs</em>
+              <ScheduleHeaderTeamName name={match.opposingTeamName} showBallIcon={ballTeam?.id === match.opposingTeamId} />
             </span>
           </div>
         )}
         <button className="tap-card group grid w-full grid-cols-[minmax(0,1fr)_30px] items-center gap-2 text-left" type="button" onClick={onOpenMatch} aria-label={`View match details: ${playerSideNames.join(" and ")} versus ${opponentNames.join(" and ")}`}>
           <span className="grid min-h-[88px] rounded-[18px] border-hairline border-[#dce4dc] bg-white p-2 transition group-hover:border-brand/30 group-hover:shadow-[0_12px_28px_rgba(12,59,32,0.07)] sm:min-h-[102px] sm:p-2.5">
             <span className="grid grid-cols-[minmax(0,1fr)_46px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] sm:gap-3">
-              <PlayerNameStack label="" names={playerSideNames} tone="primary" color={match.teamColor} centerOnWideScreens={isSingles} showBallIcon={ballTeam?.id === match.teamId} />
+              <PlayerNameStack label="" names={playerSideNames} tone="primary" color={match.teamColor} centerOnWideScreens={isSingles} />
               <CourtLineDivider label={courtNumber} />
-              <PlayerNameStack label="" names={opponentNames} tone="opponent" color={match.opposingTeamColor} centerOnWideScreens={isSingles} showBallIcon={ballTeam?.id === match.opposingTeamId} />
+              <PlayerNameStack label="" names={opponentNames} tone="opponent" color={match.opposingTeamColor} centerOnWideScreens={isSingles} />
             </span>
           </span>
           <span className="justify-self-center">
@@ -6540,7 +6544,7 @@ function MatchCardSideCue() {
   );
 }
 
-function PlayerNameStack({ label, names, tone, color, centerOnWideScreens = false, showBallIcon = false }: { label: string; names: string[]; tone: "primary" | "opponent"; color?: string; centerOnWideScreens?: boolean; showBallIcon?: boolean }) {
+function PlayerNameStack({ label, names, tone, color, centerOnWideScreens = false }: { label: string; names: string[]; tone: "primary" | "opponent"; color?: string; centerOnWideScreens?: boolean }) {
   const isPrimary = tone === "primary";
   const teamTone = color ? getTeamCardTone(color) : null;
   const chipStyle = teamTone
@@ -6555,10 +6559,7 @@ function PlayerNameStack({ label, names, tone, color, centerOnWideScreens = fals
             className={isPrimary ? "grid min-h-9 min-w-0 place-items-center rounded-[12px] border-hairline border-[#e3e8e1] bg-[#f3f5f1] px-2 py-1.5 text-center text-[11px] font-semibold leading-tight text-text-primary sm:min-h-11 sm:px-3 sm:py-2 sm:text-[14px]" : "grid min-h-9 min-w-0 place-items-center rounded-[12px] border-hairline border-white/25 bg-surface/70 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight text-text-primary sm:min-h-11 sm:px-3 sm:py-2 sm:text-[14px]"}
             style={chipStyle}
           >
-            <span className="inline-flex min-w-0 items-center justify-center gap-1.5">
-              <span className="block min-w-0 whitespace-normal break-words">{name}</span>
-              {showBallIcon && index === 0 && <TennisBallIcon className="h-4 w-4 sm:h-5 sm:w-5" />}
-            </span>
+            <span className="block min-w-0 whitespace-normal break-words">{name}</span>
           </strong>
           {index < names.length - 1 && (
             <em className="-my-1 justify-self-center text-[10px] font-semibold not-italic leading-none text-text-muted" aria-hidden="true">&amp;</em>
@@ -6675,7 +6676,7 @@ function TeamCourtScheduleBlock({ block, teams, isFeatured, onOpenMatch, onOpenT
         </div>
         <div className="grid gap-2">
           {block.matches.map((match) => (
-            <TeamCourtScheduleGame match={match} teamName={block.primaryTeam} ballTeamId={ballTeam?.id || ""} onOpenMatch={onOpenMatch} key={match.id} />
+            <TeamCourtScheduleGame match={match} teamName={block.primaryTeam} onOpenMatch={onOpenMatch} key={match.id} />
           ))}
         </div>
       </div>
@@ -6791,7 +6792,7 @@ function DayScheduleTeamBlock({ block, teams, isOpen, showMatchCount, onToggle, 
         <div className="border-t-hairline border-line bg-surface/45 p-3">
           <div className="divide-y divide-line overflow-hidden rounded-[17px] border-hairline border-[#dce4dc] bg-white">
             {block.matches.map((match) => (
-              <TeamCourtScheduleGame match={match} teamName={block.primaryTeam} ballTeamId={ballTeam?.id || ""} onOpenMatch={onOpenMatch} grouped key={match.id} />
+              <TeamCourtScheduleGame match={match} teamName={block.primaryTeam} onOpenMatch={onOpenMatch} grouped key={match.id} />
             ))}
           </div>
         </div>
@@ -6800,7 +6801,7 @@ function DayScheduleTeamBlock({ block, teams, isOpen, showMatchCount, onToggle, 
   );
 }
 
-function TeamCourtScheduleGame({ match, teamName, ballTeamId, onOpenMatch, grouped = false }: { match: TeamCourtScheduleMatch; teamName: string; ballTeamId: string; onOpenMatch: (match: TeamCourtScheduleMatch) => void; grouped?: boolean }) {
+function TeamCourtScheduleGame({ match, teamName, onOpenMatch, grouped = false }: { match: TeamCourtScheduleMatch; teamName: string; onOpenMatch: (match: TeamCourtScheduleMatch) => void; grouped?: boolean }) {
   const teamIsA = match.teamAName === teamName;
   const primaryPlayers = teamIsA ? match.playersA : match.playersB;
   const opponentPlayers = teamIsA ? match.playersB : match.playersA;
@@ -6809,15 +6810,13 @@ function TeamCourtScheduleGame({ match, teamName, ballTeamId, onOpenMatch, group
   const courtNumber = formatCourtNumber(match.courtLabel || "");
   const isSingles = displayPrimaryPlayers.length === 1 && displayOpponentPlayers.length === 1;
   const opponentColor = teamIsA ? match.teamBColor : match.teamAColor;
-  const primaryTeamId = teamIsA ? match.teamAId : match.teamBId;
-  const opponentTeamId = teamIsA ? match.teamBId : match.teamAId;
 
   return (
     <button className={grouped ? "tap-card group relative grid w-full grid-cols-[minmax(0,1fr)_30px] items-center gap-2 bg-white p-2.5 text-left transition hover:bg-[#fbfcf8] sm:p-3" : "tap-card group relative grid w-full grid-cols-[minmax(0,1fr)_30px] items-center gap-2 rounded-[17px] border-hairline border-[#dce4dc] bg-white p-2.5 text-left transition hover:border-brand/30 hover:shadow-[0_12px_28px_rgba(12,59,32,0.07)] sm:p-3"} type="button" onClick={() => onOpenMatch(match)} aria-label={`View match details: ${displayPrimaryPlayers.join(" and ")} versus ${displayOpponentPlayers.join(" and ")}`}>
       <span className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_46px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] sm:gap-3">
-        <PlayerNameStack label="" names={displayPrimaryPlayers} tone="primary" centerOnWideScreens={isSingles} showBallIcon={ballTeamId === primaryTeamId} />
+        <PlayerNameStack label="" names={displayPrimaryPlayers} tone="primary" centerOnWideScreens={isSingles} />
         <CourtLineDivider label={courtNumber} />
-        <PlayerNameStack label="" names={displayOpponentPlayers} tone="opponent" color={opponentColor} centerOnWideScreens={isSingles} showBallIcon={ballTeamId === opponentTeamId} />
+        <PlayerNameStack label="" names={displayOpponentPlayers} tone="opponent" color={opponentColor} centerOnWideScreens={isSingles} />
       </span>
       <span className="justify-self-center">
         <MatchCardSideCue />
