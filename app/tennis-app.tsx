@@ -5272,6 +5272,8 @@ function ScheduleItemCard({ item, teams, courtMatches = [], hideTime = false }: 
   const teamAColor = teamA?.jerseyColor || "#eaf3de";
   const teamBColor = teamB?.jerseyColor || "#e5f1ff";
   const ballTeam = getBallTeamForMatchup(item.dayNumber, teamA?.id || "", teamB?.id || "", item.id, teams);
+  const showTeamABall = item.dayNumber === 2 || ballTeam?.id === teamA?.id;
+  const showTeamBBall = item.dayNumber === 2 ? false : ballTeam?.id === teamB?.id;
 
   if (item.itemType === "event") {
     return (
@@ -5296,9 +5298,9 @@ function ScheduleItemCard({ item, teams, courtMatches = [], hideTime = false }: 
       </span>
       <span className="grid gap-2">
         <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-          <ScheduleTeamPill label={teamALabel} color={teamAColor} logoUrl={teamA?.logoUrl || ""} isFinalized={Boolean(teamA)} showBallIcon={ballTeam?.id === teamA?.id} />
+          <ScheduleTeamPill label={teamALabel} color={teamAColor} logoUrl={teamA?.logoUrl || ""} isFinalized={Boolean(teamA)} showBallIcon={showTeamABall} />
           <em className="text-[12px] not-italic text-text-muted">vs</em>
-          <ScheduleTeamPill label={teamBLabel} color={teamBColor} logoUrl={teamB?.logoUrl || ""} isFinalized={Boolean(teamB)} showBallIcon={ballTeam?.id === teamB?.id} />
+          <ScheduleTeamPill label={teamBLabel} color={teamBColor} logoUrl={teamB?.logoUrl || ""} isFinalized={Boolean(teamB)} showBallIcon={showTeamBBall} />
         </span>
         {!!courtMatches.length && (
           <span className="grid gap-1">
@@ -5362,6 +5364,8 @@ function ScheduleLoadingNotice({ label, overlay = false }: { label: string; over
 function PlayerScheduleTimeCard({ label, matches, teams, onOpenMatch, isFeatured }: { label: string; matches: PlayerScheduleMatch[]; teams: PublishedTeam[]; onOpenMatch: (match: PlayerScheduleMatch) => void; isFeatured: boolean }) {
   const featuredMatch = matches.length === 1 ? matches[0] : null;
   const featuredBallTeam = featuredMatch ? getBallTeamForMatchup(featuredMatch.dayNumber, featuredMatch.teamId, featuredMatch.opposingTeamId, featuredMatch.id, teams) : null;
+  const showFeaturedTeamBall = featuredMatch ? featuredMatch.dayNumber === 2 || featuredBallTeam?.id === featuredMatch.teamId : false;
+  const showFeaturedOpponentBall = featuredMatch ? featuredMatch.dayNumber === 2 ? false : featuredBallTeam?.id === featuredMatch.opposingTeamId : false;
   return (
     <section className={`overflow-hidden rounded-[24px] border-hairline border-[#d8e1d9] bg-[#fbfcf8] shadow-[0_20px_48px_rgba(12,59,32,0.11)] ${isFeatured ? "shadow-[0_24px_56px_rgba(12,59,32,0.15)]" : ""}`}>
       <div className="grid min-h-[66px] grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border-b-hairline border-[#dce4dc] bg-[linear-gradient(135deg,#eef4e7,#fbfcf8)] px-4 py-2.5 sm:min-h-[72px] sm:px-5">
@@ -5373,9 +5377,9 @@ function PlayerScheduleTimeCard({ label, matches, teams, onOpenMatch, isFeatured
         </span>
         {featuredMatch ? (
           <span className="min-w-0 justify-self-end text-right text-[11px] font-medium leading-tight sm:text-[13px]">
-            <ScheduleHeaderTeamName name={featuredMatch.teamName} showBallIcon={featuredBallTeam?.id === featuredMatch.teamId} />
+            <ScheduleHeaderTeamName name={featuredMatch.teamName} showBallIcon={showFeaturedTeamBall} />
             <em className="mx-1 not-italic text-text-muted">vs</em>
-            <ScheduleHeaderTeamName name={featuredMatch.opposingTeamName} showBallIcon={featuredBallTeam?.id === featuredMatch.opposingTeamId} />
+            <ScheduleHeaderTeamName name={featuredMatch.opposingTeamName} showBallIcon={showFeaturedOpponentBall} />
           </span>
         ) : (
           <span className="justify-self-end rounded-full border-hairline border-[#d3dfc5] bg-white/75 px-3 py-1.5 text-[11px] font-medium text-brand/75 sm:text-[12px]">{matches.length} matches</span>
@@ -6502,6 +6506,8 @@ function PlayerScheduleMatchCard({ match, teams, isFeatured, onOpenMatch, hideTi
   const courtNumber = formatCourtNumber(match.courtLabel || "");
   const isSingles = playerSideNames.length === 1 && opponentNames.length === 1;
   const ballTeam = getBallTeamForMatchup(match.dayNumber, match.teamId, match.opposingTeamId, match.id, teams);
+  const showTeamBall = match.dayNumber === 2 || ballTeam?.id === match.teamId;
+  const showOpponentBall = match.dayNumber === 2 ? false : ballTeam?.id === match.opposingTeamId;
 
   return (
     <article className={`relative overflow-hidden rounded-[20px] bg-[#fbfcf8] ${isFeatured ? "shadow-[0_14px_34px_rgba(12,59,32,0.08)]" : ""}`}>
@@ -6513,9 +6519,9 @@ function PlayerScheduleMatchCard({ match, teams, isFeatured, onOpenMatch, hideTi
               <strong className="text-[13px] font-medium leading-none sm:text-[14px]">{match.timeLabel || "Time TBD"}</strong>
             </span>
             <span className="min-w-0 justify-self-end text-right text-[12px] font-medium text-text-secondary sm:text-[13px]">
-              <ScheduleHeaderTeamName name={match.teamName} showBallIcon={ballTeam?.id === match.teamId} />
+              <ScheduleHeaderTeamName name={match.teamName} showBallIcon={showTeamBall} />
               <em className="mx-1 not-italic text-text-muted">vs</em>
-              <ScheduleHeaderTeamName name={match.opposingTeamName} showBallIcon={ballTeam?.id === match.opposingTeamId} />
+              <ScheduleHeaderTeamName name={match.opposingTeamName} showBallIcon={showOpponentBall} />
             </span>
           </div>
         )}
@@ -6664,15 +6670,17 @@ function TeamCourtScheduleBlock({ block, teams, isFeatured, onOpenMatch, onOpenT
   const opponentTeam = teams.find((team) => team.id === block.opponentTeamId);
   const firstMatch = block.matches[0];
   const ballTeam = firstMatch ? getBallTeamForMatchup(firstMatch.dayNumber, firstMatch.teamAId, firstMatch.teamBId, block.id, teams) : null;
+  const showPrimaryBall = firstMatch ? firstMatch.dayNumber === 2 || ballTeam?.id === primaryTeam?.id : false;
+  const showOpponentBall = firstMatch ? firstMatch.dayNumber === 2 ? false : ballTeam?.id === opponentTeam?.id : false;
 
   return (
     <article className={`relative overflow-hidden rounded-[20px] border-hairline border-white/70 bg-white/88 p-3.5 shadow-[0_18px_44px_rgba(12,59,32,0.10)] ring-1 ring-line/70 backdrop-blur-xl ${isFeatured ? "shadow-[0_20px_48px_rgba(12,59,32,0.13)]" : ""}`}>
       <span className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_top_right,rgba(24,95,165,0.12),transparent_58%)]" aria-hidden="true" />
       <div className="relative grid gap-3">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-          <ScheduleTeamPill label={block.primaryTeam} color={primaryTeam?.jerseyColor || "#eaf3de"} logoUrl={primaryTeam?.logoUrl || ""} isFinalized={Boolean(primaryTeam)} showBallIcon={ballTeam?.id === primaryTeam?.id} onClick={primaryTeam ? () => onOpenTeam(primaryTeam.id) : undefined} />
+          <ScheduleTeamPill label={block.primaryTeam} color={primaryTeam?.jerseyColor || "#eaf3de"} logoUrl={primaryTeam?.logoUrl || ""} isFinalized={Boolean(primaryTeam)} showBallIcon={showPrimaryBall} onClick={primaryTeam ? () => onOpenTeam(primaryTeam.id) : undefined} />
           <em className="text-[12px] not-italic text-text-muted">vs</em>
-          <ScheduleTeamPill label={block.opponentTeam} color={opponentTeam?.jerseyColor || "#e5f1ff"} logoUrl={opponentTeam?.logoUrl || ""} isFinalized={Boolean(opponentTeam)} showBallIcon={ballTeam?.id === opponentTeam?.id} onClick={opponentTeam ? () => onOpenTeam(opponentTeam.id) : undefined} />
+          <ScheduleTeamPill label={block.opponentTeam} color={opponentTeam?.jerseyColor || "#e5f1ff"} logoUrl={opponentTeam?.logoUrl || ""} isFinalized={Boolean(opponentTeam)} showBallIcon={showOpponentBall} onClick={opponentTeam ? () => onOpenTeam(opponentTeam.id) : undefined} />
         </div>
         <div className="grid gap-2">
           {block.matches.map((match) => (
@@ -6751,6 +6759,8 @@ function DayScheduleTeamBlock({ block, teams, isOpen, showMatchCount, onToggle, 
   const matchCount = block.matches.length;
   const firstMatch = block.matches[0];
   const ballTeam = firstMatch ? getBallTeamForMatchup(firstMatch.dayNumber, firstMatch.teamAId, firstMatch.teamBId, block.id, teams) : null;
+  const showPrimaryBall = firstMatch ? firstMatch.dayNumber === 2 || ballTeam?.id === primaryTeam?.id : false;
+  const showOpponentBall = firstMatch ? firstMatch.dayNumber === 2 ? false : ballTeam?.id === opponentTeam?.id : false;
 
   return (
     <article className="overflow-hidden rounded-[18px] border-hairline border-line bg-white shadow-[0_10px_24px_rgba(24,24,26,0.05)]">
@@ -6779,9 +6789,9 @@ function DayScheduleTeamBlock({ block, teams, isOpen, showMatchCount, onToggle, 
             )}
           </span>
           <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-            <ScheduleTeamPill label={block.primaryTeam} color={primaryTeam?.jerseyColor || "#eaf3de"} logoUrl={primaryTeam?.logoUrl || ""} isFinalized={Boolean(primaryTeam)} showBallIcon={ballTeam?.id === primaryTeam?.id} compact onClick={primaryTeam ? () => onOpenTeam(primaryTeam.id) : undefined} />
+            <ScheduleTeamPill label={block.primaryTeam} color={primaryTeam?.jerseyColor || "#eaf3de"} logoUrl={primaryTeam?.logoUrl || ""} isFinalized={Boolean(primaryTeam)} showBallIcon={showPrimaryBall} compact onClick={primaryTeam ? () => onOpenTeam(primaryTeam.id) : undefined} />
             <em className="text-[10px] not-italic text-text-muted">vs</em>
-            <ScheduleTeamPill label={block.opponentTeam} color={opponentTeam?.jerseyColor || "#e5f1ff"} logoUrl={opponentTeam?.logoUrl || ""} isFinalized={Boolean(opponentTeam)} showBallIcon={ballTeam?.id === opponentTeam?.id} compact onClick={opponentTeam ? () => onOpenTeam(opponentTeam.id) : undefined} />
+            <ScheduleTeamPill label={block.opponentTeam} color={opponentTeam?.jerseyColor || "#e5f1ff"} logoUrl={opponentTeam?.logoUrl || ""} isFinalized={Boolean(opponentTeam)} showBallIcon={showOpponentBall} compact onClick={opponentTeam ? () => onOpenTeam(opponentTeam.id) : undefined} />
           </span>
         </span>
         <span className="inline-grid h-9 w-9 place-items-center justify-self-center rounded-full bg-surface text-brand transition group-hover:bg-brand-light" aria-hidden="true">
@@ -6832,22 +6842,22 @@ function ScheduleTeamPill({ label, color, logoUrl, isFinalized, wrapName = false
     : undefined;
   const Tag = onClick ? "button" : "span";
   const gridColumns = showBallIcon
-    ? compact ? "grid-cols-[24px_minmax(0,1fr)_auto]" : "grid-cols-[28px_minmax(0,1fr)_auto]"
-    : compact ? "grid-cols-[24px_minmax(0,1fr)]" : "grid-cols-[28px_minmax(0,1fr)]";
+    ? compact ? "grid-cols-[20px_minmax(0,1fr)_auto]" : "grid-cols-[28px_minmax(0,1fr)_auto]"
+    : compact ? "grid-cols-[20px_minmax(0,1fr)]" : "grid-cols-[28px_minmax(0,1fr)]";
   return (
-    <Tag className={isFinalized ? `${onClick ? "tap-card text-left" : ""} ${gridColumns} ${compact ? "gap-1.5 px-1.5" : "gap-2 px-2"} grid min-h-9 min-w-0 items-center rounded-full border-hairline py-1 shadow-[0_8px_18px_rgba(12,59,32,0.12)]` : `${onClick ? "tap-card text-left" : ""} ${gridColumns} ${compact ? "gap-1.5 px-1.5" : "gap-2 px-2"} grid min-h-9 min-w-0 items-center rounded-full border-hairline border-line bg-white py-1`} style={pillStyle} type={onClick ? "button" : undefined} onClick={(event) => {
+    <Tag className={isFinalized ? `${onClick ? "tap-card text-left" : ""} ${gridColumns} ${compact ? "gap-1 px-1" : "gap-2 px-2"} grid min-h-9 min-w-0 items-center rounded-full border-hairline py-1 shadow-[0_8px_18px_rgba(12,59,32,0.12)]` : `${onClick ? "tap-card text-left" : ""} ${gridColumns} ${compact ? "gap-1 px-1" : "gap-2 px-2"} grid min-h-9 min-w-0 items-center rounded-full border-hairline border-line bg-white py-1`} style={pillStyle} type={onClick ? "button" : undefined} onClick={(event) => {
       if (!onClick) return;
       event.stopPropagation();
       onClick();
     }}>
       {logoUrl ? (
-        <span className={`${compact ? "h-6 w-6" : "h-7 w-7"} grid shrink-0 place-items-center overflow-hidden rounded-full bg-white/90 p-1 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]`}>
+        <span className={`${compact ? "h-5 w-5" : "h-7 w-7"} grid shrink-0 place-items-center overflow-hidden rounded-full bg-white/90 p-1 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]`}>
           <img className="block h-full max-h-full w-full max-w-full object-contain" src={logoUrl} alt="" aria-hidden="true" />
         </span>
       ) : (
-        <span className={`${compact ? "h-6 w-6 text-[9px]" : "h-7 w-7 text-[10px]"} grid place-items-center rounded-full font-medium text-white`} style={{ backgroundColor: normalizeTeamColor(color) }}>{getInitials(label || "Team")}</span>
+        <span className={`${compact ? "h-5 w-5 text-[8px]" : "h-7 w-7 text-[10px]"} grid place-items-center rounded-full font-medium text-white`} style={{ backgroundColor: normalizeTeamColor(color) }}>{getInitials(label || "Team")}</span>
       )}
-      <strong className={isFinalized ? `${wrapName ? "whitespace-normal break-words leading-tight" : "truncate whitespace-nowrap"} ${compact ? "text-[11px] sm:text-[12px]" : "text-[13px]"} font-medium text-current` : `${wrapName ? "whitespace-normal break-words leading-tight" : "truncate whitespace-nowrap"} ${compact ? "text-[11px] sm:text-[12px]" : "text-[13px]"} font-medium text-text-primary`}>{label || "TBD"}</strong>
+      <strong className={isFinalized ? `${wrapName ? "whitespace-normal break-words leading-tight" : "truncate whitespace-nowrap"} ${compact ? "text-[10px] sm:text-[12px]" : "text-[13px]"} font-medium text-current` : `${wrapName ? "whitespace-normal break-words leading-tight" : "truncate whitespace-nowrap"} ${compact ? "text-[10px] sm:text-[12px]" : "text-[13px]"} font-medium text-text-primary`}>{label || "TBD"}</strong>
       {showBallIcon && <TennisBallIcon className={compact ? "h-4 w-4" : "h-5 w-5"} />}
     </Tag>
   );
