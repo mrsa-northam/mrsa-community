@@ -3402,7 +3402,18 @@ export function TournamentScheduleScreen() {
                 ))}
               </div>
             )}
-            {(filter === "day1" || filter === "day2") && !!visibleDayCourtMatches.length && (
+            {filter === "day2" && !!visibleItems.length && (
+              <DayTwoSchedulePhaseSections
+                items={visibleItems}
+                courtMatches={teamCourtMatches}
+                openBlocks={openDayScheduleBlocks}
+                onOpenMatch={openMatchDetails}
+                onOpenTeam={openTeamDetails}
+                onToggleBlock={(blockId) => setOpenDayScheduleBlocks((current) => ({ ...current, [blockId]: !current[blockId] }))}
+                teams={teams}
+              />
+            )}
+            {filter === "day1" && !!visibleDayCourtMatches.length && (
               <>
                 <div className="grid gap-4 xl:grid-cols-3">
                   {dayScheduleTimeLabels.map((timeLabel) => (
@@ -3422,7 +3433,7 @@ export function TournamentScheduleScreen() {
                 {filter === "day1" && <DayScheduleEndCard />}
               </>
             )}
-            {(filter === "day1" || filter === "day2") && !visibleDayCourtMatches.length && !!visibleItems.length && (
+            {filter === "day1" && !visibleDayCourtMatches.length && !!visibleItems.length && (
               <div className="grid gap-4 xl:grid-cols-3">
                 {Object.entries(groupScheduleItemsByTime(visibleItems)).map(([timeLabel, dayItems]) => (
                   <DayScheduleTimeCard
@@ -3442,7 +3453,7 @@ export function TournamentScheduleScreen() {
             {loading && Array.from({ length: 5 }).map((_, index) => <SkeletonRow key={index} />)}
             {!loading && filter === "matches" && !playerMatches.length && <StatusMessage tone="info">Your individual match assignments will appear here once posted.</StatusMessage>}
             {!loading && filter === "team" && !visibleTeamCourtMatches.length && !visibleItems.length && <StatusMessage tone="info">No team schedule items match this view.</StatusMessage>}
-            {!loading && filter !== "matches" && filter !== "team" && !visibleItems.length && !visibleDayCourtMatches.length && <StatusMessage tone="info">No schedule items match this view.</StatusMessage>}
+            {!loading && filter !== "matches" && filter !== "team" && !visibleItems.length && (filter === "day2" || !visibleDayCourtMatches.length) && <StatusMessage tone="info">No schedule items match this view.</StatusMessage>}
           </section>
         </main>
       </div>
@@ -6692,7 +6703,65 @@ function TeamCourtScheduleBlock({ block, teams, isFeatured, onOpenMatch, onOpenT
   );
 }
 
-function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onToggleBlock, onOpenMatch, onOpenTeam, defaultOpen = false }: { label: string; blocks: TeamCourtScheduleBlock[]; eventItems: ScheduleItem[]; teams: PublishedTeam[]; openBlocks: Record<string, boolean>; onToggleBlock: (blockId: string) => void; onOpenMatch: (match: TeamCourtScheduleMatch) => void; onOpenTeam: (teamId: string) => void; defaultOpen?: boolean }) {
+function DayTwoSchedulePhaseSections({ items, courtMatches, teams, openBlocks, onToggleBlock, onOpenMatch, onOpenTeam }: { items: ScheduleItem[]; courtMatches: TeamCourtScheduleMatch[]; teams: PublishedTeam[]; openBlocks: Record<string, boolean>; onToggleBlock: (blockId: string) => void; onOpenMatch: (match: TeamCourtScheduleMatch) => void; onOpenTeam: (teamId: string) => void }) {
+  const sections = getDayTwoScheduleSections(items);
+
+  return (
+    <div className="grid gap-4">
+      {sections.map((section) => (
+        <section className="grid gap-3 rounded-[22px] border-hairline border-[#d8e1d9] bg-white/72 p-3 shadow-[0_14px_34px_rgba(12,59,32,0.07)]" key={section.key}>
+          <span className="grid gap-0.5 px-1">
+            <strong className="text-[18px] font-medium leading-tight text-brand">{section.label}</strong>
+            <em className="text-[11px] not-italic leading-relaxed text-text-secondary">{section.helper}</em>
+            {section.formatNote && <span className="mt-1 inline-flex w-max max-w-full rounded-full border-hairline border-[#d3dfc5] bg-[#f6f9ef] px-2.5 py-1 text-[10px] font-medium text-brand">{section.formatNote}</span>}
+          </span>
+          <div className="grid gap-4 xl:grid-cols-3">
+            {Object.entries(groupScheduleItemsByTime(section.items)).map(([timeLabel, sectionItems]) => (
+              <DayScheduleTimeCard
+                blocks={[]}
+                courtMatches={courtMatches}
+                eventItems={sectionItems}
+                label={timeLabel}
+                openBlocks={openBlocks}
+                onToggleBlock={onToggleBlock}
+                teams={teams}
+                onOpenMatch={onOpenMatch}
+                onOpenTeam={onOpenTeam}
+                key={`${section.key}:${timeLabel}`}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function getDayTwoScheduleSections(items: ScheduleItem[]) {
+  const matchItems = items.filter((item) => item.itemType === "match").sort((a, b) => a.sortOrder - b.sortOrder);
+  const firstMatchOrder = matchItems[0]?.sortOrder ?? Number.POSITIVE_INFINITY;
+  const lastMatchOrder = matchItems[matchItems.length - 1]?.sortOrder ?? Number.NEGATIVE_INFINITY;
+  const morningEvents = items.filter((item) => item.itemType === "event" && item.sortOrder < firstMatchOrder).sort((a, b) => a.sortOrder - b.sortOrder);
+  const closingEvents = items.filter((item) => item.itemType === "event" && item.sortOrder > lastMatchOrder).sort((a, b) => a.sortOrder - b.sortOrder);
+  const byPhase = (phases: string[]) => matchItems.filter((item) => phases.includes(normalizeSchedulePhase(item.phase)));
+  const sections = [
+    { key: "morning", label: "Morning meetup", helper: "Breakfast, briefing, warmup, and team meetup.", items: morningEvents },
+    { key: "quarterfinals", label: "Quarterfinals", helper: "Seed matchups that open the Day 2 draw.", formatNote: "QF: Tier 1-2 singles", items: byPhase(["quarterfinal"]) },
+    { key: "advantage-survival", label: "Advantage + Survival", helper: "Quarterfinal winners and losers split into their next paths.", formatNote: "Advantage: Tier 3-4 singles · Survival: Tier 3-4 singles", items: byPhase(["survival", "advantage"]) },
+    { key: "re-entry", label: "Re-entry", helper: "One more route into the semifinals.", formatNote: "Format decided by coin flip", items: byPhase(["re-entry"]) },
+    { key: "semifinals", label: "Semifinals", helper: "The final four team matchups.", formatNote: "Format decided by coin flip", items: byPhase(["semifinal"]) },
+    { key: "finals", label: "Finals", helper: "Championship doubles and singles.", formatNote: "Finals: singles and doubles", items: byPhase(["final"]) },
+    { key: "closing", label: "Awards / wrapup", helper: "Final ceremony and tournament close.", items: closingEvents }
+  ];
+
+  return sections.filter((section) => section.items.length);
+}
+
+function normalizeSchedulePhase(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onToggleBlock, onOpenMatch, onOpenTeam, courtMatches = [], defaultOpen = false }: { label: string; blocks: TeamCourtScheduleBlock[]; eventItems: ScheduleItem[]; teams: PublishedTeam[]; openBlocks: Record<string, boolean>; onToggleBlock: (blockId: string) => void; onOpenMatch: (match: TeamCourtScheduleMatch) => void; onOpenTeam: (teamId: string) => void; courtMatches?: TeamCourtScheduleMatch[]; defaultOpen?: boolean }) {
   const matchCount = blocks.reduce((total, block) => total + block.matches.length, 0);
   const totalCount = matchCount + eventItems.length;
   const countLabel = eventItems.every((item) => item.itemType === "match") ? `${totalCount} ${totalCount === 1 ? "match" : "matches"}` : `${totalCount} ${totalCount === 1 ? "item" : "items"}`;
@@ -6714,7 +6783,7 @@ function DayScheduleTimeCard({ label, blocks, eventItems, teams, openBlocks, onT
             {eventItems.map((item) => (
               item.itemType === "event"
                 ? <ScheduleCompactEventRow item={item} key={item.id} />
-                : <ScheduleItemCard item={item} teams={teams} hideTime key={item.id} />
+                : <ScheduleItemCard item={item} teams={teams} courtMatches={getCourtMatchesForScheduleItem(item, courtMatches, teams)} hideTime key={item.id} />
             ))}
           </div>
         )}
