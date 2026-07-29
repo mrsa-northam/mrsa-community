@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Crown, Download, Home, ImagePlus, Pencil, Plus, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Crown, Download, Home, ImagePlus, Menu, Pencil, Plus, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -264,6 +264,7 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
   const pathname = usePathname();
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [adminFirstName, setAdminFirstName] = useState("there");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -296,6 +297,10 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
 
     checkAdmin();
   }, [router, pathname]);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   if (allowed === null) {
     return (
@@ -365,16 +370,23 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
 
   return (
     <main className="min-h-dvh bg-page font-sans text-text-primary lg:grid lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside className="sticky top-0 z-40 grid gap-4 border-b-hairline border-line bg-brand px-4 py-4 text-white lg:h-dvh lg:content-start lg:border-b-0 lg:border-r-hairline lg:px-5 lg:py-5">
-        <Link className="tap-card w-max" href="/admin"><AdminBrandMark light /></Link>
-        <nav className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-1" aria-label="Admin navigation">
+      <aside className="relative z-40 grid gap-2 border-b-hairline border-line bg-brand px-3 py-3 text-white lg:sticky lg:top-0 lg:h-dvh lg:content-start lg:gap-4 lg:border-b-0 lg:border-r-hairline lg:px-5 lg:py-5">
+        <div className="flex items-center justify-between gap-3">
+          <Link className="tap-card !w-auto shrink-0" href="/admin"><AdminBrandMark light /></Link>
+          <div className="flex shrink-0 items-center gap-2 lg:hidden">
+            <Link className="tap-card inline-flex min-h-9 !w-auto items-center justify-center whitespace-nowrap rounded-full border-hairline border-white/12 bg-white/10 px-3 text-[11px] font-medium text-white/85" href="/dashboard">Player app →</Link>
+            <button className="tap-card grid !h-9 !w-9 shrink-0 place-items-center rounded-full border-hairline border-white/16 bg-white/10 p-0 text-white" type="button" onClick={() => setMobileMenuOpen((current) => !current)} aria-expanded={mobileMenuOpen} aria-controls="admin-mobile-navigation" aria-label={mobileMenuOpen ? "Close admin menu" : "Open admin menu"}>
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
+        </div>
+        <nav className={`${mobileMenuOpen ? "grid" : "hidden"} grid-cols-1 gap-1.5 rounded-[16px] border-hairline border-white/10 bg-white/[0.06] p-2 sm:grid-cols-2 lg:grid lg:grid-cols-1 lg:gap-2 lg:border-0 lg:bg-transparent lg:p-0`} id="admin-mobile-navigation" aria-label="Admin navigation">
           <AdminNavItem active={active === "overview"} href="/admin" icon={<Home size={17} />} label="Overview" />
           <AdminNavItem active={active === "tournaments"} href="/admin/tournaments" icon={<Trophy size={17} />} label="Tournaments" />
           <AdminNavItem active={active === "players"} href="/admin/players" icon={<UsersRound size={17} />} label="Players" />
           <AdminNavItem active={active === "payments"} href="/admin/payments" icon={<BadgeDollarSign size={17} />} label="Payments" />
           <AdminNavItem active={active === "claims"} href="/admin/claims" icon={<ClipboardCheck size={17} />} label="Claims" />
         </nav>
-        <Link className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-white/12 bg-white/10 px-4 text-xs font-medium text-white/85 lg:hidden" href="/dashboard">Player app →</Link>
         <Link className="tap-card hidden min-h-10 items-center justify-center rounded-[14px] border-hairline border-white/12 bg-white/10 px-4 text-xs font-medium text-white/85 lg:mt-auto lg:inline-flex" href="/dashboard">Player app →</Link>
       </aside>
       <section className="mx-auto grid w-full max-w-shell content-start gap-4 px-4 py-5 pb-10 md:px-6 lg:px-8">
@@ -397,7 +409,7 @@ function AdminNavItem({
   label: string;
 }) {
   return (
-    <Link className={active ? "tap-card grid min-h-11 place-items-center gap-1 rounded-[14px] bg-white px-3 py-2 text-center text-[13px] font-medium text-brand lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:text-left" : "tap-card grid min-h-11 place-items-center gap-1 rounded-[14px] px-3 py-2 text-center text-[13px] font-medium text-white/68 hover:bg-white/10 hover:text-white lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:text-left"} href={href}>
+    <Link className={active ? "tap-card grid min-h-9 shrink-0 grid-cols-[16px_auto] place-items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-center text-[12px] font-medium text-brand lg:min-h-11 lg:w-full lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:rounded-[14px] lg:py-2 lg:text-left lg:text-[13px]" : "tap-card grid min-h-9 shrink-0 grid-cols-[16px_auto] place-items-center gap-1.5 rounded-full px-3 py-1.5 text-center text-[12px] font-medium text-white/68 hover:bg-white/10 hover:text-white lg:min-h-11 lg:w-full lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:rounded-[14px] lg:py-2 lg:text-left lg:text-[13px]"} href={href}>
       {icon}
       <span>{label}</span>
     </Link>

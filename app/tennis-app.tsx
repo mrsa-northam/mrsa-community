@@ -83,6 +83,9 @@ type ScheduleItem = {
   detail: string;
   sortOrder: number;
 };
+type ScheduleTimelineEntry =
+  | { kind: "matches"; key: string; label: string; item?: never }
+  | { kind: "event"; key: string; label: string; item: ScheduleItem };
 type PlayerScheduleMatch = {
   id: string;
   tournamentId: string;
@@ -489,26 +492,36 @@ function BrandMark() {
 
 function AppTopBar({
   avatarName,
-  avatarPhotoUrl
+  avatarPhotoUrl,
+  publicNextPath = "/dashboard"
 }: {
   avatarName?: string | null;
   avatarPhotoUrl?: string | null;
+  publicNextPath?: string;
 }) {
   const appSession = useAppSession();
   const name = avatarName || appSession.player?.full_name || "Player";
   const photoUrl = avatarPhotoUrl || appSession.player?.profile_photo_url || undefined;
+  const isSignedIn = Boolean(appSession.userId);
 
   return (
     <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-2.5 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
       <div className="mx-auto grid w-full max-w-shell grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center">
-        <Link className="tap-card inline-flex min-w-0 justify-self-start" href="/dashboard" aria-label="MRSA home">
+        <Link className="tap-card inline-flex min-w-0 justify-self-start" href={isSignedIn ? "/dashboard" : "/"} aria-label="MRSA home">
           <BrandMark />
         </Link>
         <span aria-hidden="true" />
         <span aria-hidden="true" />
-        <Link className="tap-card inline-flex justify-self-end" href="/profile" aria-label={`${name} profile`}>
-          <Avatar className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-brand text-[14px] font-medium text-white shadow-[0_8px_22px_rgba(24,24,26,0.08)]" name={name} photoUrl={photoUrl} />
-        </Link>
+        {isSignedIn ? (
+          <Link className="tap-card inline-flex justify-self-end" href="/profile" aria-label={`${name} profile`}>
+            <Avatar className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-brand text-[14px] font-medium text-white shadow-[0_8px_22px_rgba(24,24,26,0.08)]" name={name} photoUrl={photoUrl} />
+          </Link>
+        ) : (
+          <Link className="tap-card inline-flex min-h-10 items-center justify-center gap-2 justify-self-end rounded-full border-hairline border-line bg-white px-3.5 text-[13px] font-medium text-brand shadow-[0_8px_20px_rgba(24,24,26,0.06)]" href={`/?next=${encodeURIComponent(normalizeNextPath(publicNextPath))}`}>
+            <LogIn size={15} />
+            Sign in
+          </Link>
+        )}
       </div>
     </header>
   );
@@ -894,6 +907,12 @@ export function LoginScreen({ nextPath }: { nextPath?: string }) {
                 </button>
                 {message && <StatusMessage tone={message.includes("sent") ? "success" : "error"}>{message}</StatusMessage>}
               </form>
+              <div className="border-t-hairline border-line pt-4">
+                <Link className="tap-card inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-card border-hairline border-brand/20 bg-[#f4f8ed] px-4 text-sm font-medium text-brand shadow-[0_10px_24px_rgba(12,59,32,0.06)]" href="/tournaments/schedule">
+                  Skip sign in
+                  <ArrowRight size={15} />
+                </Link>
+              </div>
             </div>
 	        </section>
 	        </main>
@@ -1834,9 +1853,7 @@ export function HomeScreen() {
           profilePhotoUrl: row.profile_photo_url || ""
       })));
       if (profileData) {
-        setHomeRegistered(false);
         setDashboardUstaNumber(profileData.usta_number || "");
-        setShowDashboardUstaPrompt(Boolean(!profileData.usta_number?.trim() && !dashboardUstaDismissed));
       }
       if (profileData && tournamentData) {
         const { data: registration } = await supabase
@@ -1844,10 +1861,15 @@ export function HomeScreen() {
           .select("id, status, payment_status, waitlist_status")
           .eq("tournament_id", tournamentData.id)
           .eq("player_id", profileData.id)
+          .neq("status", "cancelled")
           .maybeSingle();
 
         const paidRegistration = Boolean(registration && ["paid", "waived"].includes(registration.payment_status));
         setHomeRegistered(paidRegistration);
+        setShowDashboardUstaPrompt(Boolean(paidRegistration && !profileData.usta_number?.trim() && !dashboardUstaDismissed));
+      } else {
+        setHomeRegistered(false);
+        setShowDashboardUstaPrompt(false);
       }
     };
 
@@ -3097,7 +3119,7 @@ export function FitnessScreen() {
 }
 
 export function TournamentScheduleScreen() {
-  const appSession = useProtectedRoute("/tournaments/schedule", true);
+  const appSession = useAppSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [teams, setTeams] = useState<PublishedTeam[]>([]);
@@ -3113,7 +3135,7 @@ export function TournamentScheduleScreen() {
   const [message, setMessage] = useState("");
 
   const loadSchedule = useCallback(async () => {
-    if (!appSession.ready || !appSession.userId) return;
+    if (!appSession.ready) return;
     const supabase = getSupabaseClient();
     if (!supabase) {
       setMessage("Supabase env vars are missing.");
@@ -3260,7 +3282,7 @@ export function TournamentScheduleScreen() {
       setTeamCourtMatches(mapTeamCourtScheduleMatches(scheduleMatchesResult.data || [], schedulePlayersResult.data || [], mappedTeams, mappedScores));
     }
     setLoading(false);
-  }, [appSession.player, appSession.ready, appSession.userId]);
+  }, [appSession.player, appSession.ready]);
 
   useEffect(() => {
     loadSchedule();
@@ -3269,12 +3291,16 @@ export function TournamentScheduleScreen() {
   useEffect(() => {
     const nextScope = searchParams.get("scope");
     const nextDay = searchParams.get("day");
-    if (nextScope === "my" || nextScope === "team" || nextScope === "bracket") setScope(nextScope);
+    if (!appSession.userId) {
+      setScope("bracket");
+    } else if (nextScope === "my" || nextScope === "team" || nextScope === "bracket") {
+      setScope(nextScope);
+    }
     if (nextDay === "2") setSelectedDay(2);
     if (nextDay === "1") setSelectedDay(1);
-  }, [searchParams]);
+  }, [appSession.userId, searchParams]);
 
-  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  if (!appSession.ready) return null;
 
   const assignedTeam = getScheduleAssignedTeam(teams, appSession.player);
   const dayOneMatches = teamCourtMatches.filter((match) => match.dayNumber === 1);
@@ -3294,6 +3320,9 @@ export function TournamentScheduleScreen() {
   const fullBracketNodes = selectedDay === 1
     ? buildDayOneRoundNodes(teams, dayOneMatches)
     : dayTwoBracketStages.flatMap((stage) => stage.nodes);
+  const selectedDayEvents = getDayScheduleEventItems(items, selectedDay);
+  const playerScheduleTimeline = buildScheduleTimelineEntries(playerScheduleTimeLabels, selectedDayEvents);
+  const teamScheduleTimeline = buildScheduleTimelineEntries(teamScheduleTimeLabels, selectedDayEvents);
   const selectedFallbackItems = items.filter((item) => item.dayNumber === selectedDay && !isLunchScheduleItem(item));
   const openMatchDetails = (match: TeamCourtScheduleMatch) => {
     if (openingMatchId) return;
@@ -3301,21 +3330,24 @@ export function TournamentScheduleScreen() {
     router.push(`/tournaments/schedule/matches/${match.id}`);
   };
   const openTeamDetails = (teamId: string) => router.push(`/tournaments/schedule/teams/${teamId}`);
-  const scopeTabs = [
-    { id: "my" as const, label: "My schedule" },
-    { id: "team" as const, label: "Team schedule" },
-    { id: "bracket" as const, label: "Full bracket" }
-  ];
+  const activeScope = appSession.userId ? scope : "bracket";
+  const scopeTabs = appSession.userId
+    ? [
+        { id: "my" as const, label: "My schedule" },
+        { id: "team" as const, label: "Team schedule" },
+        { id: "bracket" as const, label: "Full bracket" }
+      ]
+    : [{ id: "bracket" as const, label: "Full bracket" }];
   return (
-    <AppFrame active="tournament">
+    <AppFrame active="tournament" withNav={Boolean(appSession.userId)}>
       <div className={memberPageClass}>
-        <AppTopBar />
+        <AppTopBar publicNextPath="/tournaments/schedule" />
         <main className={memberMainClass}>
-          <section className="relative overflow-hidden rounded-[26px] border-hairline border-white/20 bg-brand p-4 text-white shadow-[0_22px_52px_rgba(12,59,32,0.20)] sm:p-5 lg:p-6">
+          <section className="relative overflow-hidden rounded-[26px] border-hairline border-white/20 bg-brand p-3 text-white shadow-[0_22px_52px_rgba(12,59,32,0.20)] sm:p-4 lg:p-5">
             <span className="pointer-events-none absolute inset-0 opacity-35 court-lines" aria-hidden="true" />
-            <div className="relative grid gap-4">
+            <div className="relative grid gap-3">
               <div className="grid grid-cols-[34px_minmax(0,1fr)_34px] items-center gap-2">
-                <Link className="tap-card grid h-8 w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/10 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)]" href="/tournaments" aria-label="Back to tournament">
+                <Link className="tap-card grid h-8 w-8 place-items-center rounded-full border-hairline border-white/20 bg-white/10 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)]" href={appSession.userId ? "/tournaments" : "/"} aria-label={appSession.userId ? "Back to tournament" : "Back to MRSA home"}>
                   <ArrowLeft size={15} />
                 </Link>
                 <div className="grid min-w-0 justify-items-center gap-1 text-center">
@@ -3325,9 +3357,9 @@ export function TournamentScheduleScreen() {
               </div>
 
               <div className="grid gap-2">
-                <div className="grid grid-cols-3 gap-1 rounded-[16px] border-hairline border-white/15 bg-white/10 p-1.5 backdrop-blur">
+                <div className={`grid ${scopeTabs.length === 1 ? "grid-cols-1" : "grid-cols-3"} gap-1 rounded-[16px] border-hairline border-white/15 bg-white/10 p-1.5 backdrop-blur`}>
                   {scopeTabs.map((tab) => (
-                    <button className={scope === tab.id ? "tap-card grid min-h-11 min-w-0 place-items-center rounded-[12px] bg-white px-1.5 text-center text-brand shadow-[0_10px_22px_rgba(0,0,0,0.14)] sm:px-3" : "tap-card grid min-h-11 min-w-0 place-items-center rounded-[12px] px-1.5 text-center text-white/68 hover:bg-white/10 sm:px-3"} type="button" onClick={() => setScope(tab.id)} key={tab.id} aria-pressed={scope === tab.id}>
+                    <button className={activeScope === tab.id ? "tap-card grid min-h-11 min-w-0 place-items-center rounded-[12px] bg-white px-1.5 text-center text-brand shadow-[0_10px_22px_rgba(0,0,0,0.14)] sm:px-3" : "tap-card grid min-h-11 min-w-0 place-items-center rounded-[12px] px-1.5 text-center text-white/68 hover:bg-white/10 sm:px-3"} type="button" onClick={() => setScope(tab.id)} key={tab.id} aria-pressed={activeScope === tab.id}>
                       <strong className="block max-w-full text-center text-[11px] font-medium leading-tight sm:text-[13px]">{tab.label}</strong>
                     </button>
                   ))}
@@ -3341,18 +3373,28 @@ export function TournamentScheduleScreen() {
                 </div>
               </div>
 
-              <Link className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[14px] border-hairline border-white/20 bg-white/10 px-4 text-[13px] font-medium text-white backdrop-blur sm:justify-self-center md:w-max" href="/tournaments/schedule/rules">
-                Tournament Rules &amp; Regulations
-                <ArrowRight size={14} />
-                <span className="rounded-full bg-white/14 px-2 py-0.5 text-[11px] text-white/72">{notes.length}</span>
-              </Link>
+              <div className="flex flex-nowrap items-center justify-center gap-2 text-[11px] font-medium">
+                {appSession.userId && (
+                  <Link className="tap-card inline-flex min-h-7 whitespace-nowrap rounded-full border-hairline border-white/18 bg-white/[0.08] px-3 py-1 text-white/82 transition hover:bg-white/14 hover:text-white" href="/tournaments/schedule/rules" aria-label={`Rules & Regulations, ${notes.length} sections`}>
+                    Rules &amp; Regulations&nbsp;→
+                  </Link>
+                )}
+                <Link className="tap-card inline-flex min-h-7 whitespace-nowrap rounded-full border-hairline border-[#d8f36b]/35 bg-[#d8f36b]/10 px-3 py-1 text-[#d8f36b] transition hover:bg-[#d8f36b]/18 hover:text-white" href="/tournaments/leaderboard">
+                  Leaderboard&nbsp;→
+                </Link>
+              </div>
             </div>
           </section>
 
           {message && <StatusMessage tone="error">{message}</StatusMessage>}
+          {!appSession.userId && (
+            <StatusMessage tone="info">
+              <span>If you’re a participant, please <Link className="font-medium text-brand underline decoration-brand/30 underline-offset-2" href="/?next=%2Ftournaments%2Fschedule">sign in</Link>.</span>
+            </StatusMessage>
+          )}
           {openingMatchId && <ScheduleLoadingNotice label="Opening match..." overlay />}
 
-          {scope === "team" && !assignedTeam && (
+          {activeScope === "team" && !assignedTeam && (
             <StatusMessage tone="warning">No team assignment found yet. Your team schedule will appear here once rosters are published.</StatusMessage>
           )}
 
@@ -3363,37 +3405,38 @@ export function TournamentScheduleScreen() {
                 <p className="text-[13px] font-medium leading-relaxed">Day 2 pairings lock in once Day 1 seeding is final.</p>
               </div>
             )}
-            {selectedDay === 2 && dayOneIsFinal && (
-              <div className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2.5 rounded-[15px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-3 py-2.5 text-[#8a4a22]">
-                <span className="grid h-7 w-7 place-items-center rounded-full bg-white"><Info size={14} /></span>
-                <p className="text-[13px] leading-relaxed">No dedicated lunch break on Day 2. Lunch will be available from 11:30 AM onward—please eat when your match schedule allows.</p>
-              </div>
-            )}
-            {scope === "my" && (
+            {!loading && activeScope === "bracket" && <ScheduleDayEventRail day={selectedDay} items={selectedDayEvents} />}
+            {activeScope === "my" && (
               <div className="grid gap-4 xl:grid-cols-3">
-                {playerScheduleTimeLabels.map((timeLabel, timeIndex) => (
-                  <PlayerScheduleTimeCard
-                    label={timeLabel}
-                    matches={groupedPlayerMatches[timeLabel] || []}
-                    teams={teams}
-                    onOpenMatch={(match) => {
-                      const fullMatch = teamCourtMatches.find((teamMatch) => teamMatch.id === match.id);
-                      if (fullMatch) openMatchDetails(fullMatch);
-                    }}
-                    isFeatured={timeIndex === 0}
-                    key={timeLabel}
-                  />
+                {playerScheduleTimeline.map((entry, timeIndex) => (
+                  entry.kind === "event"
+                    ? <ScheduleTimelineEventCard item={entry.item} key={entry.key} />
+                    : (
+                      <PlayerScheduleTimeCard
+                        label={entry.label}
+                        matches={groupedPlayerMatches[entry.label] || []}
+                        teams={teams}
+                        onOpenMatch={(match) => {
+                          const fullMatch = teamCourtMatches.find((teamMatch) => teamMatch.id === match.id);
+                          if (fullMatch) openMatchDetails(fullMatch);
+                        }}
+                        isFeatured={timeIndex === 1}
+                        key={entry.key}
+                      />
+                    )
                 ))}
               </div>
             )}
-            {scope === "team" && !!teamScheduleTimeLabels.length && assignedTeam && (
+            {activeScope === "team" && assignedTeam && (
               <div className="grid gap-4 xl:grid-cols-3">
-                {teamScheduleTimeLabels.map((timeLabel) => (
-                  <TeamScheduleTimeCard label={timeLabel} matches={groupedTeamMatches[timeLabel] || []} team={assignedTeam} onOpenMatch={openMatchDetails} key={timeLabel} />
+                {teamScheduleTimeline.map((entry) => (
+                  entry.kind === "event"
+                    ? <ScheduleTimelineEventCard item={entry.item} key={entry.key} />
+                    : <TeamScheduleTimeCard label={entry.label} matches={groupedTeamMatches[entry.label] || []} team={assignedTeam} onOpenMatch={openMatchDetails} key={entry.key} />
                 ))}
               </div>
             )}
-            {scope === "bracket" && !!fullBracketNodes.length && (
+            {activeScope === "bracket" && !!fullBracketNodes.length && (
               <ScheduleFullBracketBoard
                 day={selectedDay}
                 dayOneNodes={selectedDay === 1 ? fullBracketNodes : []}
@@ -3402,7 +3445,7 @@ export function TournamentScheduleScreen() {
                 onToggleNode={(nodeId) => setOpenDayScheduleBlocks((current) => ({ ...current, [nodeId]: !current[nodeId] }))}
               />
             )}
-            {scope === "bracket" && !loading && !fullBracketNodes.length && selectedDay === 1 && !!selectedFallbackItems.length && (
+            {activeScope === "bracket" && !loading && !fullBracketNodes.length && selectedDay === 1 && !!selectedFallbackItems.length && (
               <div className="grid gap-4 xl:grid-cols-3">
                 {Object.entries(groupScheduleItemsByTime(selectedFallbackItems)).map(([timeLabel, dayItems]) => (
                   <DayScheduleTimeCard
@@ -3420,9 +3463,9 @@ export function TournamentScheduleScreen() {
               </div>
             )}
             {loading && Array.from({ length: 5 }).map((_, index) => <SkeletonRow key={index} />)}
-            {!loading && scope === "my" && !selectedPlayerMatches.length && !(selectedDay === 2 && !dayOneIsFinal) && <StatusMessage tone="info">Your Day {selectedDay} matches will appear here once posted.</StatusMessage>}
-            {!loading && scope === "team" && assignedTeam && !selectedTeamMatches.length && !(selectedDay === 2 && !dayOneIsFinal) && <StatusMessage tone="info">Your team’s Day {selectedDay} matches will appear here once posted.</StatusMessage>}
-            {!loading && scope === "bracket" && !fullBracketNodes.length && !selectedFallbackItems.length && !(selectedDay === 2 && !dayOneIsFinal) && <StatusMessage tone="info">Day {selectedDay} matchups will appear here once posted.</StatusMessage>}
+            {!loading && activeScope === "my" && !selectedPlayerMatches.length && !(selectedDay === 2 && !dayOneIsFinal) && <StatusMessage tone="info">Your Day {selectedDay} matches will appear here once posted.</StatusMessage>}
+            {!loading && activeScope === "team" && assignedTeam && !selectedTeamMatches.length && !(selectedDay === 2 && !dayOneIsFinal) && <StatusMessage tone="info">Your team’s Day {selectedDay} matches will appear here once posted.</StatusMessage>}
+            {!loading && activeScope === "bracket" && !fullBracketNodes.length && !selectedFallbackItems.length && !(selectedDay === 2 && !dayOneIsFinal) && <StatusMessage tone="info">Day {selectedDay} matchups will appear here once posted.</StatusMessage>}
           </section>
         </main>
       </div>
@@ -3431,13 +3474,13 @@ export function TournamentScheduleScreen() {
 }
 
 export function TournamentScheduleRulesScreen() {
-  const appSession = useProtectedRoute("/tournaments/schedule/rules", true);
+  const appSession = useAppSession();
   const [notes, setNotes] = useState<ScheduleNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   const loadRules = useCallback(async () => {
-    if (!appSession.ready || !appSession.userId) return;
+    if (!appSession.ready) return;
     const supabase = getSupabaseClient();
     if (!supabase) {
       setMessage("Supabase env vars are missing.");
@@ -3480,18 +3523,18 @@ export function TournamentScheduleRulesScreen() {
       sortOrder: note.sort_order || 0
     })));
     setLoading(false);
-  }, [appSession.ready, appSession.userId]);
+  }, [appSession.ready]);
 
   useEffect(() => {
     loadRules();
   }, [loadRules]);
 
-  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  if (!appSession.ready) return null;
 
   return (
-    <AppFrame active="tournament">
+    <AppFrame active="tournament" withNav={Boolean(appSession.userId)}>
       <div className={memberPageClass}>
-        <AppTopBar />
+        <AppTopBar publicNextPath="/tournaments/schedule/rules" />
         <main className={memberMainClass}>
           <section className="relative overflow-hidden rounded-[26px] border-hairline border-white/20 bg-brand px-5 py-8 text-white shadow-[0_22px_52px_rgba(12,59,32,0.20)] sm:px-6 sm:py-10">
             <span className="pointer-events-none absolute inset-0 opacity-35 court-lines" aria-hidden="true" />
@@ -3499,7 +3542,7 @@ export function TournamentScheduleRulesScreen() {
                 <ArrowLeft size={15} />
             </Link>
             <div className="relative grid min-w-0 justify-items-center px-8 text-center">
-              <h1 className="max-w-[520px] text-[27px] font-medium leading-[1.08] tracking-[-0.3px] text-white sm:text-[34px]">Considerations and match rules</h1>
+              <h1 className="max-w-[520px] text-[27px] font-medium leading-[1.08] tracking-[-0.3px] text-white sm:text-[34px]">Tournament Rules &amp; Regulations</h1>
             </div>
           </section>
 
@@ -3524,7 +3567,7 @@ export function TournamentScheduleRulesScreen() {
 }
 
 export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) {
-  const appSession = useProtectedRoute(`/tournaments/schedule/matches/${matchId}`, true);
+  const appSession = useAppSession();
   const searchParams = useSearchParams();
   const [match, setMatch] = useState<TeamCourtScheduleMatch | null>(null);
   const [teams, setTeams] = useState<PublishedTeam[]>([]);
@@ -3537,7 +3580,7 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
   const [message, setMessage] = useState("");
 
   const loadMatch = useCallback(async () => {
-    if (!appSession.ready || !appSession.userId) return;
+    if (!appSession.ready) return;
     const supabase = getSupabaseClient();
     if (!supabase) {
       setMessage("Supabase env vars are missing.");
@@ -3603,13 +3646,13 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
     setIsOwnMatch(Boolean(ownParticipant));
     setOwnMatchSide(ownParticipant?.side === "B" ? "B" : ownParticipant?.side === "A" ? "A" : null);
     setLoading(false);
-  }, [appSession.player, appSession.ready, appSession.userId, matchId]);
+  }, [appSession.player, appSession.ready, matchId]);
 
   useEffect(() => {
     loadMatch();
   }, [loadMatch]);
 
-  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  if (!appSession.ready) return null;
 
   const entryWindow = getScoreEntryWindow(tournament?.startsOn || null, tournament?.endsOn || null);
   const canSubmitScore = Boolean(isOwnMatch && entryWindow.canEdit);
@@ -3658,9 +3701,9 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
   };
 
   return (
-    <AppFrame active="tournament">
+    <AppFrame active="tournament" withNav={Boolean(appSession.userId)}>
       <div className={memberPageClass}>
-        <AppTopBar />
+        <AppTopBar publicNextPath={`/tournaments/schedule/matches/${matchId}`} />
         <main className={memberMainClass}>
           {loading && <ScheduleLoadingNotice label="Loading match..." />}
           {message && !match && <StatusMessage tone="error">{message}</StatusMessage>}
@@ -3688,7 +3731,7 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
 }
 
 export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
-  const appSession = useProtectedRoute(`/tournaments/schedule/teams/${teamId}`, true);
+  const appSession = useAppSession();
   const searchParams = useSearchParams();
   const [team, setTeam] = useState<PublishedTeam | null>(null);
   const [matches, setMatches] = useState<TeamCourtScheduleMatch[]>([]);
@@ -3696,7 +3739,7 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
   const [message, setMessage] = useState("");
 
   const loadTeam = useCallback(async () => {
-    if (!appSession.ready || !appSession.userId) return;
+    if (!appSession.ready) return;
     const supabase = getSupabaseClient();
     if (!supabase) {
       setMessage("Supabase env vars are missing.");
@@ -3753,22 +3796,22 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
     setTeam(mappedTeams.find((mappedTeam) => mappedTeam.id === teamId) || null);
     setMatches(mappedMatches.filter((match) => match.teamAId === teamId || match.teamBId === teamId));
     setLoading(false);
-  }, [appSession.ready, appSession.userId, teamId]);
+  }, [appSession.ready, teamId]);
 
   useEffect(() => {
     loadTeam();
   }, [loadTeam]);
 
-  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  if (!appSession.ready) return null;
   const openedFromRoster = searchParams.get("from") === "roster";
   const openedFromLeaderboard = searchParams.get("from") === "team-leaderboard";
   const backHref = openedFromRoster ? "/tournaments/teams" : openedFromLeaderboard ? "/tournaments/leaderboard?view=team" : "/tournaments/schedule";
   const backLabel = openedFromRoster ? "Back to team rosters" : openedFromLeaderboard ? "Back to team leaderboard" : "Back to schedule";
 
   return (
-    <AppFrame active="tournament">
+    <AppFrame active="tournament" withNav={Boolean(appSession.userId)}>
       <div className={memberPageClass}>
-        <AppTopBar />
+        <AppTopBar publicNextPath={`/tournaments/schedule/teams/${teamId}`} />
         <main className={memberMainClass}>
           {loading && <SkeletonRow />}
           {message && !team && <StatusMessage tone="error">{message}</StatusMessage>}
@@ -3780,7 +3823,7 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
 }
 
 export function TournamentLeaderboardScreen() {
-  const appSession = useProtectedRoute("/tournaments/leaderboard", true);
+  const appSession = useAppSession();
   const searchParams = useSearchParams();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [teams, setTeams] = useState<PublishedTeam[]>([]);
@@ -3790,7 +3833,7 @@ export function TournamentLeaderboardScreen() {
   const [message, setMessage] = useState("");
 
   const loadLeaderboard = useCallback(async () => {
-    if (!appSession.ready || !appSession.userId) return;
+    if (!appSession.ready) return;
     const supabase = getSupabaseClient();
     if (!supabase) {
       setMessage("Supabase env vars are missing.");
@@ -3861,7 +3904,7 @@ export function TournamentLeaderboardScreen() {
     setMatches(mappedMatches);
     setMessage(scoreSchemaMissing || scheduleSchemaMissing ? "Live standings will activate after the tournament score migrations are applied." : "");
     setLoading(false);
-  }, [appSession.ready, appSession.userId]);
+  }, [appSession.ready]);
 
   useEffect(() => {
     loadLeaderboard();
@@ -3874,7 +3917,7 @@ export function TournamentLeaderboardScreen() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!appSession.ready || !appSession.userId) return;
+    if (!appSession.ready) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
     const channel = supabase
@@ -3887,9 +3930,9 @@ export function TournamentLeaderboardScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [appSession.ready, appSession.userId, loadLeaderboard]);
+  }, [appSession.ready, loadLeaderboard]);
 
-  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  if (!appSession.ready) return null;
 
   const standings = getLiveTeamStandings(teams, matches);
   const playerStandings = getLivePlayerStandings(teams, matches);
@@ -3897,13 +3940,13 @@ export function TournamentLeaderboardScreen() {
   const standingsAreFinal = Boolean(matches.length && completedMatches === matches.length && !standings.some((standing) => standing.requiresReview));
 
   return (
-    <AppFrame active="tournament">
+    <AppFrame active="tournament" withNav={Boolean(appSession.userId)}>
       <div className={memberPageClass}>
-        <AppTopBar />
+        <AppTopBar publicNextPath="/tournaments/leaderboard" />
         <main className={memberMainClass}>
           <section className="relative min-h-[150px] content-center overflow-hidden rounded-[26px] border-hairline border-white/20 bg-[#183a2b] p-4 pt-14 text-white shadow-[0_22px_52px_rgba(12,59,32,0.20)] sm:min-h-[210px] sm:p-7 sm:pt-20">
             <TournamentHeroAmbience />
-            <Link className="tap-card absolute left-3 top-3 z-20 inline-grid h-8 max-h-8 min-h-8 w-8 max-w-8 min-w-8 place-items-center rounded-full border-hairline border-white/25 bg-white/12 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)] backdrop-blur transition-transform hover:-translate-x-0.5 active:scale-[0.98] sm:left-4 sm:top-4 sm:h-9 sm:max-h-9 sm:min-h-9 sm:w-9 sm:max-w-9 sm:min-w-9" href="/tournaments" aria-label="Back to tournament">
+            <Link className="tap-card absolute left-3 top-3 z-20 inline-grid h-8 max-h-8 min-h-8 w-8 max-w-8 min-w-8 place-items-center rounded-full border-hairline border-white/25 bg-white/12 p-0 text-white shadow-[0_8px_18px_rgba(0,0,0,0.10)] backdrop-blur transition-transform hover:-translate-x-0.5 active:scale-[0.98] sm:left-4 sm:top-4 sm:h-9 sm:max-h-9 sm:min-h-9 sm:w-9 sm:max-w-9 sm:min-w-9" href={appSession.userId ? "/tournaments" : "/"} aria-label={appSession.userId ? "Back to tournament" : "Back to MRSA home"}>
               <ArrowLeft size={15} />
             </Link>
             <span className="absolute right-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full border-hairline border-white/20 bg-white/12 px-2 py-1 text-[8px] font-medium uppercase tracking-[0.08em] text-[#b7ff2f] backdrop-blur sm:right-4 sm:top-4 sm:px-2.5 sm:py-1.5 sm:text-[10px]">
@@ -6905,6 +6948,35 @@ function ScheduleCompactEventRow({ item }: { item: ScheduleItem }) {
   );
 }
 
+function ScheduleTimelineEventCard({ item }: { item: ScheduleItem }) {
+  return (
+    <article className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-4 rounded-[16px] border-hairline border-[#d8e1d9] bg-[#f8faf4] px-4 py-2 shadow-[0_8px_20px_rgba(12,59,32,0.05)]">
+      <time className="whitespace-nowrap text-[14px] font-medium text-brand">{item.timeLabel}</time>
+      <strong className="truncate text-right text-[14px] font-medium text-text-primary">{getScheduleMilestoneLabel(item)}</strong>
+    </article>
+  );
+}
+
+function ScheduleDayEventRail({ day, items }: { day: 1 | 2; items: ScheduleItem[] }) {
+  return (
+    <section className="overflow-hidden rounded-[16px] border-hairline border-[#d8e1d9] bg-white/90 shadow-[0_10px_26px_rgba(12,59,32,0.06)]" aria-label={`Day ${day} timeline`}>
+      <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto p-2 sm:grid sm:grid-cols-3 sm:overflow-visible">
+        {items.map((item) => (
+          <article className="grid min-h-[58px] min-w-[220px] snap-start grid-cols-[32px_minmax(0,1fr)] items-center gap-2.5 rounded-[13px] border-hairline border-[#e0e6dc] bg-[#f8faf4] px-3 py-2 sm:min-w-0" key={item.id}>
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-brand text-[#d8f36b]" aria-hidden="true">
+              {isClosingScheduleItem(item) ? <CheckCircle2 size={15} /> : isLunchScheduleItem(item) ? <Calendar size={15} /> : <UsersRound size={15} />}
+            </span>
+            <span className="grid min-w-0 gap-0.5">
+              <time className="text-[11px] font-medium leading-none text-text-muted">{item.timeLabel}</time>
+              <strong className="truncate text-[13px] font-medium leading-snug text-brand">{getScheduleMilestoneLabel(item)}</strong>
+            </span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function DayScheduleEndCard() {
   return (
     <section className="rounded-[18px] border-hairline border-line bg-white px-4 py-3 text-center shadow-[0_10px_24px_rgba(24,24,26,0.04)]">
@@ -7107,9 +7179,13 @@ function getDayScheduleEventItems(items: ScheduleItem[], dayNumber: number) {
   const withBreakfast = hasScheduleEventNear(eventItems, 8 * 60)
     ? eventItems
     : [createScheduleEventItem(1, "8:00-9:30 AM", "Breakfast / briefing / warmup / team setup", "Check in, eat, warm up, and settle into teams before matches begin.", -20), ...eventItems];
-  return hasScheduleEventNear(withBreakfast, 12 * 60 + 50)
+  const withLunch = hasScheduleEventNear(withBreakfast, 12 * 60 + 50)
     ? withBreakfast
     : [...withBreakfast, createScheduleEventItem(1, "12:50-1:30 PM", "Lunch", "Lunch break before afternoon matches resume.", 1250)];
+  const withClosing = withLunch.some(isClosingScheduleItem)
+    ? withLunch
+    : [...withLunch, createScheduleEventItem(1, "6:00 PM", "Day 1 ends", "Day 1 concludes after the final scheduled match.", 1800)];
+  return withClosing.sort((a, b) => getScheduleTimeSortValue(a.timeLabel || a.dayLabel) - getScheduleTimeSortValue(b.timeLabel || b.dayLabel));
 }
 
 function normalizeDayTwoScheduleEvents(eventItems: ScheduleItem[]) {
@@ -7123,13 +7199,32 @@ function normalizeDayTwoScheduleEvents(eventItems: ScheduleItem[]) {
     }
   });
   const values = Array.from(normalized.values());
-  return hasScheduleEventNear(values, 8 * 60)
+  const withBreakfast = hasScheduleEventNear(values, 8 * 60)
     ? values
     : [createScheduleEventItem(2, "8:00-9:00 AM", "Breakfast / briefing / warmup / team setup", "Check in, eat, warm up, and settle into teams before matches begin.", -20), ...values];
+  const withLunch = [
+    ...withBreakfast,
+    createScheduleEventItem(2, "11:30 AM onward", "Lunch available", "There is no dedicated lunch break. Please eat when your match schedule allows.", 1130)
+  ];
+  const withClosing = withLunch.some(isClosingScheduleItem)
+    ? withLunch
+    : [...withLunch, createScheduleEventItem(2, "6:15-7:00 PM", "Awards / wrapup", "Awards and tournament wrapup.", 1900)];
+  return withClosing.sort((a, b) => getScheduleTimeSortValue(a.timeLabel || a.dayLabel) - getScheduleTimeSortValue(b.timeLabel || b.dayLabel));
 }
 
 function isLunchScheduleItem(item: ScheduleItem) {
   return normalizeName([item.matchLabel, item.phase, item.detail].filter(Boolean).join(" ")).includes("lunch");
+}
+
+function isClosingScheduleItem(item: ScheduleItem) {
+  const label = normalizeName([item.matchLabel, item.phase, item.detail].filter(Boolean).join(" "));
+  return label.includes("award") || label.includes("wrapup") || label.includes("wrap up") || label.includes("day 1 ends") || label.includes("day 2 ends");
+}
+
+function getScheduleMilestoneLabel(item: ScheduleItem) {
+  if (isClosingScheduleItem(item)) return item.dayNumber === 1 ? "Day 1 ends" : "Awards & wrapup";
+  if (isLunchScheduleItem(item)) return item.dayNumber === 2 ? "Lunch available" : "Lunch";
+  return "Breakfast, briefing & warmup";
 }
 
 function hasScheduleEventNear(items: ScheduleItem[], targetMinutes: number) {
@@ -7166,6 +7261,22 @@ function getSortedScheduleTimeLabels(blockGroups: Record<string, TeamCourtSchedu
     labels.set(normalizeScheduleTime(label), label);
   });
   return Array.from(labels.values()).sort((a, b) => getScheduleTimeSortValue(a) - getScheduleTimeSortValue(b) || a.localeCompare(b));
+}
+
+function buildScheduleTimelineEntries(matchLabels: string[], eventItems: ScheduleItem[]): ScheduleTimelineEntry[] {
+  return [
+    ...matchLabels.map((label): ScheduleTimelineEntry => ({
+      kind: "matches",
+      key: `matches-${normalizeScheduleTime(label)}`,
+      label
+    })),
+    ...eventItems.map((item): ScheduleTimelineEntry => ({
+      kind: "event",
+      key: `event-${item.id}`,
+      label: item.timeLabel || item.dayLabel,
+      item
+    }))
+  ].sort((a, b) => getScheduleTimeSortValue(a.label) - getScheduleTimeSortValue(b.label) || a.label.localeCompare(b.label));
 }
 
 function groupPlayerMatchesByTime(matches: PlayerScheduleMatch[]) {
@@ -7219,6 +7330,7 @@ function getScheduleTimeSortValue(label: string) {
   const meridiem = match[3];
   if (meridiem === "pm" && hours < 12) hours += 12;
   if (meridiem === "am" && hours === 12) hours = 0;
+  if (!meridiem && hours >= 1 && hours <= 7) hours += 12;
   return hours * 60 + minutes;
 }
 
