@@ -1,5 +1,5 @@
-import { TournamentBracketScreen } from "../../tennis-app";
+import { redirect } from "next/navigation";
 
 export default function TournamentBracketPage() {
-  return <TournamentBracketScreen />;
+  redirect("/tournaments/leaderboard");
 }

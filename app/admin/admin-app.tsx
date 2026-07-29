@@ -495,6 +495,7 @@ export function AdminPlayersScreen() {
   const [players, setPlayers] = useState<AdminPlayer[]>([]);
   const [query, setQuery] = useState("");
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
+  const [unclaimConfirmId, setUnclaimConfirmId] = useState<string | null>(null);
   const [savingPlayerId, setSavingPlayerId] = useState<string | null>(null);
   const [playerNotice, setPlayerNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -607,6 +608,60 @@ export function AdminPlayersScreen() {
     await loadPlayers();
   };
 
+  const unclaimPlayerProfile = async (player: AdminPlayer) => {
+    if (unclaimConfirmId !== player.id) {
+      setUnclaimConfirmId(player.id);
+      setPlayerNotice(null);
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setPlayerNotice({ type: "error", text: "Supabase is not configured. Check your environment variables." });
+      return;
+    }
+
+    setSavingPlayerId(player.id);
+    setPlayerNotice(null);
+    const { data: { user } } = await supabase.auth.getUser();
+    const reviewedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from("players")
+      .update({
+        auth_user_id: null,
+        claim_status: "unclaimed",
+        claim_requested_by: null,
+        claim_reviewed_by: user?.id || null,
+        claimed_at: null
+      })
+      .eq("id", player.id)
+      .eq("claim_status", "claimed");
+
+    if (!error && player.auth_user_id) {
+      await supabase
+        .from("player_claims")
+        .update({
+          status: "cancelled",
+          admin_note: "Profile unclaimed by an administrator.",
+          reviewed_by: user?.id || null,
+          reviewed_at: reviewedAt
+        })
+        .eq("player_id", player.id)
+        .eq("requested_by", player.auth_user_id)
+        .eq("status", "approved");
+    }
+
+    setSavingPlayerId(null);
+    setUnclaimConfirmId(null);
+    if (error) {
+      setPlayerNotice({ type: "error", text: error.message });
+      return;
+    }
+
+    setPlayerNotice({ type: "success", text: `${player.full_name} is now unclaimed and can be claimed again.` });
+    await loadPlayers();
+  };
+
   return (
     <AdminFrame active="players">
       <div className="grid gap-3 rounded-[22px] border-hairline border-line bg-card p-5 md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:items-center md:p-6">
@@ -654,6 +709,16 @@ export function AdminPlayersScreen() {
                 >
                   {player.is_admin ? "Remove admin" : "Make admin"}
                 </button>
+                {player.claim_status === "claimed" && player.auth_user_id && (
+                  <button
+                    className={unclaimConfirmId === player.id ? "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] bg-[#a32d2d] px-4 text-xs font-medium text-white disabled:opacity-50" : "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d] disabled:opacity-50"}
+                    type="button"
+                    onClick={() => unclaimPlayerProfile(player)}
+                    disabled={savingPlayerId === player.id}
+                  >
+                    {savingPlayerId === player.id ? "Unclaiming..." : unclaimConfirmId === player.id ? "Confirm unclaim" : "Unclaim profile"}
+                  </button>
+                )}
               </div>
             </div>
 
