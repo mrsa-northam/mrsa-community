@@ -2644,17 +2644,25 @@ function AdminTeamSponsorEditor({ team, actionKey, onSave, onReplaceLogo }: {
 }) {
   const emptySponsor = (): AdminTeamSponsor => ({ name: "", logoUrl: "", websiteUrl: "" });
   const [sponsors, setSponsors] = useState<AdminTeamSponsor[]>(team.sponsors.length ? team.sponsors : [emptySponsor()]);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => {
     setSponsors(team.sponsors.length ? team.sponsors : [emptySponsor()]);
   }, [team.sponsors]);
 
   const updateSponsor = (index: number, updates: Partial<AdminTeamSponsor>) => {
+    setSaveStatus("idle");
     setSponsors((current) => current.map((sponsor, sponsorIndex) => sponsorIndex === index ? { ...sponsor, ...updates } : sponsor));
   };
   const saveSponsors = async (nextSponsors = sponsors) => {
+    setSaveStatus("saving");
     const updated = await onSave(team, nextSponsors);
-    if (updated) setSponsors(updated.length ? updated : [emptySponsor()]);
+    if (updated) {
+      setSponsors(updated.length ? updated : [emptySponsor()]);
+      setSaveStatus("saved");
+    } else {
+      setSaveStatus("error");
+    }
   };
   const removeSponsor = async (index: number) => {
     const remaining = sponsors.filter((_, sponsorIndex) => sponsorIndex !== index);
@@ -2669,7 +2677,10 @@ function AdminTeamSponsorEditor({ team, actionKey, onSave, onReplaceLogo }: {
           <strong className="text-[13px] font-medium text-text-primary">Team sponsors</strong>
           <em className="text-[10px] not-italic text-text-secondary">Add each sponsor name and logo separately.</em>
         </span>
-        <button className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-[11px] bg-brand px-3 text-xs font-medium text-white shadow-[0_7px_16px_rgba(12,59,32,0.14)] disabled:opacity-50 sm:w-auto" type="button" onClick={() => setSponsors((current) => [...current, emptySponsor()])} disabled={sponsors.length >= 12}>
+        <button className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-[11px] bg-brand px-3 text-xs font-medium text-white shadow-[0_7px_16px_rgba(12,59,32,0.14)] disabled:opacity-50 sm:w-auto" type="button" onClick={() => {
+          setSaveStatus("idle");
+          setSponsors((current) => [...current, emptySponsor()]);
+        }} disabled={sponsors.length >= 12}>
           <Plus size={14} /> Add another sponsor
         </button>
       </div>
@@ -2681,7 +2692,10 @@ function AdminTeamSponsorEditor({ team, actionKey, onSave, onReplaceLogo }: {
             event.target.value = "";
             if (!file) return;
             const updated = await onReplaceLogo(team, sponsors, index, file);
-            if (updated) setSponsors(updated.length ? updated : [emptySponsor()]);
+            if (updated) {
+              setSponsors(updated.length ? updated : [emptySponsor()]);
+              setSaveStatus("saved");
+            }
           };
           return (
             <article className="grid gap-2 rounded-[12px] border-hairline border-line bg-white p-2 lg:grid-cols-[minmax(160px,0.8fr)_minmax(190px,1fr)_minmax(190px,0.9fr)_auto] lg:items-end" key={`${team.id}:sponsor:${index}`}>
@@ -2708,8 +2722,24 @@ function AdminTeamSponsorEditor({ team, actionKey, onSave, onReplaceLogo }: {
           );
         })}
       </div>
-      <button className="tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white disabled:opacity-50 sm:w-max" type="button" onClick={() => void saveSponsors()} disabled={actionKey === `sponsors:${team.id}`}>
-        {actionKey === `sponsors:${team.id}` ? "Saving sponsors..." : "Save sponsors"}
+      <button
+        className={saveStatus === "saved"
+          ? "tap-card inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[12px] border-hairline border-[#cfe1bd] bg-brand-light px-4 text-xs font-medium text-[#3b6d11] sm:w-max"
+          : saveStatus === "error"
+            ? "tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d] sm:w-max"
+            : "tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white disabled:cursor-wait disabled:bg-brand/55 disabled:opacity-100 sm:w-max"}
+        type="button"
+        onClick={() => void saveSponsors()}
+        disabled={saveStatus === "saving" || saveStatus === "saved" || actionKey === `sponsors:${team.id}`}
+        aria-live="polite"
+      >
+        {saveStatus === "saving" || actionKey === `sponsors:${team.id}`
+          ? "Saving sponsors..."
+          : saveStatus === "saved"
+            ? <><CheckCircle2 size={14} /> Sponsors saved</>
+            : saveStatus === "error"
+              ? "Could not save — try again"
+              : "Save sponsors"}
       </button>
     </section>
   );
