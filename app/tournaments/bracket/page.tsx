@@ -1,5 +1,10 @@
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import { TournamentLiveBracketScreen } from "../../tennis-app";
 
 export default function TournamentBracketPage() {
-  redirect("/tournaments/leaderboard");
+  return (
+    <Suspense fallback={null}>
+      <TournamentLiveBracketScreen />
+    </Suspense>
+  );
 }
