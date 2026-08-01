@@ -127,6 +127,8 @@ type MatchScore = {
   sideASet3: number | null;
   sideBSet3: number | null;
   winnerSide: "A" | "B" | "";
+  submittedById: string;
+  submittedByName: string;
   submittedAt: string;
 };
 type MatchPlayerProfile = {
@@ -283,6 +285,7 @@ type MatchScoreRow = {
   side_a_set3: number | null;
   side_b_set3: number | null;
   winner_side: string | null;
+  submitted_by?: string | null;
   submitted_at: string | null;
 };
 type ScoreDraft = {
@@ -3304,7 +3307,8 @@ export function TournamentTvDayScreen() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [tvScene, setTvScene] = useState<"live" | "team" | "player">("live");
-  const [sceneSeconds, setSceneSeconds] = useState(30);
+  const [sceneSeconds, setSceneSeconds] = useState(45);
+  const [rotationPaused, setRotationPaused] = useState(false);
 
   useEffect(() => {
     if (appSession.ready && !appSession.isAdmin) router.replace("/tournaments");
@@ -3316,7 +3320,8 @@ export function TournamentTvDayScreen() {
   }, []);
 
   useEffect(() => {
-    setSceneSeconds(tvScene === "live" ? 30 : 5);
+    setSceneSeconds(tvScene === "live" ? 45 : 12);
+    if (rotationPaused) return;
     const timer = window.setInterval(() => {
       setSceneSeconds((current) => {
         if (current > 1) return current - 1;
@@ -3325,7 +3330,7 @@ export function TournamentTvDayScreen() {
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [tvScene]);
+  }, [rotationPaused, tvScene]);
 
   const loadTvSchedule = useCallback(async () => {
     if (!appSession.ready || !appSession.isAdmin) return;
@@ -3469,15 +3474,27 @@ export function TournamentTvDayScreen() {
   const isToday = selectedDateKey === formatLocalDateKey(now);
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const activeTimeLabel = isToday && timeLabels.length
-    ? timeLabels.reduce((activeLabel, label) => getScheduleTimeSortValue(label) <= currentMinutes ? label : activeLabel, timeLabels[0])
+    ? timeLabels.reduce((activeLabel, label) => getScheduleTimeSortValue(label) <= currentMinutes ? label : activeLabel, "")
     : "";
+  const firstOpenTimeLabel = timeLabels.find((label) => matchesByTime[label].some((match) => !match.score?.winnerSide)) || "";
+  const activeBlockHasOpenMatches = Boolean(activeTimeLabel && matchesByTime[activeTimeLabel]?.some((match) => !match.score?.winnerSide));
+  const focusedTimeLabel = activeBlockHasOpenMatches ? activeTimeLabel : firstOpenTimeLabel || activeTimeLabel || timeLabels[timeLabels.length - 1] || "";
+  const focusedTimeIndex = focusedTimeLabel ? timeLabels.indexOf(focusedTimeLabel) : -1;
+  const focusedMatches = focusedTimeLabel ? matchesByTime[focusedTimeLabel] || [] : [];
+  const nextTimeLabel = focusedTimeIndex >= 0 ? timeLabels[focusedTimeIndex + 1] || "" : "";
+  const nextMatches = nextTimeLabel ? matchesByTime[nextTimeLabel] || [] : [];
+  const completedDayMatches = selectedMatches.filter((match) => match.score?.winnerSide).length;
+  const remainingDayMatches = Math.max(0, selectedMatches.length - completedDayMatches);
+  const focusedSlotComplete = Boolean(focusedMatches.length && focusedMatches.every((match) => match.score?.winnerSide));
+  const focusedSlotIsLive = Boolean(isToday && focusedTimeLabel === activeTimeLabel && !focusedSlotComplete);
+  const focusedSlotLabel = focusedSlotIsLive ? "On court now" : focusedSlotComplete ? "Latest completed block" : "Next scheduled block";
   const teamStandings = getLiveTeamStandings(teams, matches);
   const playerStandings = getLivePlayerStandings(teams, matches);
   const nextScene = tvScene === "live" ? "Team leaderboard" : tvScene === "team" ? "Player leaderboard" : "Live schedule";
   const enterFullscreen = () => document.documentElement.requestFullscreen?.();
   const selectTvScene = (scene: "live" | "team" | "player") => {
     setTvScene(scene);
-    setSceneSeconds(scene === "live" ? 30 : 5);
+    setSceneSeconds(scene === "live" ? 45 : 12);
   };
 
   return (
@@ -3517,9 +3534,14 @@ export function TournamentTvDayScreen() {
               <button className={tvScene === scene.id ? "min-h-9 rounded-[10px] bg-white px-2 text-[11px] font-semibold text-brand shadow-[0_6px_16px_rgba(0,0,0,0.14)]" : "min-h-9 rounded-[10px] px-2 text-[11px] font-semibold text-white/58 hover:bg-white/8"} type="button" onClick={() => selectTvScene(scene.id)} aria-pressed={tvScene === scene.id} key={scene.id}>{scene.label}</button>
             ))}
           </div>
-          <span className="grid min-w-[142px] justify-items-end gap-0.5 rounded-[12px] border border-white/12 bg-white/10 px-3 py-1.5 text-right">
-            <strong className="text-[14px] font-semibold tabular-nums text-[#d8f36b]">{sceneSeconds}s</strong>
-            <em className="text-[8px] font-medium not-italic uppercase tracking-[0.06em] text-white/55">{nextScene} next</em>
+          <span className="flex min-w-[210px] items-stretch justify-end gap-2">
+            <span className="grid min-w-[132px] justify-items-end gap-0.5 rounded-[12px] border border-white/12 bg-white/10 px-3 py-1.5 text-right">
+              <strong className="text-[14px] font-semibold tabular-nums text-[#d8f36b]">{rotationPaused ? "Paused" : `${sceneSeconds}s`}</strong>
+              <em className="text-[8px] font-medium not-italic uppercase tracking-[0.06em] text-white/55">{rotationPaused ? "Manual display" : `${nextScene} next`}</em>
+            </span>
+            <button className={rotationPaused ? "min-w-[70px] rounded-[12px] bg-[#d8f36b] px-3 text-[10px] font-semibold text-[#183a2b]" : "min-w-[70px] rounded-[12px] border border-white/15 bg-white/10 px-3 text-[10px] font-semibold text-white transition hover:bg-white/18"} type="button" onClick={() => setRotationPaused((current) => !current)} aria-pressed={rotationPaused}>
+              {rotationPaused ? "Resume" : "Pause"}
+            </button>
           </span>
         </div>
       </header>
@@ -3528,69 +3550,80 @@ export function TournamentTvDayScreen() {
         {loading && <div className="grid min-h-[55vh] place-items-center text-[18px] font-medium text-brand">Loading live day view…</div>}
         {!loading && message && <StatusMessage tone="warning">{message}</StatusMessage>}
         {!loading && !message && tvScene === "live" && (
-          <>
-            <section className="grid min-h-0 gap-3 lg:grid-cols-[250px_minmax(0,1fr)]" aria-label={`Day ${selectedDay} detailed live schedule`}>
-              <aside className="grid content-start gap-2 rounded-[18px] border border-[#d7e2cf] bg-white p-3 shadow-[0_12px_30px_rgba(24,58,43,0.07)]">
-                <span className="grid gap-0.5 border-b border-[#e1e9dc] pb-2">
-                  <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-text-muted">Off-court schedule</em>
-                  <strong className="text-[18px] font-semibold text-brand">Breaks & gatherings</strong>
-                </span>
-                {dayEvents.map((event) => (
-                  <article className="grid grid-cols-[34px_minmax(0,1fr)] items-start gap-2 rounded-[12px] bg-[#f3f7ef] p-2.5" key={event.id}>
-                    <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-brand text-[#d8f36b]"><Clock size={15} /></span>
-                    <span className="grid min-w-0 gap-0.5">
-                      <strong className="text-[11px] font-semibold tabular-nums text-brand">{event.timeLabel || event.dayLabel}</strong>
-                      <span className="text-[11px] font-semibold leading-tight text-text-primary">{event.matchLabel}</span>
-                      {event.detail && <em className="line-clamp-2 text-[9px] not-italic leading-snug text-text-secondary">{event.detail}</em>}
-                    </span>
-                  </article>
-                ))}
-              </aside>
+          <section className="grid gap-3" aria-label={`Day ${selectedDay} at-a-glance live schedule`}>
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              <TvGlanceStat label="Matches final" value={`${completedDayMatches}/${selectedMatches.length}`} detail={`${remainingDayMatches} remaining`} tone="green" />
+              <TvGlanceStat label={focusedSlotLabel} value={focusedTimeLabel || "TBD"} detail={`${focusedMatches.length} courts in this block`} tone="lime" />
+              <TvGlanceStat label="Next court block" value={nextTimeLabel || "Day complete"} detail={nextTimeLabel ? `${nextMatches.length} matches scheduled` : "No later matches"} tone="blue" />
+              <TvGlanceStat label="Tournament day" value={`Day ${selectedDay}`} detail={isToday ? "Live today" : selectedDateKey ? new Date(`${selectedDateKey}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "Schedule view"} tone="white" />
+            </div>
 
-              <div className="min-w-0 overflow-hidden rounded-[18px] border border-[#d7e2cf] bg-[#e6eee1] shadow-[0_12px_30px_rgba(24,58,43,0.07)]">
-                <div className="flex items-center justify-between gap-3 border-b border-[#d3decf] bg-white px-4 py-2.5">
-                  <span className="grid gap-0.5">
-                    <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-text-muted">Time moves left to right</em>
-                    <strong className="text-[17px] font-semibold text-brand">Every scheduled court match</strong>
+            <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_350px]">
+              <section className="min-w-0 overflow-hidden rounded-[20px] border border-[#cad9c5] bg-white shadow-[0_16px_38px_rgba(24,58,43,0.09)]">
+                <header className={focusedSlotIsLive ? "flex min-h-[76px] items-center justify-between gap-4 border-b border-[#bdd397] bg-[linear-gradient(100deg,#dff2aa,#f3f9df)] px-5 py-3" : "flex min-h-[76px] items-center justify-between gap-4 border-b border-[#d5e0d0] bg-[#f5f8f2] px-5 py-3"}>
+                  <span className="grid gap-1">
+                    <em className="inline-flex items-center gap-2 text-[11px] font-semibold not-italic uppercase tracking-[0.12em] text-[#58750d]">
+                      <span className={focusedSlotIsLive ? "h-2.5 w-2.5 animate-pulse rounded-full bg-[#6f980c]" : "h-2.5 w-2.5 rounded-full bg-[#91a28e]"} />
+                      {focusedSlotLabel}
+                    </em>
+                    <strong className="text-[34px] font-semibold leading-none tabular-nums text-brand">{focusedTimeLabel || "Schedule pending"}</strong>
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-light px-3 py-1.5 text-[10px] font-semibold text-[#3b6d11]"><ArrowRight size={13} />Scroll through the day</span>
-                </div>
-                {!timeLabels.length ? (
+                  <span className="grid justify-items-end gap-1 text-right">
+                    <strong className="text-[18px] font-semibold text-brand">{focusedMatches.filter((match) => match.score?.winnerSide).length}/{focusedMatches.length} final</strong>
+                    <em className="text-[11px] not-italic text-text-secondary">Scores refresh automatically</em>
+                  </span>
+                </header>
+                {!focusedMatches.length ? (
                   <div className="grid min-h-[50vh] place-items-center p-8 text-center">
-                    <span className="grid max-w-[520px] gap-2">
-                      <strong className="text-[24px] font-semibold text-brand">Day {selectedDay} is awaiting pairings</strong>
-                      <em className="text-[14px] not-italic text-text-secondary">The TV display will update automatically when matches are published.</em>
+                    <span className="grid max-w-[560px] gap-2">
+                      <strong className="text-[28px] font-semibold text-brand">Day {selectedDay} is awaiting pairings</strong>
+                      <em className="text-[16px] not-italic text-text-secondary">This board will update automatically when court assignments are published.</em>
                     </span>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto overscroll-x-contain p-3 pb-4">
-                    <div className="flex min-w-max items-start gap-3">
-                      {timeLabels.map((label, index) => {
-                        const groupMatches = matchesByTime[label];
-                        const groupCompleted = groupMatches.filter((match) => match.score?.winnerSide).length;
-                        const active = label === activeTimeLabel;
-                        return (
-                          <section className={`${active ? "border-[#8fb51d] shadow-[0_16px_38px_rgba(143,181,29,0.18)]" : "border-[#d5e0d0] shadow-[0_10px_24px_rgba(24,58,43,0.06)]"} relative w-[720px] shrink-0 overflow-hidden rounded-[17px] border bg-white`} key={label}>
-                            {index > 0 && <span className="pointer-events-none absolute -left-3 top-7 h-px w-3 bg-[#91a28e]" aria-hidden="true" />}
-                            <header className={`${active ? "bg-[#e9f5c8]" : "bg-[#f4f7f1]"} flex min-h-14 items-center justify-between gap-3 border-b border-[#dce5d8] px-4 py-2.5`}>
-                              <span className="inline-flex items-center gap-2.5">
-                                <strong className="text-[21px] font-semibold tabular-nums text-brand">{label}</strong>
-                                {active && <em className="rounded-full bg-brand px-2.5 py-1 text-[9px] font-semibold not-italic uppercase tracking-[0.08em] text-[#d8f36b]">On court now</em>}
-                              </span>
-                              <span className="text-[10px] font-semibold text-[#5b7160]">{groupCompleted}/{groupMatches.length} final</span>
-                            </header>
-                            <div className="grid grid-cols-2 gap-2 bg-[#eef3ea] p-2.5">
-                              {groupMatches.map((match) => <TvDetailedMatchCard match={match} teams={teams} key={match.id} />)}
-                            </div>
-                          </section>
-                        );
-                      })}
-                    </div>
+                  <div className="grid gap-3 bg-[#eaf1e6] p-3 md:grid-cols-2 2xl:grid-cols-4">
+                    {focusedMatches.map((match) => <TvDetailedMatchCard active={focusedSlotIsLive} match={match} teams={teams} key={match.id} />)}
                   </div>
                 )}
-              </div>
-            </section>
-          </>
+              </section>
+
+              <aside className="grid content-start gap-3">
+                <section className="overflow-hidden rounded-[18px] border border-[#d2ddce] bg-white shadow-[0_12px_28px_rgba(24,58,43,0.07)]">
+                  <header className="flex items-center justify-between gap-3 border-b border-[#dfe7da] bg-[#f5f8f2] px-4 py-3">
+                    <span className="grid gap-0.5">
+                      <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-text-muted">Coming up</em>
+                      <strong className="text-[20px] font-semibold text-brand">{nextTimeLabel || "No later court block"}</strong>
+                    </span>
+                    {!!nextMatches.length && <span className="rounded-full bg-brand-light px-2.5 py-1 text-[10px] font-semibold text-[#3b6d11]">{nextMatches.length} matches</span>}
+                  </header>
+                  <div className="grid gap-1.5 p-2.5">
+                    {nextMatches.slice(0, 4).map((match) => <TvNextMatchRow match={match} key={match.id} />)}
+                    {!nextMatches.length && <p className="rounded-[12px] bg-surface/65 p-3 text-[12px] leading-relaxed text-text-secondary">The current block is the final scheduled court session for Day {selectedDay}.</p>}
+                  </div>
+                </section>
+
+                <section className="overflow-hidden rounded-[18px] border border-[#d2ddce] bg-white shadow-[0_12px_28px_rgba(24,58,43,0.07)]">
+                  <header className="grid gap-0.5 border-b border-[#dfe7da] bg-[#f5f8f2] px-4 py-3">
+                    <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-text-muted">Off-court schedule</em>
+                    <strong className="text-[20px] font-semibold text-brand">Breaks & gatherings</strong>
+                  </header>
+                  <div className="grid gap-1.5 p-2.5">
+                    {dayEvents.map((event) => (
+                      <article className="grid grid-cols-[42px_minmax(0,1fr)] items-start gap-2.5 rounded-[12px] bg-[#f2f6ef] p-2.5" key={event.id}>
+                        <span className="grid h-10 w-10 place-items-center rounded-[11px] bg-brand text-[#d8f36b]"><Clock size={18} /></span>
+                        <span className="grid min-w-0 gap-0.5">
+                          <strong className="text-[13px] font-semibold tabular-nums text-brand">{event.timeLabel || event.dayLabel}</strong>
+                          <span className="text-[13px] font-semibold leading-tight text-text-primary">{event.matchLabel}</span>
+                          {event.detail && <em className="line-clamp-2 text-[10px] not-italic leading-snug text-text-secondary">{event.detail}</em>}
+                        </span>
+                      </article>
+                    ))}
+                    {!dayEvents.length && <p className="rounded-[12px] bg-surface/65 p-3 text-[12px] text-text-secondary">No off-court events are scheduled for Day {selectedDay}.</p>}
+                  </div>
+                </section>
+              </aside>
+            </div>
+          </section>
         )}
         {!loading && !message && tvScene === "team" && <TvTeamLeaderboardScene standings={teamStandings} completedMatches={matches.filter((match) => match.score?.winnerSide).length} totalMatches={matches.length} />}
         {!loading && !message && tvScene === "player" && <TvPlayerLeaderboardScene standings={playerStandings} />}
@@ -3599,28 +3632,58 @@ export function TournamentTvDayScreen() {
   );
 }
 
-function TvDetailedMatchCard({ match, teams }: { match: TeamCourtScheduleMatch; teams: PublishedTeam[] }) {
+function TvGlanceStat({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "lime" | "blue" | "white" }) {
+  const toneClass = tone === "green"
+    ? "border-[#194a33] bg-[linear-gradient(135deg,#0b3122,#174f35)] text-white"
+    : tone === "lime"
+      ? "border-[#bad96a] bg-[linear-gradient(135deg,#dff2aa,#f3f9df)] text-brand"
+      : tone === "blue"
+        ? "border-[#bfd7e6] bg-[linear-gradient(135deg,#e8f4fb,#f7fbfd)] text-[#185a7d]"
+        : "border-[#d5e0d0] bg-white text-brand";
+  return (
+    <article className={`${toneClass} grid min-h-[82px] content-center gap-1 rounded-[17px] border px-4 py-3 shadow-[0_10px_24px_rgba(24,58,43,0.06)]`}>
+      <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] opacity-65">{label}</em>
+      <strong className="truncate text-[24px] font-semibold leading-none tabular-nums">{value}</strong>
+      <span className="truncate text-[10px] font-medium opacity-65">{detail}</span>
+    </article>
+  );
+}
+
+function TvNextMatchRow({ match }: { match: TeamCourtScheduleMatch }) {
+  return (
+    <article className="grid grid-cols-[58px_minmax(0,1fr)] items-center gap-2.5 rounded-[12px] border border-[#e0e7dc] bg-[#f7f9f5] p-2.5">
+      <strong className="rounded-[9px] bg-brand px-2 py-2 text-center text-[11px] font-semibold leading-tight text-white">{formatCourtNumber(match.courtLabel || "") || "TBD"}</strong>
+      <span className="grid min-w-0 gap-1">
+        <strong className="truncate text-[12px] font-semibold text-text-primary">{formatBracketPlayerNames(match.playersA, match.teamAName)}</strong>
+        <span className="flex min-w-0 items-center gap-1.5"><em className="text-[8px] font-semibold not-italic uppercase tracking-[0.08em] text-text-muted">vs</em><strong className="truncate text-[12px] font-semibold text-text-primary">{formatBracketPlayerNames(match.playersB, match.teamBName)}</strong></span>
+      </span>
+    </article>
+  );
+}
+
+function TvDetailedMatchCard({ match, teams, active }: { match: TeamCourtScheduleMatch; teams: PublishedTeam[]; active: boolean }) {
   const teamA = teams.find((team) => team.id === match.teamAId);
   const teamB = teams.find((team) => team.id === match.teamBId);
   const ballTeam = getBallTeamForMatchup(match.dayNumber, match.teamAId, match.teamBId, match.id, teams);
   const score = match.score;
-  const status = score?.winnerSide ? "Final" : score ? "Live" : "Pending";
+  const status = score?.winnerSide ? "Final" : active ? "On court" : "Up next";
+  const statusClass = status === "Final" ? "bg-[#e7eee3] text-[#526257]" : status === "On court" ? "bg-[#d8f36b] text-[#183a2b]" : "bg-[#e8f4fb] text-[#185a7d]";
 
   return (
-    <article className="overflow-hidden rounded-[13px] border border-[#d7e1d3] bg-white shadow-[0_6px_16px_rgba(24,58,43,0.05)]">
-      <header className="flex min-h-9 items-center justify-between gap-2 border-b border-[#e2e9df] bg-[#f8faf6] px-2.5 py-1.5">
-        <span className="inline-flex min-w-0 items-center gap-1.5">
-          <strong className="shrink-0 text-[11px] font-semibold text-brand">{match.courtLabel || "Court TBD"}</strong>
-          <span className="h-1 w-1 shrink-0 rounded-full bg-[#bdc8b8]" />
-          <em className="truncate text-[8px] font-semibold not-italic uppercase tracking-[0.06em] text-text-muted">{match.format}</em>
+    <article className={active && !score?.winnerSide ? "overflow-hidden rounded-[15px] border-2 border-[#a8ca4c] bg-white shadow-[0_10px_24px_rgba(111,152,12,0.12)]" : "overflow-hidden rounded-[15px] border border-[#d3dfcf] bg-white shadow-[0_8px_20px_rgba(24,58,43,0.06)]"}>
+      <header className="flex min-h-11 items-center justify-between gap-2 border-b border-[#e0e8dc] bg-[#f8faf6] px-3 py-2">
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <strong className="shrink-0 text-[14px] font-semibold text-brand">{match.courtLabel || "Court TBD"}</strong>
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#bdc8b8]" />
+          <em className="truncate text-[10px] font-semibold not-italic uppercase tracking-[0.06em] text-text-muted">{match.format}</em>
         </span>
         <span className="inline-flex items-center gap-1.5">
-          {ballTeam && <span className="inline-flex max-w-[115px] items-center gap-1 text-[8px] font-semibold text-brand"><TennisBallIcon className="h-3 w-3" /><span className="truncate">{ballTeam.name}</span></span>}
-          <em className={status === "Live" ? "rounded-full bg-[#eaf6c9] px-2 py-0.5 text-[7px] font-semibold not-italic uppercase tracking-[0.07em] text-[#58780a]" : "rounded-full bg-[#eef2eb] px-2 py-0.5 text-[7px] font-semibold not-italic uppercase tracking-[0.07em] text-text-muted"}>{status}</em>
+          {ballTeam && <span className="inline-flex max-w-[105px] items-center gap-1 text-[9px] font-semibold text-brand"><TennisBallIcon className="h-3.5 w-3.5" /><span className="truncate">{ballTeam.name}</span></span>}
+          <em className={`${statusClass} rounded-full px-2.5 py-1 text-[8px] font-semibold not-italic uppercase tracking-[0.07em]`}>{status}</em>
         </span>
       </header>
-      <div className="grid gap-0.5 p-2">
-        <div className="grid grid-cols-[minmax(0,1fr)_28px_28px_28px] items-center gap-1 px-1 text-center text-[7px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+      <div className="grid gap-1 p-2.5">
+        <div className="grid grid-cols-[minmax(0,1fr)_38px_38px_38px] items-center gap-1.5 px-1 text-center text-[8px] font-semibold uppercase tracking-[0.07em] text-text-muted">
           <span className="text-left">Players</span><span>S1</span><span>S2</span><span>TB</span>
         </div>
         <TvScoreTeamRow team={teamA} fallbackTeam={match.teamAName} players={match.playersA} scores={[score?.sideASet1, score?.sideASet2, score?.sideASet3]} winner={score?.winnerSide === "A"} />
@@ -3632,42 +3695,42 @@ function TvDetailedMatchCard({ match, teams }: { match: TeamCourtScheduleMatch; 
 
 function TvScoreTeamRow({ team, fallbackTeam, players, scores, winner }: { team?: PublishedTeam; fallbackTeam: string; players: string[]; scores: Array<number | null | undefined>; winner: boolean }) {
   return (
-    <div className={`${winner ? "bg-[#edf7d7]" : "bg-[#f5f7f3]"} grid min-h-10 grid-cols-[minmax(0,1fr)_28px_28px_28px] items-center gap-1 rounded-[9px] px-1.5 py-1`}>
-      <span className="grid min-w-0 grid-cols-[22px_minmax(0,1fr)] items-center gap-1.5">
-        <span className="relative grid h-[22px] w-[22px] place-items-center overflow-hidden rounded-full border border-[#dbe4d6] bg-white p-0.5 text-[6px] font-semibold text-brand">
-          {team?.logoUrl ? <NextImage src={team.logoUrl} alt="" fill sizes="22px" className="object-contain p-0.5" /> : getInitials(team?.name || fallbackTeam)}
+    <div className={`${winner ? "bg-[#edf7d7] ring-1 ring-[#bedb83]" : "bg-[#f3f6f1]"} grid min-h-[58px] grid-cols-[minmax(0,1fr)_38px_38px_38px] items-center gap-1.5 rounded-[11px] px-2 py-1.5`}>
+      <span className="grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-2">
+        <span className="relative grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-[9px] border border-[#dbe4d6] bg-white p-1 text-[8px] font-semibold text-brand">
+          {team?.logoUrl ? <NextImage src={team.logoUrl} alt="" fill sizes="34px" className="object-contain p-1" /> : getInitials(team?.name || fallbackTeam)}
         </span>
         <span className="grid min-w-0 gap-0.5">
-          <strong className="truncate text-[9px] font-semibold leading-tight text-text-primary">{formatBracketPlayerNames(players, fallbackTeam)}</strong>
-          <em className="truncate text-[7px] not-italic leading-none text-text-secondary">{team?.name || fallbackTeam}</em>
+          <strong className="line-clamp-2 text-[13px] font-semibold leading-[1.08] text-text-primary">{formatBracketPlayerNames(players, fallbackTeam)}</strong>
+          <em className="truncate text-[9px] not-italic leading-none text-text-secondary">{team?.name || fallbackTeam}</em>
         </span>
       </span>
-      {scores.map((value, index) => <strong className={`${winner ? "text-brand" : "text-[#455248]"} grid h-7 place-items-center rounded-[7px] bg-white text-[12px] font-semibold tabular-nums`} key={index}>{value ?? "–"}</strong>)}
+      {scores.map((value, index) => <strong className={`${winner ? "text-brand" : "text-[#455248]"} grid h-10 place-items-center rounded-[9px] bg-white text-[18px] font-semibold tabular-nums shadow-[inset_0_0_0_1px_rgba(24,58,43,0.05)]`} key={index}>{value ?? "–"}</strong>)}
     </div>
   );
 }
 
 function TvTeamLeaderboardScene({ standings, completedMatches, totalMatches }: { standings: TeamStanding[]; completedMatches: number; totalMatches: number }) {
   return (
-    <section className="overflow-hidden rounded-[20px] border border-[#d3dfcd] bg-white shadow-[0_18px_44px_rgba(24,58,43,0.10)]">
-      <header className="grid gap-1 border-b border-[#dce5d7] bg-[linear-gradient(100deg,#0b3122,#174f35)] px-6 py-4 text-white lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+    <section className="overflow-hidden rounded-[22px] border border-[#d3dfcd] bg-white shadow-[0_18px_44px_rgba(24,58,43,0.10)]">
+      <header className="grid gap-1.5 border-b border-[#dce5d7] bg-[linear-gradient(100deg,#0b3122,#174f35)] px-7 py-5 text-white lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <span className="grid gap-0.5">
-          <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.14em] text-[#d8f36b]">Live tournament standings</em>
-          <h2 className="text-[28px] font-semibold leading-tight">Team leaderboard</h2>
-          <p className="text-[12px] text-white/62">Every submitted result updates the rankings: match wins, set percentage, then game percentage.</p>
+          <em className="text-[11px] font-semibold not-italic uppercase tracking-[0.14em] text-[#d8f36b]">Live tournament standings</em>
+          <h2 className="text-[36px] font-semibold leading-tight">Team leaderboard</h2>
+          <p className="text-[14px] text-white/62">Every submitted result updates the rankings: match wins, set percentage, then game percentage.</p>
         </span>
-        <strong className="rounded-full bg-white/10 px-4 py-2 text-[12px] font-semibold text-[#d8f36b]">{completedMatches}/{totalMatches} results final</strong>
+        <strong className="rounded-full border border-white/12 bg-white/10 px-5 py-3 text-[15px] font-semibold text-[#d8f36b]">{completedMatches}/{totalMatches} results final</strong>
       </header>
-      <div className="grid gap-1.5 p-3">
-        <div className="grid grid-cols-[52px_minmax(260px,1fr)_90px_90px_110px_110px] items-center gap-2 px-4 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-text-muted">
+      <div className="grid gap-2 p-4">
+        <div className="grid grid-cols-[62px_minmax(300px,1fr)_110px_110px_130px_130px] items-center gap-2 px-5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
           <span>Rank</span><span>Team</span><span className="text-center">Wins</span><span className="text-center">Losses</span><span className="text-center">Set %</span><span className="text-center">Game %</span>
         </div>
         {standings.map((standing) => (
-          <article className="grid min-h-[62px] grid-cols-[52px_minmax(260px,1fr)_90px_90px_110px_110px] items-center gap-2 rounded-[13px] border border-[#e0e7dc] bg-[#f7f9f5] px-4 py-2" key={standing.team.id}>
-            <strong className="grid h-9 w-9 place-items-center rounded-full bg-white text-[16px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(24,58,43,0.09)]">{standing.seed}</strong>
-            <span className="grid min-w-0 grid-cols-[42px_minmax(0,1fr)] items-center gap-3">
-              <span className="relative grid h-10 w-10 place-items-center overflow-hidden rounded-[10px] bg-white p-1 text-[9px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(24,58,43,0.07)]">{standing.team.logoUrl ? <NextImage src={standing.team.logoUrl} alt="" fill sizes="40px" className="object-contain p-1" /> : getInitials(standing.team.name)}</span>
-              <span className="grid min-w-0 gap-0.5"><strong className="truncate text-[17px] font-semibold text-text-primary">{standing.team.name}</strong><em className="text-[9px] not-italic text-text-secondary">{standing.completedMatches}/{standing.scheduledMatches} matches played</em></span>
+          <article className={`${standing.seed === 1 ? "border-[#bfdc72] bg-[#f1f8df]" : "border-[#e0e7dc] bg-[#f7f9f5]"} grid min-h-[76px] grid-cols-[62px_minmax(300px,1fr)_110px_110px_130px_130px] items-center gap-2 rounded-[15px] border px-5 py-2.5`} key={standing.team.id}>
+            <strong className={standing.seed === 1 ? "grid h-11 w-11 place-items-center rounded-full bg-brand text-[20px] font-semibold text-[#d8f36b]" : "grid h-11 w-11 place-items-center rounded-full bg-white text-[20px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(24,58,43,0.09)]"}>{standing.seed}</strong>
+            <span className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)] items-center gap-3.5">
+              <span className="relative grid h-12 w-12 place-items-center overflow-hidden rounded-[11px] bg-white p-1 text-[10px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(24,58,43,0.07)]">{standing.team.logoUrl ? <NextImage src={standing.team.logoUrl} alt="" fill sizes="48px" className="object-contain p-1" /> : getInitials(standing.team.name)}</span>
+              <span className="grid min-w-0 gap-1"><strong className="truncate text-[21px] font-semibold text-text-primary">{standing.team.name}</strong><em className="text-[11px] not-italic text-text-secondary">{standing.completedMatches}/{standing.scheduledMatches} matches played</em></span>
             </span>
             <TvLeaderboardValue value={String(standing.matchWins)} />
             <TvLeaderboardValue value={String(standing.matchLosses)} />
@@ -3689,28 +3752,31 @@ function TvPlayerLeaderboardScene({ standings }: { standings: PlayerStanding[] }
   }, new Map<number, PlayerStanding[]>())).sort(([left], [right]) => left - right);
 
   return (
-    <section className="overflow-hidden rounded-[20px] border border-[#d3dfcd] bg-white shadow-[0_18px_44px_rgba(24,58,43,0.10)]">
-      <header className="grid gap-1 border-b border-[#dce5d7] bg-[linear-gradient(100deg,#0b3122,#174f35)] px-6 py-4 text-white">
-        <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.14em] text-[#d8f36b]">Top performers by playing tier</em>
-        <h2 className="text-[28px] font-semibold leading-tight">Player leaderboard</h2>
-        <p className="text-[12px] text-white/62">Singles and doubles count. Each tier ranks independently by wins, set percentage, then game percentage.</p>
+    <section className="overflow-hidden rounded-[22px] border border-[#d3dfcd] bg-white shadow-[0_18px_44px_rgba(24,58,43,0.10)]">
+      <header className="grid gap-1.5 border-b border-[#dce5d7] bg-[linear-gradient(100deg,#0b3122,#174f35)] px-7 py-5 text-white">
+        <em className="text-[11px] font-semibold not-italic uppercase tracking-[0.14em] text-[#d8f36b]">Top performers by playing tier</em>
+        <h2 className="text-[36px] font-semibold leading-tight">Player leaderboard</h2>
+        <p className="text-[14px] text-white/62">Singles and doubles count. Each tier ranks independently by wins, set percentage, then game percentage.</p>
       </header>
-      <div className="grid gap-3 bg-[#eef3ea] p-3 lg:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid gap-4 bg-[#eef3ea] p-4 lg:grid-cols-2 2xl:grid-cols-4">
         {tierGroups.map(([tierNumber, tierStandings]) => (
-          <section className="overflow-hidden rounded-[15px] border border-[#d5dfd0] bg-white" key={tierNumber}>
-            <header className="flex items-center justify-between gap-2 border-b border-[#e0e7dc] bg-[#f5f8f2] px-3 py-2.5">
-              <strong className="rounded-full bg-[#d8f36b] px-3 py-1 text-[12px] font-semibold text-brand">{tierNumber === 99 ? "Tier TBD" : `Tier ${tierNumber}`}</strong>
-              <em className="text-[8px] font-semibold not-italic uppercase tracking-[0.07em] text-text-muted">Top {Math.min(4, tierStandings.length)}</em>
+          <section className="overflow-hidden rounded-[17px] border border-[#d5dfd0] bg-white" key={tierNumber}>
+            <header className="flex items-center justify-between gap-2 border-b border-[#e0e7dc] bg-[#f5f8f2] px-4 py-3">
+              <strong className="rounded-full bg-[#d8f36b] px-3.5 py-1.5 text-[14px] font-semibold text-brand">{tierNumber === 99 ? "Tier TBD" : `Tier ${tierNumber}`}</strong>
+              <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.07em] text-text-muted">Top {Math.min(4, tierStandings.length)}</em>
             </header>
-            <div className="grid gap-1.5 p-2">
-              {tierStandings.slice(0, 4).map((standing) => (
-                <article className="grid min-h-[68px] grid-cols-[30px_36px_minmax(0,1fr)_auto] items-center gap-2 rounded-[11px] bg-[#f7f9f5] px-2.5 py-2" key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`}>
-                  <strong className="grid h-7 w-7 place-items-center rounded-full bg-white text-[12px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(24,58,43,0.08)]">{standing.tierRank}</strong>
-                  <Avatar className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-brand text-[8px] font-semibold text-white" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="36px" />
-                  <span className="grid min-w-0 gap-0.5"><strong className="truncate text-[12px] font-semibold text-text-primary">{standing.player.name}</strong><em className="truncate text-[8px] not-italic text-text-secondary">{standing.team.name} · {standing.completedMatches} played</em></span>
-                  <span className="grid justify-items-end gap-0.5"><strong className="text-[14px] font-semibold text-brand">{standing.matchWins}W</strong><em className="text-[7px] not-italic text-text-muted">{formatBracketPercentage(standing.setWinPercentage)}% sets</em></span>
-                </article>
-              ))}
+            <div className="grid gap-2 p-2.5">
+              {tierStandings.slice(0, 4).map((standing) => {
+                const winPercentage = standing.completedMatches ? (standing.matchWins / standing.completedMatches) * 100 : 0;
+                return (
+                  <article className={`${standing.tierRank === 1 ? "bg-[#f0f7dc] ring-1 ring-[#c8df88]" : "bg-[#f7f9f5]"} grid min-h-[82px] grid-cols-[34px_44px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[13px] px-3 py-2.5`} key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`}>
+                    <strong className={standing.tierRank === 1 ? "grid h-8 w-8 place-items-center rounded-full bg-brand text-[14px] font-semibold text-[#d8f36b]" : "grid h-8 w-8 place-items-center rounded-full bg-white text-[14px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(24,58,43,0.08)]"}>{standing.tierRank}</strong>
+                    <Avatar className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-brand text-[10px] font-semibold text-white" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="44px" />
+                    <span className="grid min-w-0 gap-1"><strong className="truncate text-[15px] font-semibold text-text-primary">{standing.player.name}</strong><em className="truncate text-[10px] not-italic text-text-secondary">{standing.team.name} · {standing.completedMatches} played</em></span>
+                    <span className="grid min-w-[66px] justify-items-end gap-0.5"><strong className="text-[16px] font-semibold text-brand">{standing.matchWins}W–{standing.matchLosses}L</strong><em className="text-[9px] not-italic text-text-muted">{formatBracketPercentage(winPercentage)}% wins</em></span>
+                  </article>
+                );
+              })}
             </div>
           </section>
         ))}
@@ -3720,11 +3786,17 @@ function TvPlayerLeaderboardScene({ standings }: { standings: PlayerStanding[] }
 }
 
 function TvLeaderboardValue({ value }: { value: string }) {
-  return <strong className="text-center text-[18px] font-semibold tabular-nums text-brand">{value}</strong>;
+  return <strong className="text-center text-[23px] font-semibold tabular-nums text-brand">{value}</strong>;
 }
 
 function formatTvClock(date: Date) {
   return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" });
+}
+
+function formatScoreUpdateTimestamp(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Recently";
+  return date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 function formatLocalDateKey(date: Date) {
@@ -4319,7 +4391,7 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
         .limit(8),
       supabase
         .from("tournament_match_scores")
-        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_by, submitted_at")
         .eq("schedule_match_id", matchId)
         .maybeSingle()
     ]);
@@ -4334,6 +4406,16 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
     const mappedTournament = tournamentResult.data ? mapTournament(tournamentResult.data) : null;
     const mappedTeams = mapPublishedTeamsFromRows(teamsResult.data || []);
     const mappedScores = scoreSchemaMissing || !scoresResult.data ? [] : mapMatchScores([scoresResult.data]);
+    const mappedScore = mappedScores[0];
+    if (mappedScore?.submittedById) {
+      const rosterSubmitter = mappedTeams.flatMap((team) => team.members).find((member) => member.playerId === mappedScore.submittedById);
+      let submitterName = rosterSubmitter?.name || "";
+      if (!submitterName) {
+        const { data: submitter } = await supabase.from("players").select("full_name").eq("id", mappedScore.submittedById).maybeSingle();
+        submitterName = submitter?.full_name || "";
+      }
+      mappedScore.submittedByName = submitterName;
+    }
     const mappedMatch = mapTeamCourtScheduleMatches([matchRow], participantsResult.data || [], mappedTeams, mappedScores)[0] || null;
     const previewPlayerId = getSchedulePreviewPlayerId(mappedTeams, appSession.player);
     const ownParticipant = (participantsResult.data || []).find((participant) => participant.player_id === previewPlayerId);
@@ -4391,13 +4473,14 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
           submitted_by: appSession.player?.id || null,
           submitted_at: new Date().toISOString()
         }, { onConflict: "schedule_match_id" })
-        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_by, submitted_at")
         .maybeSingle();
       if (error) {
         setMessage(getFriendlyError(error));
         return;
       }
-      const nextScore = mapMatchScores(data ? [data] : [])[0] || null;
+      const mappedNextScore = mapMatchScores(data ? [data] : [])[0] || null;
+      const nextScore = mappedNextScore ? { ...mappedNextScore, submittedByName: appSession.player?.full_name || (appSession.isAdmin ? "Tournament admin" : "Player") } : null;
       setMatch((current) => current ? { ...current, score: nextScore } : current);
       const dayTwoResult = await requestDayTwoSync(match.tournamentId);
       setMessage(dayTwoResult.ok ? "Score saved." : `Score saved. Day 2 update pending: ${dayTwoResult.message}`);
@@ -6489,7 +6572,17 @@ function ScheduleBracketNodeCard({ node, isOpen, hasConnector, hasIncoming, coin
   const hasWinner = Boolean(node.result.winnerTeamId);
   const sideAWon = hasWinner && node.sideA.team?.id === node.result.winnerTeamId;
   const sideBWon = hasWinner && node.sideB.team?.id === node.result.winnerTeamId;
-  const status = node.result.decidedBy === "organizer review" ? "Review" : hasWinner ? "Final" : node.result.completedMatches ? "Live" : "Pending";
+  const hasBothTeams = Boolean(node.sideA.team && node.sideB.team);
+  const status = node.result.decidedBy === "organizer review" ? "Needs review" : hasWinner ? "Completed" : node.result.completedMatches ? "Ongoing" : hasBothTeams ? "Not started" : "Awaiting teams";
+  const statusClass = status === "Completed"
+    ? "bg-[#e4f6eb] text-[#27633b]"
+    : status === "Ongoing"
+      ? "bg-[#d8f36b] text-[#183a2b]"
+      : status === "Needs review"
+        ? "bg-[#fff4d8] text-[#8a5a00]"
+        : status === "Awaiting teams"
+          ? "bg-[#eef3f7] text-[#526473]"
+          : "bg-surface text-text-muted";
   const coinTossNode = isDayTwoCoinTossNode(node.id);
   const knownTeamIds = [node.sideA.team?.id, node.sideB.team?.id].filter(Boolean) as string[];
   const validDecision = coinTossDecision && knownTeamIds.includes(coinTossDecision.winningTeamId) ? coinTossDecision : null;
@@ -6506,7 +6599,7 @@ function ScheduleBracketNodeCard({ node, isOpen, hasConnector, hasIncoming, coin
             <em className="block truncate text-[8px] not-italic text-text-muted">{node.timeLabel}</em>
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <em className={status === "Final" ? "rounded-full bg-[#e4f6eb] px-2 py-1 text-[8px] font-semibold not-italic uppercase text-[#27633b]" : status === "Live" ? "rounded-full bg-[#d8f36b] px-2 py-1 text-[8px] font-semibold not-italic uppercase text-[#183a2b]" : "rounded-full bg-surface px-2 py-1 text-[8px] font-semibold not-italic uppercase text-text-muted"}>{status}</em>
+            <em className={`${statusClass} rounded-full px-2 py-1 text-[8px] font-semibold not-italic uppercase`}>{status}</em>
             <ChevronDown className={`text-brand transition-transform ${isOpen ? "rotate-180" : ""}`} size={14} />
           </span>
         </span>
@@ -6514,7 +6607,7 @@ function ScheduleBracketNodeCard({ node, isOpen, hasConnector, hasIncoming, coin
         <ScheduleBracketTeamRow slot={node.sideB} score={node.result.matchWinsB} isWinner={sideBWon} />
       </button>
       {isOpen && (
-        <div className="grid gap-1 border-t-hairline border-line bg-surface/55 p-2">
+        <div className="grid gap-1 border-t-hairline border-line bg-surface/55 p-1.5">
           {coinTossNode && (
             <DayTwoCoinTossPanel
               canEdit={canEnterCoinToss}
@@ -6539,22 +6632,93 @@ function ScheduleBracketNodeCard({ node, isOpen, hasConnector, hasIncoming, coin
   );
 }
 
-function ScheduleBracketMatchLink({ match, node }: { match: TeamCourtScheduleMatch; node: LiveBracketNode }) {
+function ScheduleBracketMatchLink({ match }: { match: TeamCourtScheduleMatch; node: LiveBracketNode }) {
+  const score = match.score;
+  const hasTieBreaker = hasMatchTieBreaker(match);
+  const scoreRows = [
+    {
+      side: "A" as const,
+      fallback: match.teamAName,
+      fallbackPlayers: match.playersA,
+      players: match.playerProfilesA,
+      scores: [score?.sideASet1, score?.sideASet2, hasTieBreaker ? score?.sideASet3 : null],
+      opponentScores: [score?.sideBSet1, score?.sideBSet2, hasTieBreaker ? score?.sideBSet3 : null]
+    },
+    {
+      side: "B" as const,
+      fallback: match.teamBName,
+      fallbackPlayers: match.playersB,
+      players: match.playerProfilesB,
+      scores: [score?.sideBSet1, score?.sideBSet2, hasTieBreaker ? score?.sideBSet3 : null],
+      opponentScores: [score?.sideASet1, score?.sideASet2, hasTieBreaker ? score?.sideASet3 : null]
+    }
+  ];
   return (
-    <article className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[9px] bg-white px-2 py-2 transition hover:bg-brand-light">
-      <span className="grid min-w-0 gap-0.5">
-        <span className="flex min-w-0 flex-wrap items-center gap-1 text-[9px] font-medium text-text-primary">
-          <BracketPlayerProfileNames fallback={match.teamAName} match={match} players={match.playerProfilesA} />
-          <em className="not-italic text-text-muted">vs</em>
-          <BracketPlayerProfileNames fallback={match.teamBName} match={match} players={match.playerProfilesB} />
+    <article className="overflow-hidden rounded-[9px] border-hairline border-line/90 bg-white shadow-[0_3px_9px_rgba(24,58,43,0.04)]">
+      <header className="flex min-h-8 items-center justify-between gap-2 border-b-hairline border-line bg-[#f7f9f5] px-2 py-1">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <strong className="shrink-0 text-[9px] font-semibold text-brand">{match.courtLabel || "Court TBD"}</strong>
+          <span className="h-1 w-1 shrink-0 rounded-full bg-line" aria-hidden="true" />
+          <em className="truncate text-[7px] font-medium not-italic uppercase tracking-[0.04em] text-text-muted">{match.tierRule || match.format}</em>
         </span>
-        <em className="truncate text-[8px] not-italic text-text-muted">{match.courtLabel || "Court TBD"} · {match.tierRule || match.format}</em>
-      </span>
-      <Link className={match.score?.winnerSide ? "tap-card inline-flex min-h-8 items-center gap-1 rounded-full bg-brand-light px-2 text-[9px] font-semibold text-brand" : "tap-card inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-2 text-[9px] font-medium text-text-muted"} href={`/tournaments/schedule/matches/${match.id}?from=full-bracket&day=${match.dayNumber}`} aria-label="View match details">
-        {formatBracketMatchScore(match, node.sideA.team?.id || match.teamAId)}
-        <ArrowRight size={11} />
-      </Link>
+        <Link className={score?.winnerSide ? "tap-card !w-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-light px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[0.03em] text-brand" : "tap-card !w-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[0.03em] text-text-muted"} href={`/tournaments/schedule/matches/${match.id}?from=full-bracket&day=${match.dayNumber}`} aria-label="View match details">
+          {score?.winnerSide ? "Completed" : "Details"}
+          <ArrowRight size={9} />
+        </Link>
+      </header>
+      <div className="grid gap-0.5 p-1">
+        <div className="grid grid-cols-[minmax(0,1fr)_26px_26px_26px] items-center gap-1 px-1 text-center text-[6px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+          <span className="text-left">{match.format === "Doubles" ? "Pair" : "Player"}</span>
+          <span>S1</span>
+          <span>S2</span>
+          <span>TB</span>
+        </div>
+        {scoreRows.map((row) => (
+          <BracketMatchScoreRow
+            fallback={row.fallback}
+            fallbackPlayers={row.fallbackPlayers}
+            isDoubles={match.format === "Doubles"}
+            isWinner={score?.winnerSide === row.side}
+            match={match}
+            opponentScores={row.opponentScores}
+            players={row.players}
+            scores={row.scores}
+            key={row.side}
+          />
+        ))}
+      </div>
     </article>
+  );
+}
+
+function BracketMatchScoreRow({ match, players, fallbackPlayers, fallback, scores, opponentScores, isDoubles, isWinner }: { match: TeamCourtScheduleMatch; players: MatchPlayerProfile[]; fallbackPlayers: string[]; fallback: string; scores: Array<number | null | undefined>; opponentScores: Array<number | null | undefined>; isDoubles: boolean; isWinner: boolean }) {
+  const displayPlayers = players.length
+    ? players.map((player) => ({ ...player, canLink: !isFallbackPlayerProfileId(player.id) }))
+    : fallbackPlayers.map((name, index) => ({ id: `${match.id}:fallback:${index}`, name, profilePhotoUrl: "", canLink: false }));
+  return (
+    <div className={`${isWinner ? "bg-[#e5f4df] ring-1 ring-inset ring-[#c7dfb8]" : "bg-surface/70"} grid min-h-[42px] grid-cols-[minmax(0,1fr)_26px_26px_26px] items-center gap-1 rounded-[7px] px-1.5 py-1`}>
+      <span className="grid min-w-0 gap-px pr-1">
+        {displayPlayers.length ? displayPlayers.slice(0, isDoubles ? 2 : 1).map((player, index) => (
+          <span className="grid min-w-0 grid-cols-[11px_minmax(0,1fr)] items-center gap-px" key={player.id}>
+            <em className={index ? "grid h-3 w-3 place-items-center rounded-full bg-white text-[8px] font-semibold not-italic text-brand" : "text-center text-[7px] font-semibold not-italic text-text-muted"}>{index ? "+" : isWinner ? "W" : ""}</em>
+            {player.canLink ? (
+              <Link className="tap-card min-w-0 truncate text-[9px] font-semibold leading-tight text-text-primary underline decoration-current/20 underline-offset-2 hover:decoration-current" href={`/tournaments/players/${player.id}?from=bracket&day=${match.dayNumber}`}>{player.name}</Link>
+            ) : (
+              <strong className="min-w-0 truncate text-[9px] font-semibold leading-tight text-text-primary">{player.name}</strong>
+            )}
+          </span>
+        )) : (
+          <strong className="truncate text-[9px] font-semibold text-text-primary">{fallback}</strong>
+        )}
+        <em className="truncate pl-3 text-[6px] font-medium not-italic uppercase tracking-[0.03em] text-text-muted">{fallback}</em>
+      </span>
+      {scores.map((value, index) => {
+        const wonSet = value != null && opponentScores[index] != null && getSetWinner(value, opponentScores[index]) === "A";
+        return (
+          <strong className={`${wonSet ? "bg-white text-brand ring-1 ring-inset ring-[#c7dfb8]" : "bg-white/75 text-text-secondary"} grid h-7 place-items-center rounded-[6px] text-[12px] font-semibold tabular-nums`} key={index}>{value ?? "–"}</strong>
+        );
+      })}
+    </div>
   );
 }
 
@@ -6783,6 +6947,7 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessS
   const setOneWinner = getSetWinner(parseOptionalScore(draft.sideASet1), parseOptionalScore(draft.sideBSet1));
   const setTwoWinner = getSetWinner(parseOptionalScore(draft.sideASet2), parseOptionalScore(draft.sideBSet2));
   const straightSetsComplete = Boolean(setOneWinner && setOneWinner === setTwoWinner);
+  const scoreSubmitterLabel = match.score?.submittedByName || (match.score?.submittedById ? "Tournament player" : "Tournament admin");
   const updateScoreDraft = (nextDraft: ScoreDraft) => {
     const nextSetOneWinner = getSetWinner(parseOptionalScore(nextDraft.sideASet1), parseOptionalScore(nextDraft.sideBSet1));
     const nextSetTwoWinner = getSetWinner(parseOptionalScore(nextDraft.sideASet2), parseOptionalScore(nextDraft.sideBSet2));
@@ -6860,6 +7025,14 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessS
               <p className="text-[13px] leading-relaxed text-text-secondary">Only players assigned to this match or tournament admins can submit or edit the result.</p>
             </span>
           </div>
+        )}
+        {match.score?.submittedAt && (
+          <p className="flex min-w-0 flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 border-t-hairline border-line pt-3 text-center text-[11px] text-text-muted">
+            <CheckCircle2 className="shrink-0 text-brand" size={13} />
+            <span>Score updated by <strong className="font-medium text-text-secondary">{scoreSubmitterLabel}</strong></span>
+            <span aria-hidden="true">·</span>
+            <time dateTime={match.score.submittedAt}>{formatScoreUpdateTimestamp(match.score.submittedAt)}</time>
+          </p>
         )}
       </article>
     </section>
@@ -7245,13 +7418,16 @@ function LiveBracketMatchCard({ node }: { node: LiveBracketNode }) {
   const hasWinner = Boolean(node.result.winnerTeamId);
   const sideAWon = node.result.winnerTeamId === node.sideA.team?.id;
   const sideBWon = node.result.winnerTeamId === node.sideB.team?.id;
-  const status = node.result.decidedBy === "organizer review"
-    ? "Organizer review"
-    : hasWinner
-      ? node.result.isClinched && node.result.completedMatches < node.result.scheduledMatches ? "Clinched" : "Final"
-      : node.result.scheduledMatches
-        ? `${node.result.completedMatches}/${node.result.scheduledMatches} results`
-        : hasTeams ? "Awaiting match setup" : "Waiting on prior round";
+  const status = node.result.decidedBy === "organizer review" ? "Needs review" : hasWinner ? "Completed" : node.result.completedMatches ? "Ongoing" : hasTeams ? "Not started" : "Awaiting teams";
+  const statusClass = status === "Completed"
+    ? "bg-brand-light text-[#3b6d11]"
+    : status === "Ongoing"
+      ? "bg-[#d8f36b] text-[#183a2b]"
+      : status === "Needs review"
+        ? "bg-[#fff4d8] text-[#8a5a00]"
+        : status === "Awaiting teams"
+          ? "bg-[#eef3f7] text-[#526473]"
+          : "bg-white text-text-muted";
   return (
     <article className="relative overflow-hidden rounded-[16px] border-hairline border-white/16 bg-white/[0.96] text-text-primary shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
       <div className="flex items-center justify-between gap-2 border-b-hairline border-line bg-[#f4f8f2] px-2.5 py-1.5">
@@ -7259,7 +7435,7 @@ function LiveBracketMatchCard({ node }: { node: LiveBracketNode }) {
           <strong className="block truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-brand">{node.label}</strong>
           <em className="block truncate text-[9px] not-italic text-text-muted">{node.timeLabel}</em>
         </span>
-        <span className={hasWinner ? "shrink-0 rounded-full bg-brand-light px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.05em] text-[#3b6d11]" : node.result.decidedBy === "organizer review" ? "shrink-0 rounded-full bg-[#fff4d8] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.05em] text-[#8a5a00]" : "shrink-0 rounded-full bg-white px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.05em] text-text-muted"}>{status}</span>
+        <span className={`${statusClass} shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.05em]`}>{status}</span>
       </div>
       <div className="grid divide-y divide-line">
         <BracketTeamRow destination={getBracketTeamDestination(node, sideAWon)} isWinner={sideAWon} matchWins={node.result.matchWinsA} slot={node.sideA} />
@@ -8787,6 +8963,8 @@ function mapMatchScores(rows: MatchScoreRow[]): MatchScore[] {
     sideASet3: row.side_a_set3,
     sideBSet3: row.side_b_set3,
     winnerSide: row.winner_side === "A" || row.winner_side === "B" ? row.winner_side : "",
+    submittedById: row.submitted_by || "",
+    submittedByName: "",
     submittedAt: row.submitted_at || ""
   }));
 }
