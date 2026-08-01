@@ -98,6 +98,7 @@ type PlayerScheduleMatch = {
   matchType: string;
   matchColor: "Green" | "Red" | "";
   tierRule: string;
+  teamSide: "A" | "B";
   teamId: string;
   opposingTeamId: string;
   teamName: string;
@@ -108,8 +109,10 @@ type PlayerScheduleMatch = {
   opposingTeamLogoUrl: string;
   ballTeamName: string;
   playerSideNames: string[];
+  playerSideProfiles: MatchPlayerProfile[];
   partnerNames: string[];
   opponentNames: string[];
+  opponentProfiles: MatchPlayerProfile[];
   score: MatchScore | null;
   matchId: string;
   sortOrder: number;
@@ -227,6 +230,14 @@ type LiveBracketNode = {
   sideA: BracketSlot;
   sideB: BracketSlot;
   result: TeamTieResult;
+};
+type DayTwoFormatChoice = "tiers_1_2_singles" | "tiers_3_4_singles";
+type DayTwoCoinTossNodeKey = "reentry1" | "reentry2" | "semifinal1" | "semifinal2";
+type DayTwoCoinTossDecision = {
+  nodeKey: DayTwoCoinTossNodeKey;
+  winningTeamId: string;
+  formatChoice: DayTwoFormatChoice;
+  decidedAt: string;
 };
 type LiveBracketStage = {
   key: BracketStageKey;
@@ -2073,7 +2084,7 @@ export function HomeScreen() {
                   <span className={index < 3 ? "text-center text-[14px] font-medium text-[#b8860b]" : "text-center text-[14px] font-medium text-text-muted"}>{index + 1}</span>
                   <Avatar className={index % 5 === 0 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#fde9dc] text-[12px] font-medium text-[#a94d24]" : index % 5 === 1 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#e5f1ff] text-[12px] font-medium text-[#185fa5]" : index % 5 === 2 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[12px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#fbe7ef] text-[12px] font-medium text-[#aa3f6b]" : "relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#f1efe8] text-[12px] font-medium text-[#5f5e5a]"} name={player.name} photoUrl={player.profilePhotoUrl} ariaLabel={`${player.name} profile photo`} />
                   <span className="grid min-w-0 gap-1">
-                    <strong className="truncate text-[15px] font-medium leading-tight text-text-primary">{player.name}</strong>
+                    <Link className="tap-card truncate text-[15px] font-medium leading-tight text-text-primary underline decoration-current/20 underline-offset-2 transition hover:decoration-current" href={`/tournaments/players/${player.id}?from=dashboard`}>{player.name}</Link>
                     <em className="truncate text-[13px] not-italic leading-tight text-text-secondary">{player.city}</em>
                   </span>
                   <strong className="rounded-full bg-brand-light px-2.5 py-1 text-[13px] font-medium text-[#3b6d11]">{player.rating}</strong>
@@ -2626,7 +2637,7 @@ export function DrawScreen() {
                   <article className="grid min-h-[50px] grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[12px] border-hairline border-line bg-white px-2.5 py-2" key={player.name}>
                     <span className={index % 5 === 0 ? "grid h-[30px] w-[30px] place-items-center rounded-full bg-[#fde9dc] text-[12px] font-medium text-[#a94d24]" : index % 5 === 1 ? "grid h-[30px] w-[30px] place-items-center rounded-full bg-[#e5f1ff] text-[12px] font-medium text-[#185fa5]" : index % 5 === 2 ? "grid h-[30px] w-[30px] place-items-center rounded-full bg-[#eaf3de] text-[12px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "grid h-[30px] w-[30px] place-items-center rounded-full bg-[#fbe7ef] text-[12px] font-medium text-[#aa3f6b]" : "grid h-[30px] w-[30px] place-items-center rounded-full bg-[#f1efe8] text-[12px] font-medium text-[#5f5e5a]"}>{getInitials(player.name)}</span>
                     <div className="grid min-w-0 gap-0.5">
-                      <strong className="truncate text-[14px] font-medium text-text-primary">{player.name}</strong>
+                      <Link className="tap-card truncate text-[14px] font-medium text-text-primary underline decoration-current/20 underline-offset-2 transition hover:decoration-current" href={`/tournaments/players/${player.id}?from=tournament`}>{player.name}</Link>
                       <em className="truncate text-[12px] not-italic text-text-secondary">{[player.city, player.age].filter(Boolean).join(" · ")}</em>
                       {player.tennisVideoUrl && (
                         <a className="inline-flex w-max items-center gap-1.5 text-[12px] font-medium text-[#185fa5]" href={player.tennisVideoUrl} target="_blank" rel="noreferrer" title="View playing video" aria-label={`${player.name} playing video`}>
@@ -3168,7 +3179,7 @@ export function FitnessScreen() {
                       <Avatar className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-light text-[10px] font-medium text-[#3b6d11] shadow-[0_5px_12px_rgba(12,59,32,0.08)]" name={player.name} photoUrl={player.profilePhotoUrl} ariaLabel={`${player.name} profile photo`} sizes="36px" />
                       <span className="grid min-w-0 gap-1">
                         <span className="flex min-w-0 items-center gap-1.5">
-                          <strong className="truncate text-[12px] font-medium text-text-primary">{player.name}</strong>
+                          <Link className="tap-card truncate text-[12px] font-medium text-text-primary underline decoration-current/20 underline-offset-2 transition hover:decoration-current" href={`/tournaments/players/${player.playerId}?from=fitness`}>{player.name}</Link>
                           {isCurrentPlayer && <em className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[8px] font-medium not-italic uppercase text-brand">You</em>}
                         </span>
                         <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
@@ -3730,21 +3741,41 @@ function getTournamentDayDateKey(tournament: Tournament | null, day: 1 | 2) {
   return formatLocalDateKey(date);
 }
 
+async function requestDayTwoSync(tournamentId: string, payload: { action?: "coin-toss"; nodeKey?: DayTwoCoinTossNodeKey; winningTeamId?: string; formatChoice?: DayTwoFormatChoice } = {}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { ok: false, message: "Supabase env vars are missing." };
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) return { ok: false, message: "Please sign in to update Day 2." };
+  const response = await fetch("/api/tournaments/day-two", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ tournamentId, ...payload })
+  });
+  const result = await response.json().catch(() => ({})) as { error?: string; synced?: boolean; reason?: string };
+  if (!response.ok) return { ok: false, message: result.error || "Day 2 could not be updated." };
+  return { ok: true, message: result.reason || "Day 2 matchups updated." };
+}
+
 function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }) {
   const appSession = useAppSession();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [tournament, setTournament] = useState<Tournament | null>(null);
   const [teams, setTeams] = useState<PublishedTeam[]>([]);
   const [items, setItems] = useState<ScheduleItem[]>([]);
   const [playerMatches, setPlayerMatches] = useState<PlayerScheduleMatch[]>([]);
   const [teamCourtMatches, setTeamCourtMatches] = useState<TeamCourtScheduleMatch[]>([]);
   const [notes, setNotes] = useState<ScheduleNote[]>([]);
+  const [coinTossDecisions, setCoinTossDecisions] = useState<DayTwoCoinTossDecision[]>([]);
+  const [savingCoinTossNode, setSavingCoinTossNode] = useState("");
   const [scope, setScope] = useState<"my" | "team" | "bracket">(view === "bracket" ? "bracket" : "my");
   const [selectedDay, setSelectedDay] = useState<1 | 2>(1);
   const [openDayScheduleBlocks, setOpenDayScheduleBlocks] = useState<Record<string, boolean>>({});
   const [openingMatchId, setOpeningMatchId] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const dayTwoInitialSyncRef = useRef("");
 
   const loadSchedule = useCallback(async () => {
     if (!appSession.ready) return;
@@ -3769,18 +3800,21 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
       return;
     }
     if (!tournamentData) {
+      setTournament(null);
       setTeams([]);
       setItems([]);
       setPlayerMatches([]);
       setTeamCourtMatches([]);
       setNotes([]);
+      setCoinTossDecisions([]);
       setLoading(false);
       return;
     }
 
     const mappedTournament = mapTournament(tournamentData);
+    setTournament(mappedTournament);
 
-    const [teamsResult, itemsResult, notesResult, scheduleMatchesResult, schedulePlayersResult, scoresResult] = await Promise.all([
+    const [teamsResult, itemsResult, notesResult, scheduleMatchesResult, schedulePlayersResult, scoresResult, coinTossResult] = await Promise.all([
       supabase
         .from("tournament_teams")
         .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
@@ -3821,13 +3855,19 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
         .from("tournament_match_scores")
         .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
         .eq("tournament_id", mappedTournament.id)
-        .limit(400)
+        .limit(400),
+      supabase
+        .from("tournament_day2_coin_tosses")
+        .select("bracket_node_key, winning_team_id, format_choice, decided_at")
+        .eq("tournament_id", mappedTournament.id)
+        .order("bracket_node_key")
     ]);
 
     const playerScheduleSchemaMissing = isScheduleSchemaMissing(scheduleMatchesResult.error?.message || schedulePlayersResult.error?.message || "");
     const scoreSchemaMissing = isScoreSchemaMissing(scoresResult.error?.message || "");
-    if (teamsResult.error || itemsResult.error || notesResult.error || (!playerScheduleSchemaMissing && (scheduleMatchesResult.error || schedulePlayersResult.error)) || (!scoreSchemaMissing && scoresResult.error)) {
-      setMessage(getFriendlyError(teamsResult.error || itemsResult.error || notesResult.error || scheduleMatchesResult.error || schedulePlayersResult.error || scoresResult.error));
+    const coinTossSchemaMissing = /tournament_day2_coin_tosses|schema cache|relation .* does not exist/i.test(coinTossResult.error?.message || "");
+    if (teamsResult.error || itemsResult.error || notesResult.error || (!coinTossSchemaMissing && coinTossResult.error) || (!playerScheduleSchemaMissing && (scheduleMatchesResult.error || schedulePlayersResult.error)) || (!scoreSchemaMissing && scoresResult.error)) {
+      setMessage(getFriendlyError(teamsResult.error || itemsResult.error || notesResult.error || (!coinTossSchemaMissing ? coinTossResult.error : null) || scheduleMatchesResult.error || schedulePlayersResult.error || scoresResult.error));
       setLoading(false);
       return;
     }
@@ -3885,6 +3925,12 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
       body: note.body || "",
       sortOrder: note.sort_order || 0
     })));
+    setCoinTossDecisions((coinTossSchemaMissing ? [] : coinTossResult.data || []).flatMap((decision) => {
+      const nodeKey = decision.bracket_node_key;
+      const formatChoice = decision.format_choice;
+      if ((nodeKey !== "reentry1" && nodeKey !== "reentry2" && nodeKey !== "semifinal1" && nodeKey !== "semifinal2") || (formatChoice !== "tiers_1_2_singles" && formatChoice !== "tiers_3_4_singles")) return [];
+      return [{ nodeKey, winningTeamId: decision.winning_team_id || "", formatChoice, decidedAt: decision.decided_at || "" }];
+    }));
     if (playerScheduleSchemaMissing) {
       setPlayerMatches([]);
       setTeamCourtMatches([]);
@@ -3899,6 +3945,27 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
   useEffect(() => {
     loadSchedule();
   }, [loadSchedule]);
+
+  useEffect(() => {
+    if (view !== "bracket" || !tournament?.id || !appSession.session?.access_token || loading) return;
+    const dayOneMatches = teamCourtMatches.filter((match) => match.dayNumber === 1);
+    const dayTwoMatches = teamCourtMatches.filter((match) => match.dayNumber === 2);
+    if (!dayOneMatches.length || dayTwoMatches.length || !dayOneMatches.every((match) => Boolean(match.score?.winnerSide))) return;
+    if (dayTwoInitialSyncRef.current === tournament.id) return;
+    dayTwoInitialSyncRef.current = tournament.id;
+    requestDayTwoSync(tournament.id).then((result) => {
+      if (result.ok) loadSchedule();
+    });
+  }, [appSession.session?.access_token, loadSchedule, loading, teamCourtMatches, tournament?.id, view]);
+
+  const saveCoinToss = useCallback(async (nodeKey: DayTwoCoinTossNodeKey, winningTeamId: string, formatChoice: DayTwoFormatChoice) => {
+    if (!tournament?.id) return "Tournament not found.";
+    setSavingCoinTossNode(nodeKey);
+    const result = await requestDayTwoSync(tournament.id, { action: "coin-toss", nodeKey, winningTeamId, formatChoice });
+    if (result.ok) await loadSchedule();
+    setSavingCoinTossNode("");
+    return result.ok ? "Coin toss saved. Matchups updated." : result.message;
+  }, [loadSchedule, tournament?.id]);
 
   useEffect(() => {
     const nextScope = searchParams.get("scope");
@@ -4066,8 +4133,14 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
                 day={selectedDay}
                 dayOneNodes={selectedDay === 1 ? fullBracketNodes : []}
                 dayTwoStages={selectedDay === 2 ? dayTwoBracketStages : []}
+                coinTossDecisions={coinTossDecisions}
+                viewerTeamId={assignedTeam?.id || ""}
+                viewerIsAdmin={appSession.isAdmin}
+                viewerIsSignedIn={Boolean(appSession.userId)}
+                savingCoinTossNode={savingCoinTossNode}
                 openNodes={openDayScheduleBlocks}
                 onToggleNode={(nodeId) => setOpenDayScheduleBlocks((current) => ({ ...current, [nodeId]: !current[nodeId] }))}
+                onSaveCoinToss={saveCoinToss}
               />
             )}
             {activeScope === "bracket" && !loading && !fullBracketNodes.length && selectedDay === 1 && !!selectedFallbackItems.length && (
@@ -4280,13 +4353,16 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
   if (!appSession.ready) return null;
 
   const entryWindow = getScoreEntryWindow(tournament?.startsOn || null, tournament?.endsOn || null);
-  const canSubmitScore = Boolean(isOwnMatch && entryWindow.canEdit);
+  const canAccessScoreEntry = Boolean(isOwnMatch || appSession.isAdmin);
+  const canSubmitScore = Boolean(appSession.isAdmin || (isOwnMatch && entryWindow.canEdit));
   const openedFromBracket = searchParams.get("from") === "bracket" || searchParams.get("from") === "full-bracket";
   const openedFromDashboard = searchParams.get("from") === "dashboard";
+  const openedFromPlayerProfile = searchParams.get("from") === "player-profile";
+  const sourcePlayerId = searchParams.get("player") || "";
   const bracketDay = searchParams.get("day") === "2" ? 2 : match?.dayNumber || 1;
   const ballTeam = match ? getBallTeamForMatchup(match.dayNumber, match.teamAId, match.teamBId, match.id, teams) : null;
   const submitScore = async () => {
-    if (!match || !appSession.player?.id || !canSubmitScore) return;
+    if (!match || !appSession.userId || !canSubmitScore) return;
     const supabase = getSupabaseClient();
     if (!supabase) {
       setMessage("Supabase env vars are missing.");
@@ -4299,31 +4375,37 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
     }
     setSaving(true);
     setMessage("");
-    const { data, error } = await supabase
-      .from("tournament_match_scores")
-      .upsert({
-        tournament_id: match.tournamentId,
-        schedule_match_id: match.id,
-        side_a_set1: parsedScore.values.sideASet1,
-        side_b_set1: parsedScore.values.sideBSet1,
-        side_a_set2: parsedScore.values.sideASet2,
-        side_b_set2: parsedScore.values.sideBSet2,
-        side_a_set3: parsedScore.values.sideASet3,
-        side_b_set3: parsedScore.values.sideBSet3,
-        winner_side: parsedScore.values.winnerSide || null,
-        submitted_by: appSession.player.id,
-        submitted_at: new Date().toISOString()
-      }, { onConflict: "schedule_match_id" })
-      .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
-      .maybeSingle();
-    setSaving(false);
-    if (error) {
-      setMessage(getFriendlyError(error));
-      return;
+    try {
+      const { data, error } = await supabase
+        .from("tournament_match_scores")
+        .upsert({
+          tournament_id: match.tournamentId,
+          schedule_match_id: match.id,
+          side_a_set1: parsedScore.values.sideASet1,
+          side_b_set1: parsedScore.values.sideBSet1,
+          side_a_set2: parsedScore.values.sideASet2,
+          side_b_set2: parsedScore.values.sideBSet2,
+          side_a_set3: parsedScore.values.sideASet3,
+          side_b_set3: parsedScore.values.sideBSet3,
+          winner_side: parsedScore.values.winnerSide || null,
+          submitted_by: appSession.player?.id || null,
+          submitted_at: new Date().toISOString()
+        }, { onConflict: "schedule_match_id" })
+        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+        .maybeSingle();
+      if (error) {
+        setMessage(getFriendlyError(error));
+        return;
+      }
+      const nextScore = mapMatchScores(data ? [data] : [])[0] || null;
+      setMatch((current) => current ? { ...current, score: nextScore } : current);
+      const dayTwoResult = await requestDayTwoSync(match.tournamentId);
+      setMessage(dayTwoResult.ok ? "Score saved." : `Score saved. Day 2 update pending: ${dayTwoResult.message}`);
+    } catch (error) {
+      setMessage(getFriendlyError(error instanceof Error ? { message: error.message } : null));
+    } finally {
+      setSaving(false);
     }
-    const nextScore = mapMatchScores(data ? [data] : [])[0] || null;
-    setMatch((current) => current ? { ...current, score: nextScore } : current);
-    setMessage("Score saved.");
   };
 
   return (
@@ -4336,11 +4418,11 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
           {match && (
             <MatchDetailPageCard
               canSubmit={canSubmitScore}
-              backHref={openedFromDashboard ? "/dashboard" : openedFromBracket ? `/tournaments/bracket?day=${bracketDay}` : "/tournaments/schedule"}
-              backLabel={openedFromDashboard ? "Back to home" : openedFromBracket ? "Back to live bracket" : "Back to schedule"}
+              backHref={openedFromDashboard ? "/dashboard" : openedFromBracket ? `/tournaments/bracket?day=${bracketDay}` : openedFromPlayerProfile && sourcePlayerId ? `/tournaments/players/${sourcePlayerId}?from=match&match=${matchId}` : "/tournaments/schedule"}
+              backLabel={openedFromDashboard ? "Back to home" : openedFromBracket ? "Back to live bracket" : openedFromPlayerProfile ? "Back to player profile" : "Back to schedule"}
               draft={draft}
-              entryLabel={isOwnMatch ? entryWindow.label : "Read only"}
-              isOwnMatch={isOwnMatch}
+              entryLabel={appSession.isAdmin ? "Admin scoring" : isOwnMatch ? entryWindow.label : "Read only"}
+              canAccessScoreEntry={canAccessScoreEntry}
               match={match}
               ballTeamName={ballTeam?.name || ""}
               message={message}
@@ -4448,6 +4530,179 @@ export function TournamentScheduleTeamScreen({ teamId }: { teamId: string }) {
   );
 }
 
+export function TournamentPlayerProfileScreen({ playerId }: { playerId: string }) {
+  const appSession = useAppSession();
+  const searchParams = useSearchParams();
+  const [player, setPlayer] = useState<PublishedTeamMember | null>(null);
+  const [team, setTeam] = useState<PublishedTeam | null>(null);
+  const [matches, setMatches] = useState<TeamCourtScheduleMatch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const loadPlayerProfile = useCallback(async () => {
+    if (!appSession.ready) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setMessage("Supabase env vars are missing.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const [playerResult, tournamentResult] = await Promise.all([
+      supabase
+        .from("players")
+        .select("id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url")
+        .eq("id", playerId)
+        .maybeSingle(),
+      supabase
+        .from("tournaments")
+        .select("id")
+        .in("status", ["registration_open", "registration_closed", "live"])
+        .order("starts_on", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    ]);
+
+    if (playerResult.error || tournamentResult.error) {
+      setMessage(getFriendlyError(playerResult.error || tournamentResult.error));
+      setLoading(false);
+      return;
+    }
+
+    const playerRow = playerResult.data;
+    if (!playerRow) {
+      setPlayer(null);
+      setTeam(null);
+      setMatches([]);
+      setMessage("Player profile not found.");
+      setLoading(false);
+      return;
+    }
+
+    const standalonePlayer: PublishedTeamMember = {
+      id: `player:${playerRow.id}`,
+      playerId: playerRow.id,
+      name: playerRow.full_name || "Player",
+      age: formatRegisteredPlayerAge(playerRow.date_of_birth, playerRow.age),
+      city: playerRow.jamaat_city || "MRSA",
+      tier: "Tier TBD",
+      rating: formatRating(playerRow.rating),
+      profilePhotoUrl: playerRow.profile_photo_url || "",
+      isCaptain: false,
+      draftOrder: null
+    };
+    const tournamentData = tournamentResult.data;
+    if (!tournamentData) {
+      setPlayer(standalonePlayer);
+      setTeam(null);
+      setMatches([]);
+      setMessage("");
+      setLoading(false);
+      return;
+    }
+
+    const [teamsResult, matchesResult, participantsResult, scoresResult] = await Promise.all([
+      supabase
+        .from("tournament_teams")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .eq("tournament_id", tournamentData.id)
+        .eq("is_published", true)
+        .order("sort_order", { ascending: true })
+        .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
+        .limit(40),
+      supabase
+        .from("tournament_schedule_matches")
+        .select("id, tournament_id, day_number, day_label, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
+        .eq("tournament_id", tournamentData.id)
+        .eq("is_published", true)
+        .order("day_number", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .limit(600),
+      supabase
+        .from("tournament_schedule_match_players")
+        .select("id, schedule_match_id, team_id, player_id, side, slot, source_player_name")
+        .eq("tournament_id", tournamentData.id)
+        .limit(2400),
+      supabase
+        .from("tournament_match_scores")
+        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+        .eq("tournament_id", tournamentData.id)
+        .limit(800)
+    ]);
+
+    const scheduleSchemaMissing = isScheduleSchemaMissing(matchesResult.error?.message || participantsResult.error?.message || "");
+    const scoreSchemaMissing = isScoreSchemaMissing(scoresResult.error?.message || "");
+    const loadError = teamsResult.error || (!scheduleSchemaMissing && (matchesResult.error || participantsResult.error)) || (!scoreSchemaMissing && scoresResult.error);
+    if (loadError) {
+      setMessage(getFriendlyError(loadError));
+      setLoading(false);
+      return;
+    }
+
+    const mappedTeams = mapPublishedTeamsFromRows(teamsResult.data || []);
+    const playerTeam = mappedTeams.find((candidate) => candidate.members.some((member) => member.playerId === playerId)) || null;
+    const mappedPlayer = playerTeam?.members.find((member) => member.playerId === playerId) || standalonePlayer;
+    const mappedScores = scoreSchemaMissing ? [] : mapMatchScores(scoresResult.data || []);
+    const mappedMatches = scheduleSchemaMissing ? [] : mapTeamCourtScheduleMatches(matchesResult.data || [], participantsResult.data || [], mappedTeams, mappedScores);
+    const playerMatches = mappedMatches.filter((match) => [...match.playerProfilesA, ...match.playerProfilesB].some((profile) => profile.id === playerId));
+
+    setPlayer(mappedPlayer);
+    setTeam(playerTeam);
+    setMatches(playerMatches);
+    setMessage("");
+    setLoading(false);
+  }, [appSession.ready, playerId]);
+
+  useEffect(() => {
+    loadPlayerProfile();
+  }, [loadPlayerProfile]);
+
+  if (!appSession.ready) return null;
+
+  const source = searchParams.get("from");
+  const sourceTeamId = searchParams.get("team") || team?.id || "";
+  const sourceMatchId = searchParams.get("match") || "";
+  const sourcePlayerId = searchParams.get("player") || "";
+  const backHref = source === "player-leaderboard"
+    ? "/tournaments/leaderboard?view=player"
+    : source === "registered-players"
+      ? "/tournaments/players"
+    : source === "directory"
+      ? "/players"
+    : source === "dashboard"
+      ? "/dashboard"
+    : source === "tournament"
+      ? "/tournaments"
+    : source === "fitness"
+      ? "/fitness"
+    : source === "player-profile" && sourcePlayerId
+      ? `/tournaments/players/${sourcePlayerId}`
+    : source === "bracket"
+      ? `/tournaments/bracket?day=${searchParams.get("day") === "2" ? 2 : 1}`
+    : source === "team-roster" && sourceTeamId
+      ? `/tournaments/schedule/teams/${sourceTeamId}?from=roster`
+      : source === "match" && sourceMatchId
+        ? `/tournaments/schedule/matches/${sourceMatchId}`
+        : source === "schedule"
+          ? "/tournaments/schedule"
+          : "/tournaments/players";
+  const backLabel = source === "player-leaderboard" ? "Back to player leaderboard" : source === "registered-players" ? "Back to registered players" : source === "directory" ? "Back to player directory" : source === "dashboard" ? "Back to home" : source === "tournament" ? "Back to tournament" : source === "fitness" ? "Back to fitness" : source === "player-profile" ? "Back to player profile" : source === "bracket" ? "Back to live bracket" : source === "team-roster" ? "Back to team roster" : source === "match" ? "Back to match" : source === "schedule" ? "Back to schedule" : "Back to players";
+
+  return (
+    <AppFrame active="tournament" withNav={Boolean(appSession.userId)}>
+      <div className={memberPageClass}>
+        <AppTopBar publicNextPath={`/tournaments/players/${playerId}`} />
+        <main className={memberMainClass}>
+          {loading && <ScheduleLoadingNotice label="Loading player profile..." />}
+          {message && !player && <StatusMessage tone="error">{message}</StatusMessage>}
+          {player && <PlayerProfilePageCard backHref={backHref} backLabel={backLabel} matches={matches} player={player} team={team} />}
+        </main>
+      </div>
+    </AppFrame>
+  );
+}
+
 export function TournamentLeaderboardScreen() {
   const appSession = useAppSession();
   const searchParams = useSearchParams();
@@ -4455,6 +4710,7 @@ export function TournamentLeaderboardScreen() {
   const [teams, setTeams] = useState<PublishedTeam[]>([]);
   const [matches, setMatches] = useState<TeamCourtScheduleMatch[]>([]);
   const [activeView, setActiveView] = useState<"team" | "player">("team");
+  const [rankingScope, setRankingScope] = useState<"day1" | "all">("day1");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -4540,6 +4796,8 @@ export function TournamentLeaderboardScreen() {
     const requestedView = searchParams.get("view");
     if (requestedView === "player" || requestedView === "player-leaderboard") setActiveView("player");
     if (requestedView === "team" || requestedView === "team-leaderboard") setActiveView("team");
+    if (searchParams.get("scope") === "all") setRankingScope("all");
+    if (searchParams.get("scope") === "day1") setRankingScope("day1");
   }, [searchParams]);
 
   useEffect(() => {
@@ -4560,10 +4818,11 @@ export function TournamentLeaderboardScreen() {
 
   if (!appSession.ready) return null;
 
-  const standings = getLiveTeamStandings(teams, matches);
-  const playerStandings = getLivePlayerStandings(teams, matches);
-  const completedMatches = matches.filter((match) => Boolean(match.score?.winnerSide)).length;
-  const standingsAreFinal = Boolean(matches.length && completedMatches === matches.length && !standings.some((standing) => standing.requiresReview));
+  const scopedMatches = rankingScope === "day1" ? matches.filter((match) => match.dayNumber === 1) : matches;
+  const standings = getLiveTeamStandings(teams, scopedMatches);
+  const playerStandings = getLivePlayerStandings(teams, scopedMatches);
+  const completedMatches = scopedMatches.filter((match) => Boolean(match.score?.winnerSide)).length;
+  const standingsAreFinal = Boolean(scopedMatches.length && completedMatches === scopedMatches.length && !standings.some((standing) => standing.requiresReview));
 
   return (
     <AppFrame active="tournament" withNav={Boolean(appSession.userId)}>
@@ -4596,7 +4855,11 @@ export function TournamentLeaderboardScreen() {
                 <button className={activeView === "team" ? "tap-card grid min-h-11 place-items-center rounded-[13px] bg-[#183a2b] px-2 text-center text-[11px] font-medium leading-tight text-white shadow-[0_8px_18px_rgba(12,59,32,0.14)] sm:text-[13px]" : "tap-card grid min-h-11 place-items-center rounded-[13px] bg-surface/45 px-2 text-center text-[11px] font-medium leading-tight text-text-secondary sm:text-[13px]"} type="button" onClick={() => setActiveView("team")} aria-pressed={activeView === "team"}>Team leaderboard</button>
                 <button className={activeView === "player" ? "tap-card grid min-h-11 place-items-center rounded-[13px] bg-[#183a2b] px-2 text-center text-[11px] font-medium leading-tight text-white shadow-[0_8px_18px_rgba(12,59,32,0.14)] sm:text-[13px]" : "tap-card grid min-h-11 place-items-center rounded-[13px] bg-surface/45 px-2 text-center text-[11px] font-medium leading-tight text-text-secondary sm:text-[13px]"} type="button" onClick={() => setActiveView("player")} aria-pressed={activeView === "player"}>Player leaderboard</button>
               </section>
-              {activeView === "team" && <LiveTeamLeaderboard completedMatches={completedMatches} matches={matches.length} seasonYear={tournament?.seasonYear} seedingIsFinal={standingsAreFinal} standings={standings} />}
+              <section className="mx-auto grid w-full max-w-[360px] grid-cols-2 gap-1 rounded-full border-hairline border-line bg-surface/70 p-1" aria-label="Leaderboard result scope">
+                <button className={rankingScope === "day1" ? "tap-card min-h-9 rounded-full bg-[#d8f36b] px-3 text-[11px] font-semibold text-[#183a2b]" : "tap-card min-h-9 rounded-full px-3 text-[11px] font-medium text-text-secondary"} type="button" onClick={() => setRankingScope("day1")} aria-pressed={rankingScope === "day1"}>Day 1 only</button>
+                <button className={rankingScope === "all" ? "tap-card min-h-9 rounded-full bg-[#d8f36b] px-3 text-[11px] font-semibold text-[#183a2b]" : "tap-card min-h-9 rounded-full px-3 text-[11px] font-medium text-text-secondary"} type="button" onClick={() => setRankingScope("all")} aria-pressed={rankingScope === "all"}>All tournament</button>
+              </section>
+              {activeView === "team" && <LiveTeamLeaderboard completedMatches={completedMatches} matches={scopedMatches.length} seasonYear={tournament?.seasonYear} seedingIsFinal={standingsAreFinal} standings={standings} />}
               {activeView === "player" && <LivePlayerLeaderboard seasonYear={tournament?.seasonYear} standings={playerStandings} />}
             </>
           )}
@@ -4717,7 +4980,7 @@ export function TournamentTeamsScreen() {
                       {team.members.map((member) => (
                         <span className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2 text-text-primary" key={member.id}>
                           <Avatar className="relative grid h-[30px] w-[30px] place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-light text-[9px] font-medium text-[#3b6d11] shadow-[0_4px_10px_rgba(12,59,32,0.10)]" name={member.name} photoUrl={member.profilePhotoUrl} ariaLabel={`${member.name} profile photo`} sizes="30px" />
-                          <strong className="truncate text-[13px] font-medium">{member.name}</strong>
+                          <Link className="tap-card pointer-events-auto relative z-10 truncate text-[13px] font-medium underline decoration-current/20 underline-offset-2 transition hover:decoration-current" href={`/tournaments/players/${member.playerId}?from=team-roster&team=${team.id}`}>{member.name}</Link>
                           <em className="text-[11px] not-italic text-text-secondary">{member.rating}</em>
                         </span>
                       ))}
@@ -4873,7 +5136,7 @@ export function RegisteredPlayersScreen() {
                 <article className="grid min-h-[56px] grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[12px] border-hairline border-line bg-card px-2.5 py-2.5" key={player.id}>
                   <span className={index % 5 === 0 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fde9dc] text-[13px] font-medium text-[#a94d24]" : index % 5 === 1 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#e5f1ff] text-[13px] font-medium text-[#185fa5]" : index % 5 === 2 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" : index % 5 === 3 ? "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#fbe7ef] text-[13px] font-medium text-[#aa3f6b]" : "grid h-[34px] w-[34px] place-items-center rounded-full bg-[#f1efe8] text-[13px] font-medium text-[#5f5e5a]"}>{getInitials(player.name)}</span>
                   <div className="grid min-w-0 gap-1">
-                    <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
+                    <Link className="tap-card truncate text-[15px] font-medium text-text-primary underline decoration-current/20 underline-offset-2 transition hover:decoration-current" href={`/tournaments/players/${player.id}?from=registered-players`}>{player.name}</Link>
                     {player.age && <em className="truncate text-[12px] not-italic text-text-secondary">{player.age}</em>}
                     <em className="truncate text-[13px] not-italic text-text-secondary">City: {player.city}</em>
                     {player.tennisVideoUrl && (
@@ -4974,7 +5237,7 @@ export function PlayersScreen() {
                 <article className="grid min-h-[64px] grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[12px] border-hairline border-line bg-card p-2.5 shadow-[0_6px_18px_rgba(24,24,26,0.035)]" key={player.id}>
                   <Avatar className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-brand-light text-[12px] font-medium text-[#3b6d11]" name={player.name} photoUrl={player.profilePhotoUrl} ariaLabel={`${player.name} profile photo`} />
                   <span className="grid min-w-0 gap-1">
-                    <strong className="truncate text-[15px] font-medium text-text-primary">{player.name}</strong>
+                    <Link className="tap-card truncate text-[15px] font-medium text-text-primary underline decoration-current/20 underline-offset-2 transition hover:decoration-current" href={`/tournaments/players/${player.id}?from=directory`}>{player.name}</Link>
                     <em className="truncate text-[13px] not-italic text-text-secondary">{player.city}</em>
                   </span>
                   <strong className="rounded-full bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-3 py-1 text-[13px] font-medium text-white">{player.rating}</strong>
@@ -5856,12 +6119,14 @@ function CountdownUnit({ value, label }: { value: number; label: string }) {
 
 function HomeUpcomingMatchCard({ match, tournament }: { match: PlayerScheduleMatch; tournament: Tournament }) {
   const opponentNames = match.opponentNames.length ? match.opponentNames : [match.opposingTeamName];
+  const partnerProfiles = match.playerSideProfiles.filter((profile) => match.partnerNames.some((name) => normalizeName(name) === normalizeName(profile.name)));
   const matchDate = formatHomeMatchDate(tournament, match.dayNumber, match.dayLabel);
 
   return (
-    <Link className="tap-card group relative grid min-h-[128px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 overflow-hidden rounded-[16px] border-hairline border-[#d6e2cb] bg-[linear-gradient(135deg,#ffffff_0%,#f2f8e9_100%)] p-3 shadow-[0_8px_20px_rgba(24,58,43,0.065)] transition hover:-translate-y-0.5 hover:border-brand/25 hover:shadow-[0_12px_26px_rgba(12,59,32,0.10)]" href={`/tournaments/schedule/matches/${match.id}?from=dashboard`}>
+    <article className="tap-card group relative grid min-h-[128px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 overflow-hidden rounded-[16px] border-hairline border-[#d6e2cb] bg-[linear-gradient(135deg,#ffffff_0%,#f2f8e9_100%)] p-3 shadow-[0_8px_20px_rgba(24,58,43,0.065)] transition hover:-translate-y-0.5 hover:border-brand/25 hover:shadow-[0_12px_26px_rgba(12,59,32,0.10)]">
+      <Link className="absolute inset-0 z-0" href={`/tournaments/schedule/matches/${match.id}?from=dashboard`} aria-label={`View match against ${opponentNames.join(" and ")}`} />
       <span className="absolute inset-y-0 left-0 w-1 bg-[#d8f36b]" aria-hidden="true" />
-      <span className="grid min-w-0 gap-2 pl-1">
+      <span className="pointer-events-none relative z-10 grid min-w-0 gap-2 pl-1">
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <strong className="text-[17px] font-semibold leading-none tabular-nums text-brand">{match.timeLabel || "Time TBD"}</strong>
           <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.05em] text-text-muted">{matchDate}</em>
@@ -5869,13 +6134,16 @@ function HomeUpcomingMatchCard({ match, tournament }: { match: PlayerScheduleMat
         </span>
         <span className="grid min-w-0 gap-1 rounded-[11px] border-hairline border-white/90 bg-white/75 px-2.5 py-2 shadow-[0_4px_12px_rgba(24,58,43,0.035)]">
           {match.format === "Doubles" && match.partnerNames.length > 0 && (
-            <em className="text-[9px] font-medium not-italic leading-snug text-text-secondary">With {match.partnerNames.join(" & ")}</em>
+            <em className="text-[9px] font-medium not-italic leading-snug text-text-secondary">With {match.partnerNames.map((name, index) => {
+              const profile = partnerProfiles.find((candidate) => normalizeName(candidate.name) === normalizeName(name));
+              return <Fragment key={`${name}:${index}`}>{index > 0 && " & "}{profile ? <Link className="tap-card pointer-events-auto underline decoration-current/20 underline-offset-2 hover:decoration-current" href={`/tournaments/players/${profile.id}?from=dashboard`}>{name}</Link> : name}</Fragment>;
+            })}</em>
           )}
           <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-1.5">
             <em className="pt-0.5 text-[9px] font-semibold not-italic uppercase tracking-[0.08em] text-[#7d8876]">vs</em>
             <span className="grid min-w-0 gap-0.5">
               {opponentNames.map((name, index) => (
-                <strong className="break-words text-[13px] font-semibold leading-[1.15] text-text-primary" key={`${name}-${index}`}>{name}</strong>
+                match.opponentProfiles[index]?.id ? <Link className="tap-card pointer-events-auto break-words text-[13px] font-semibold leading-[1.15] text-text-primary underline decoration-current/20 underline-offset-2 hover:decoration-current" href={`/tournaments/players/${match.opponentProfiles[index].id}?from=dashboard`} key={`${name}-${index}`}>{name}</Link> : <strong className="break-words text-[13px] font-semibold leading-[1.15] text-text-primary" key={`${name}-${index}`}>{name}</strong>
               ))}
             </span>
           </span>
@@ -5889,10 +6157,10 @@ function HomeUpcomingMatchCard({ match, tournament }: { match: PlayerScheduleMat
           <BallTeamBadge teamName={match.ballTeamName} pending={!match.ballTeamName} compact />
         </span>
       </span>
-      <span className="grid h-8 w-8 place-items-center rounded-full border-hairline border-brand/10 bg-white text-brand shadow-[0_5px_12px_rgba(24,58,43,0.07)] transition-transform group-hover:translate-x-0.5" aria-hidden="true">
+      <span className="pointer-events-none relative z-10 grid h-8 w-8 place-items-center rounded-full border-hairline border-brand/10 bg-white text-brand shadow-[0_5px_12px_rgba(24,58,43,0.07)] transition-transform group-hover:translate-x-0.5" aria-hidden="true">
         <ArrowRight size={14} />
       </span>
-    </Link>
+    </article>
   );
 }
 
@@ -6001,15 +6269,27 @@ function ScheduleItemCard({ item, teams, courtMatches = [], hideTime = false }: 
 
 function CompactScheduleMatchRow({ match }: { match: TeamCourtScheduleMatch }) {
   const courtNumber = formatCourtNumber(match.courtLabel || "");
-  const playersA = match.playersA.join(" & ") || match.teamAName;
-  const playersB = match.playersB.join(" & ") || match.teamBName;
 
   return (
     <span className="grid min-w-0 grid-cols-[42px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 rounded-[10px] border-hairline border-line bg-white/80 px-2 py-1.5">
       <b className="rounded-[8px] bg-surface px-1.5 py-1 text-center text-[10px] font-medium leading-none text-brand">{courtNumber || "-"}</b>
-      <span className="min-w-0 whitespace-normal break-words text-[11px] font-medium leading-tight text-text-primary">{playersA}</span>
+      <CompactPlayerProfileNames fallback={match.teamAName} players={match.playerProfilesA} />
       <em className="text-[10px] not-italic text-text-muted">vs</em>
-      <span className="min-w-0 whitespace-normal break-words text-[11px] font-medium leading-tight text-text-primary">{playersB}</span>
+      <CompactPlayerProfileNames fallback={match.teamBName} players={match.playerProfilesB} />
+    </span>
+  );
+}
+
+function CompactPlayerProfileNames({ players, fallback }: { players: MatchPlayerProfile[]; fallback: string }) {
+  if (!players.length) return <span className="min-w-0 whitespace-normal break-words text-[11px] font-medium leading-tight text-text-primary">{fallback}</span>;
+  return (
+    <span className="min-w-0 whitespace-normal break-words text-[11px] font-medium leading-tight text-text-primary">
+      {players.map((player, index) => (
+        <Fragment key={`${player.id}:${index}`}>
+          {index > 0 && <em className="not-italic text-text-muted"> &amp; </em>}
+          {isFallbackPlayerProfileId(player.id) ? player.name : <Link className="tap-card underline decoration-current/20 underline-offset-2 transition hover:decoration-current" href={`/tournaments/players/${player.id}?from=schedule`}>{player.name}</Link>}
+        </Fragment>
+      ))}
     </span>
   );
 }
@@ -6096,7 +6376,7 @@ function TeamScheduleTimeCard({ label, matches, team, teams, onOpenMatch }: { la
   );
 }
 
-function ScheduleFullBracketBoard({ day, dayOneNodes, dayTwoStages, openNodes, onToggleNode }: { day: 1 | 2; dayOneNodes: LiveBracketNode[]; dayTwoStages: LiveBracketStage[]; openNodes: Record<string, boolean>; onToggleNode: (nodeId: string) => void }) {
+function ScheduleFullBracketBoard({ day, dayOneNodes, dayTwoStages, coinTossDecisions, viewerTeamId, viewerIsAdmin, viewerIsSignedIn, savingCoinTossNode, openNodes, onToggleNode, onSaveCoinToss }: { day: 1 | 2; dayOneNodes: LiveBracketNode[]; dayTwoStages: LiveBracketStage[]; coinTossDecisions: DayTwoCoinTossDecision[]; viewerTeamId: string; viewerIsAdmin: boolean; viewerIsSignedIn: boolean; savingCoinTossNode: string; openNodes: Record<string, boolean>; onToggleNode: (nodeId: string) => void; onSaveCoinToss: (nodeKey: DayTwoCoinTossNodeKey, winningTeamId: string, formatChoice: DayTwoFormatChoice) => Promise<string> }) {
   const boardRef = useRef<HTMLDivElement | null>(null);
   const bracketScrollerRef = useRef<HTMLDivElement | null>(null);
   const roundTabsRef = useRef<HTMLDivElement | null>(null);
@@ -6181,11 +6461,17 @@ function ScheduleFullBracketBoard({ day, dayOneNodes, dayTwoStages, openNodes, o
               <div className="relative grid content-around gap-4 py-5 sm:min-h-[500px]">
                 {column.nodes.map((node) => (
                   <ScheduleBracketNodeCard
+                    coinTossDecision={coinTossDecisions.find((decision) => decision.nodeKey === node.id) || null}
                     hasConnector={day === 2 && columnIndex < columns.length - 1}
                     hasIncoming={day === 2 && columnIndex > 0}
                     isOpen={Boolean(openNodes[node.id])}
                     node={node}
                     onToggle={() => onToggleNode(node.id)}
+                    onSaveCoinToss={onSaveCoinToss}
+                    savingCoinToss={savingCoinTossNode === node.id}
+                    viewerIsAdmin={viewerIsAdmin}
+                    viewerIsSignedIn={viewerIsSignedIn}
+                    viewerTeamId={viewerTeamId}
                     key={node.id}
                   />
                 ))}
@@ -6199,11 +6485,16 @@ function ScheduleFullBracketBoard({ day, dayOneNodes, dayTwoStages, openNodes, o
   );
 }
 
-function ScheduleBracketNodeCard({ node, isOpen, hasConnector, hasIncoming, onToggle }: { node: LiveBracketNode; isOpen: boolean; hasConnector: boolean; hasIncoming: boolean; onToggle: () => void }) {
+function ScheduleBracketNodeCard({ node, isOpen, hasConnector, hasIncoming, coinTossDecision, viewerTeamId, viewerIsAdmin, viewerIsSignedIn, savingCoinToss, onToggle, onSaveCoinToss }: { node: LiveBracketNode; isOpen: boolean; hasConnector: boolean; hasIncoming: boolean; coinTossDecision: DayTwoCoinTossDecision | null; viewerTeamId: string; viewerIsAdmin: boolean; viewerIsSignedIn: boolean; savingCoinToss: boolean; onToggle: () => void; onSaveCoinToss: (nodeKey: DayTwoCoinTossNodeKey, winningTeamId: string, formatChoice: DayTwoFormatChoice) => Promise<string> }) {
   const hasWinner = Boolean(node.result.winnerTeamId);
   const sideAWon = hasWinner && node.sideA.team?.id === node.result.winnerTeamId;
   const sideBWon = hasWinner && node.sideB.team?.id === node.result.winnerTeamId;
   const status = node.result.decidedBy === "organizer review" ? "Review" : hasWinner ? "Final" : node.result.completedMatches ? "Live" : "Pending";
+  const coinTossNode = isDayTwoCoinTossNode(node.id);
+  const knownTeamIds = [node.sideA.team?.id, node.sideB.team?.id].filter(Boolean) as string[];
+  const validDecision = coinTossDecision && knownTeamIds.includes(coinTossDecision.winningTeamId) ? coinTossDecision : null;
+  const formatChoice = getDayTwoNodeFormatChoice(node, validDecision);
+  const canEnterCoinToss = coinTossNode && viewerIsSignedIn && (viewerIsAdmin || Boolean(viewerTeamId && knownTeamIds.includes(viewerTeamId)));
   return (
     <article className="relative z-10 rounded-[14px] bg-white shadow-[0_12px_28px_rgba(0,0,0,0.20)]">
       {hasIncoming && <span className="pointer-events-none absolute right-full top-1/2 z-0 h-px w-4 bg-white/55" aria-hidden="true" />}
@@ -6224,19 +6515,220 @@ function ScheduleBracketNodeCard({ node, isOpen, hasConnector, hasIncoming, onTo
       </button>
       {isOpen && (
         <div className="grid gap-1 border-t-hairline border-line bg-surface/55 p-2">
-          {node.result.matches.length ? node.result.matches.map((match) => (
-            <Link className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[9px] bg-white px-2 py-2 transition hover:bg-brand-light" href={`/tournaments/schedule/matches/${match.id}?from=full-bracket&day=${match.dayNumber}`} key={match.id}>
-              <span className="grid min-w-0 gap-0.5">
-                <strong className="truncate text-[9px] font-medium text-text-primary">{formatBracketPlayerNames(match.playersA, match.teamAName)} vs {formatBracketPlayerNames(match.playersB, match.teamBName)}</strong>
-                <em className="truncate text-[8px] not-italic text-text-muted">{match.courtLabel || "Court TBD"} · {match.tierRule || match.format}</em>
-              </span>
-              <strong className={match.score?.winnerSide ? "text-[9px] font-semibold text-brand" : "text-[9px] font-medium text-text-muted"}>{formatBracketMatchScore(match, node.sideA.team?.id || match.teamAId)}</strong>
-            </Link>
-          )) : <p className="rounded-[9px] bg-white px-2 py-2 text-[9px] text-text-secondary">Player matchups appear once pairings lock.</p>}
+          {coinTossNode && (
+            <DayTwoCoinTossPanel
+              canEdit={canEnterCoinToss}
+              decision={validDecision}
+              node={node}
+              onSave={onSaveCoinToss}
+              saving={savingCoinToss}
+            />
+          )}
+          {node.result.matches.length ? node.phase === "Final" ? (
+            <DayTwoFinalMatchGroups matches={node.result.matches} node={node} />
+          ) : node.result.matches.map((match) => (
+            <ScheduleBracketMatchLink match={match} node={node} key={match.id} />
+          )) : formatChoice || node.phase === "Final" ? (
+            <DayTwoProjectedMatchups node={node} formatChoice={formatChoice} />
+          ) : (
+            <p className="rounded-[9px] bg-white px-2 py-2 text-[9px] text-text-secondary">{knownTeamIds.length ? "Enter the coin toss to set singles and doubles." : "Player matchups appear as teams advance."}</p>
+          )}
         </div>
       )}
     </article>
   );
+}
+
+function ScheduleBracketMatchLink({ match, node }: { match: TeamCourtScheduleMatch; node: LiveBracketNode }) {
+  return (
+    <article className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[9px] bg-white px-2 py-2 transition hover:bg-brand-light">
+      <span className="grid min-w-0 gap-0.5">
+        <span className="flex min-w-0 flex-wrap items-center gap-1 text-[9px] font-medium text-text-primary">
+          <BracketPlayerProfileNames fallback={match.teamAName} match={match} players={match.playerProfilesA} />
+          <em className="not-italic text-text-muted">vs</em>
+          <BracketPlayerProfileNames fallback={match.teamBName} match={match} players={match.playerProfilesB} />
+        </span>
+        <em className="truncate text-[8px] not-italic text-text-muted">{match.courtLabel || "Court TBD"} · {match.tierRule || match.format}</em>
+      </span>
+      <Link className={match.score?.winnerSide ? "tap-card inline-flex min-h-8 items-center gap-1 rounded-full bg-brand-light px-2 text-[9px] font-semibold text-brand" : "tap-card inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-2 text-[9px] font-medium text-text-muted"} href={`/tournaments/schedule/matches/${match.id}?from=full-bracket&day=${match.dayNumber}`} aria-label="View match details">
+        {formatBracketMatchScore(match, node.sideA.team?.id || match.teamAId)}
+        <ArrowRight size={11} />
+      </Link>
+    </article>
+  );
+}
+
+function BracketPlayerProfileNames({ players, fallback, match }: { players: MatchPlayerProfile[]; fallback: string; match: TeamCourtScheduleMatch }) {
+  if (!players.length) return <strong className="font-medium">{fallback}</strong>;
+  return (
+    <span className="inline-flex min-w-0 flex-wrap items-center gap-0.5">
+      {players.map((player, index) => (
+        <Fragment key={`${match.id}:${player.id}:${index}`}>
+          {index > 0 && <em className="not-italic text-text-muted">/</em>}
+          {isFallbackPlayerProfileId(player.id) ? <strong className="font-medium">{player.name}</strong> : <Link className="tap-card font-medium underline decoration-current/20 underline-offset-2 hover:decoration-current" href={`/tournaments/players/${player.id}?from=bracket&day=${match.dayNumber}`}>{player.name}</Link>}
+        </Fragment>
+      ))}
+    </span>
+  );
+}
+
+function DayTwoFinalMatchGroups({ matches, node }: { matches: TeamCourtScheduleMatch[]; node: LiveBracketNode }) {
+  const doubles = matches.filter((match) => match.format === "Doubles");
+  const singles = matches.filter((match) => match.format === "Singles");
+  return (
+    <div className="grid gap-2">
+      {[
+        { label: "4:00 PM", detail: "Doubles · Courts 6 & 7", matches: doubles },
+        { label: "5:10 PM", detail: "Singles · Courts 6–9", matches: singles }
+      ].map((group) => (
+        <section className="grid gap-1 rounded-[10px] border-hairline border-line/80 bg-surface/65 p-1.5" key={group.label}>
+          <span className="flex items-center justify-between gap-2 px-1 py-0.5">
+            <strong className="text-[9px] font-semibold text-brand">{group.label}</strong>
+            <em className="text-[7px] font-medium not-italic text-text-muted">{group.detail}</em>
+          </span>
+          {group.matches.map((match) => <ScheduleBracketMatchLink match={match} node={node} key={match.id} />)}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function isDayTwoCoinTossNode(nodeKey: string): nodeKey is DayTwoCoinTossNodeKey {
+  return nodeKey === "reentry1" || nodeKey === "reentry2" || nodeKey === "semifinal1" || nodeKey === "semifinal2";
+}
+
+function getDayTwoNodeFormatChoice(node: LiveBracketNode, decision: DayTwoCoinTossDecision | null): DayTwoFormatChoice | null {
+  if (node.phase === "Quarterfinal") return "tiers_1_2_singles";
+  if (node.phase === "Advantage" || node.phase === "Survival") return "tiers_3_4_singles";
+  if (node.phase === "Re-entry" || node.phase === "Semifinal") return decision?.formatChoice || null;
+  return null;
+}
+
+function getEffectiveTeamTierMembers(team: PublishedTeam | null) {
+  if (!team) return [];
+  const mapped = team.members.map((member) => ({ member, tier: Number(member.tier.match(/\d+/)?.[0] || 99), draftOrder: member.draftOrder ?? 99 }));
+  const tiers = new Set(mapped.map((row) => row.tier));
+  if ([1, 2, 3, 4].every((tier) => tiers.has(tier))) return mapped.sort((left, right) => left.tier - right.tier || left.draftOrder - right.draftOrder);
+  return mapped.sort((left, right) => left.draftOrder - right.draftOrder || left.member.name.localeCompare(right.member.name)).map((row, index) => ({ ...row, tier: index + 1 }));
+}
+
+function getProjectedTierDefinitions(node: LiveBracketNode, formatChoice: DayTwoFormatChoice | null) {
+  if (node.phase === "Final") return [
+    { label: "Doubles 1", tiers: [1, 2], format: "Doubles", court: "Court 6" },
+    { label: "Doubles 2", tiers: [3, 4], format: "Doubles", court: "Court 7" },
+    { label: "Tier 1", tiers: [1], format: "Singles", court: "Court 6" },
+    { label: "Tier 2", tiers: [2], format: "Singles", court: "Court 7" },
+    { label: "Tier 3", tiers: [3], format: "Singles", court: "Court 8" },
+    { label: "Tier 4", tiers: [4], format: "Singles", court: "Court 9" }
+  ];
+  if (!formatChoice) return [];
+  return formatChoice === "tiers_1_2_singles"
+    ? [
+        { label: "Tier 1", tiers: [1], format: "Singles" },
+        { label: "Tier 2", tiers: [2], format: "Singles" },
+        { label: "Tiers 3 & 4", tiers: [3, 4], format: "Doubles" }
+      ]
+    : [
+        { label: "Tiers 1 & 2", tiers: [1, 2], format: "Doubles" },
+        { label: "Tier 3", tiers: [3], format: "Singles" },
+        { label: "Tier 4", tiers: [4], format: "Singles" }
+      ];
+}
+
+function DayTwoProjectedMatchups({ node, formatChoice }: { node: LiveBracketNode; formatChoice: DayTwoFormatChoice | null }) {
+  const teamAMembers = getEffectiveTeamTierMembers(node.sideA.team);
+  const teamBMembers = getEffectiveTeamTierMembers(node.sideB.team);
+  const definitions = getProjectedTierDefinitions(node, formatChoice);
+  return (
+    <div className="grid gap-1" aria-label={`${node.label} projected player matchups`}>
+      {definitions.map((definition, index) => (
+        <Fragment key={`${node.id}:${definition.label}`}>
+          {node.phase === "Final" && (index === 0 || index === 2) && (
+            <span className="mt-1 flex items-center justify-between gap-2 rounded-[8px] bg-[#eaf0e5] px-2 py-1.5 first:mt-0">
+              <strong className="text-[9px] font-semibold text-brand">{index === 0 ? "4:00 PM" : "5:10 PM"}</strong>
+              <em className="text-[7px] font-medium not-italic text-text-muted">{index === 0 ? "Doubles · Courts 6 & 7" : "Singles · Courts 6–9"}</em>
+            </span>
+          )}
+          <article className="grid gap-1 rounded-[9px] border-hairline border-line/70 bg-white px-2 py-2">
+            <span className="flex items-center justify-between gap-2">
+              <strong className="text-[8px] font-semibold uppercase tracking-[0.05em] text-brand">{definition.label} · {definition.format}</strong>
+              <em className="text-[7px] not-italic text-text-muted">{node.phase === "Final" ? `${"court" in definition ? definition.court : ""}` : node.timeLabel}</em>
+            </span>
+            <span className="grid grid-cols-[minmax(0,1fr)_18px_minmax(0,1fr)] items-center gap-1.5 text-[9px] leading-tight">
+              <span className="grid min-w-0 gap-0.5">
+                <em className="not-italic text-text-muted">{node.sideA.seed ? `Seed ${node.sideA.seed}` : node.sideA.team?.name || node.sideA.fallbackLabel}</em>
+                <ProjectedPlayerProfileNames members={teamAMembers} tiers={definition.tiers} />
+              </span>
+              <em className="text-center not-italic text-text-muted">vs</em>
+              <span className="grid min-w-0 gap-0.5 text-right">
+                <em className="not-italic text-text-muted">{node.sideB.seed ? `Seed ${node.sideB.seed}` : node.sideB.team?.name || node.sideB.fallbackLabel}</em>
+                <ProjectedPlayerProfileNames members={teamBMembers} tiers={definition.tiers} />
+              </span>
+            </span>
+          </article>
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
+function ProjectedPlayerProfileNames({ members, tiers }: { members: ReturnType<typeof getEffectiveTeamTierMembers>; tiers: number[] }) {
+  return (
+    <strong className="break-words font-medium text-text-primary">
+      {tiers.map((tier, index) => {
+        const player = members.find((row) => row.tier === tier)?.member;
+        return (
+          <Fragment key={tier}>
+            {index > 0 && <span className="text-text-muted"> / </span>}
+            {player ? <Link className="tap-card underline decoration-current/20 underline-offset-2 transition hover:decoration-current" href={`/tournaments/players/${player.playerId}?from=bracket&day=2`}>{player.name}</Link> : `Tier ${tier} TBD`}
+          </Fragment>
+        );
+      })}
+    </strong>
+  );
+}
+
+function DayTwoCoinTossPanel({ node, decision, canEdit, saving, onSave }: { node: LiveBracketNode; decision: DayTwoCoinTossDecision | null; canEdit: boolean; saving: boolean; onSave: (nodeKey: DayTwoCoinTossNodeKey, winningTeamId: string, formatChoice: DayTwoFormatChoice) => Promise<string> }) {
+  const knownTeams = [node.sideA.team, node.sideB.team].filter(Boolean) as PublishedTeam[];
+  const defaultTeamId = node.sideA.team?.id || node.sideB.team?.id || "";
+  const [winningTeamId, setWinningTeamId] = useState(decision?.winningTeamId || defaultTeamId);
+  const [formatChoice, setFormatChoice] = useState<DayTwoFormatChoice>(decision?.formatChoice || "tiers_1_2_singles");
+  const [feedback, setFeedback] = useState("");
+  useEffect(() => {
+    setWinningTeamId(decision?.winningTeamId || defaultTeamId);
+    setFormatChoice(decision?.formatChoice || "tiers_1_2_singles");
+  }, [decision?.formatChoice, decision?.winningTeamId, defaultTeamId]);
+  const winningTeam = knownTeams.find((team) => team.id === decision?.winningTeamId);
+  if (!knownTeams.length) return <p className="rounded-[9px] border-hairline border-[#d7e2cf] bg-[#f6f9ef] px-2 py-2 text-[9px] text-text-secondary">Coin toss entry opens when the first team reaches this round.</p>;
+  if (!canEdit) {
+    return decision ? (
+      <p className="rounded-[9px] border-hairline border-[#d7e2cf] bg-[#f6f9ef] px-2 py-2 text-[9px] font-medium text-brand"><strong>{winningTeam?.name || "Advancing team"}</strong> won the toss · {formatDayTwoChoice(decision.formatChoice)}</p>
+    ) : (
+      <p className="rounded-[9px] border-hairline border-[#eadfbd] bg-[#fffaf0] px-2 py-2 text-[9px] text-[#755b1d]">Waiting for an advancing team to enter the coin toss.</p>
+    );
+  }
+  return (
+    <div className="grid gap-2 rounded-[10px] border-hairline border-[#cadabf] bg-[#f4f8ef] p-2">
+      <span className="grid gap-0.5"><strong className="text-[10px] font-semibold text-brand">Coin toss &amp; format</strong><em className="text-[8px] not-italic text-text-secondary">Either advancing team may record the winner’s choice.</em></span>
+      <label className="grid gap-1 text-[8px] font-medium uppercase tracking-[0.04em] text-text-muted">Coin toss winner
+        <select className="min-h-9 rounded-[9px] border-hairline border-line bg-white px-2 text-[10px] font-medium normal-case tracking-normal text-text-primary outline-none focus:border-brand" value={winningTeamId} onChange={(event) => setWinningTeamId(event.target.value)} disabled={saving}>
+          {knownTeams.map((team) => <option value={team.id} key={team.id}>{team.name}</option>)}
+        </select>
+      </label>
+      <label className="grid gap-1 text-[8px] font-medium uppercase tracking-[0.04em] text-text-muted">Toss winner&apos;s choice
+        <select className="min-h-9 rounded-[9px] border-hairline border-line bg-white px-2 text-[10px] font-medium normal-case tracking-normal text-text-primary outline-none focus:border-brand" value={formatChoice} onChange={(event) => setFormatChoice(event.target.value as DayTwoFormatChoice)} disabled={saving}>
+          <option value="tiers_1_2_singles">Tiers 1 &amp; 2 play singles</option>
+          <option value="tiers_3_4_singles">Tiers 3 &amp; 4 play singles</option>
+        </select>
+      </label>
+      <button className="tap-card min-h-9 rounded-[9px] bg-brand px-3 text-[10px] font-semibold text-white disabled:opacity-55" type="button" disabled={saving || !winningTeamId} onClick={async () => setFeedback(await onSave(node.id as DayTwoCoinTossNodeKey, winningTeamId, formatChoice))}>{saving ? "Updating matchups…" : decision ? "Update toss" : "Save toss & update matches"}</button>
+      {feedback && <p className={feedback.startsWith("Coin toss saved") ? "text-[8px] font-medium text-[#3b6d11]" : "text-[8px] font-medium text-[#9a3f2c]"}>{feedback}</p>}
+    </div>
+  );
+}
+
+function formatDayTwoChoice(choice: DayTwoFormatChoice) {
+  return choice === "tiers_1_2_singles" ? "Tiers 1 & 2 singles · Tiers 3 & 4 doubles" : "Tiers 3 & 4 singles · Tiers 1 & 2 doubles";
 }
 
 function ScheduleBracketTeamRow({ slot, score, isWinner }: { slot: BracketSlot; score: number; isWinner: boolean }) {
@@ -6270,7 +6762,7 @@ function ScheduleHeaderTeamName({ name, showBallIcon = false }: { name: string; 
   );
 }
 
-function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, isOwnMatch, ownSide, entryLabel, message, saving, backHref, backLabel, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; ballTeamName: string; draft: ScoreDraft; canSubmit: boolean; isOwnMatch: boolean; ownSide: "A" | "B" | null; entryLabel: string; message: string; saving: boolean; backHref: string; backLabel: string; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
+function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessScoreEntry, ownSide, entryLabel, message, saving, backHref, backLabel, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; ballTeamName: string; draft: ScoreDraft; canSubmit: boolean; canAccessScoreEntry: boolean; ownSide: "A" | "B" | null; entryLabel: string; message: string; saving: boolean; backHref: string; backLabel: string; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
   const showSideBOnLeft = ownSide === "B";
   const fallbackProfilesA = match.playersA.length
     ? match.playersA.map((name, index) => ({ id: `a-${index}`, name, profilePhotoUrl: "" }))
@@ -6288,6 +6780,14 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, isOwnMatch
   const rightColor = showSideBOnLeft ? match.teamAColor : match.teamBColor;
   const leftSide: "A" | "B" = showSideBOnLeft ? "B" : "A";
   const rightSide: "A" | "B" = showSideBOnLeft ? "A" : "B";
+  const setOneWinner = getSetWinner(parseOptionalScore(draft.sideASet1), parseOptionalScore(draft.sideBSet1));
+  const setTwoWinner = getSetWinner(parseOptionalScore(draft.sideASet2), parseOptionalScore(draft.sideBSet2));
+  const straightSetsComplete = Boolean(setOneWinner && setOneWinner === setTwoWinner);
+  const updateScoreDraft = (nextDraft: ScoreDraft) => {
+    const nextSetOneWinner = getSetWinner(parseOptionalScore(nextDraft.sideASet1), parseOptionalScore(nextDraft.sideBSet1));
+    const nextSetTwoWinner = getSetWinner(parseOptionalScore(nextDraft.sideASet2), parseOptionalScore(nextDraft.sideBSet2));
+    onChangeDraft(nextSetOneWinner && nextSetOneWinner === nextSetTwoWinner ? { ...nextDraft, sideASet3: "", sideBSet3: "" } : nextDraft);
+  };
   return (
     <section className="grid gap-3">
       <article className="relative overflow-hidden rounded-[24px] border-hairline border-white/80 bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] p-3 pt-12 text-white shadow-[0_18px_44px_rgba(12,59,32,0.10)] sm:p-5 sm:pt-14">
@@ -6304,9 +6804,9 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, isOwnMatch
             </div>
 
             <div className="grid grid-cols-[minmax(0,1fr)_34px_minmax(0,1fr)] items-start gap-1 sm:grid-cols-[minmax(0,1fr)_48px_minmax(0,1fr)] sm:gap-3">
-              <MatchPlayerSide color={leftColor} players={leftProfiles} teamName={leftTeam} />
+              <MatchPlayerSide color={leftColor} matchId={match.id} players={leftProfiles} teamName={leftTeam} />
               <span className="mt-9 grid h-8 w-8 place-items-center justify-self-center rounded-full border-hairline border-white/18 bg-white/10 text-[10px] font-medium text-white/65 sm:mt-12 sm:h-10 sm:w-10 sm:text-[11px]">VS</span>
-              <MatchPlayerSide color={rightColor} players={rightProfiles} teamName={rightTeam} />
+              <MatchPlayerSide color={rightColor} matchId={match.id} players={rightProfiles} teamName={rightTeam} />
             </div>
 
             <div className="flex justify-center">
@@ -6322,12 +6822,12 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, isOwnMatch
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <span className="grid gap-1">
             <strong className="text-[18px] font-medium text-text-primary">Score entry</strong>
-            <em className="text-[13px] not-italic text-text-secondary">Best of three sets. Set 3 would be a tie-breaker.</em>
+            <em className="text-[13px] not-italic text-text-secondary">Sets 1–2 play to 4. Set 3 is a tie-breaker up to 10.</em>
           </span>
           <span className={canSubmit ? "w-fit rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]" : "w-fit rounded-full bg-surface px-3 py-1.5 text-[12px] font-medium text-text-secondary"}>{entryLabel}</span>
         </div>
 
-        {isOwnMatch ? (
+        {canAccessScoreEntry ? (
           <div className="grid gap-2.5">
             <div className="grid grid-cols-[52px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-2">
               <span aria-hidden="true" />
@@ -6336,13 +6836,20 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, isOwnMatch
               <ScoreSideLabel playerNames={rightTeam} color={rightColor} />
             </div>
             <div className="grid gap-2">
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={onChangeDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={1} />
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={onChangeDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={2} />
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={onChangeDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={3} optional />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={updateScoreDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={1} />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={updateScoreDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={2} />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving || straightSetsComplete} leftLabel={leftTeam} leftSide={leftSide} onChange={updateScoreDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={3} optional />
             </div>
-            {message && <p className={message === "Score saved." ? "rounded-[14px] bg-brand-light p-3 text-[13px] text-[#3b6d11]" : "rounded-[14px] bg-[#fff8f1] p-3 text-[13px] text-[#8a4a22]"}>{message}</p>}
-            <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[15px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-5 text-[14px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.16)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-surface disabled:text-text-muted disabled:shadow-none" type="button" onClick={onSubmit} disabled={!canSubmit || saving}>
-              {saving ? "Saving score..." : "Input scores"}
+            {saving && (
+              <p className="inline-flex items-center gap-2 rounded-[14px] border-hairline border-[#d4e4c5] bg-[#f4f9ec] p-3 text-[13px] font-medium text-brand" role="status" aria-live="polite">
+                <RefreshCw className="animate-spin" size={15} />
+                Saving score and updating the live bracket…
+              </p>
+            )}
+            {!saving && message && <p className={message.startsWith("Score saved.") ? "rounded-[14px] bg-brand-light p-3 text-[13px] text-[#3b6d11]" : "rounded-[14px] bg-[#fff8f1] p-3 text-[13px] text-[#8a4a22]"}>{message}</p>}
+            <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[15px] bg-[linear-gradient(135deg,#0c3b20,#1a6e3c)] px-5 text-[14px] font-medium text-white shadow-[0_12px_26px_rgba(12,59,32,0.16)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-surface disabled:text-text-muted disabled:shadow-none" type="button" onClick={onSubmit} disabled={!canSubmit || saving} aria-busy={saving}>
+              {saving && <RefreshCw className="animate-spin" size={16} />}
+              {saving ? "Saving score…" : match.score?.winnerSide ? "Update score" : "Submit score"}
             </button>
           </div>
         ) : (
@@ -6350,7 +6857,7 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, isOwnMatch
             <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-text-muted"><Info size={15} /></span>
             <span className="grid gap-1">
               <strong className="text-[14px] font-medium text-text-primary">Scores are read only</strong>
-              <p className="text-[13px] leading-relaxed text-text-secondary">Only players assigned to this match can submit or edit the result.</p>
+              <p className="text-[13px] leading-relaxed text-text-secondary">Only players assigned to this match or tournament admins can submit or edit the result.</p>
             </span>
           </div>
         )}
@@ -6359,7 +6866,7 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, isOwnMatch
   );
 }
 
-function MatchPlayerSide({ players, teamName, color }: { players: MatchPlayerProfile[]; teamName: string; color: string }) {
+function MatchPlayerSide({ players, teamName, color, matchId }: { players: MatchPlayerProfile[]; teamName: string; color: string; matchId: string }) {
   const tone = getTeamCardTone(color);
   const isDoubles = players.length > 1;
   return (
@@ -6372,8 +6879,10 @@ function MatchPlayerSide({ players, teamName, color }: { players: MatchPlayerPro
         ))}
       </span>
       <span className="grid min-w-0 gap-0.5">
-        {players.slice(0, 2).map((player) => (
+        {players.slice(0, 2).map((player) => isFallbackPlayerProfileId(player.id) ? (
           <strong className="break-words text-[12px] font-medium leading-tight text-white sm:text-[15px]" key={player.id}>{player.name}</strong>
+        ) : (
+          <Link className="tap-card break-words text-[12px] font-medium leading-tight text-white underline decoration-white/25 underline-offset-2 transition hover:decoration-white sm:text-[15px]" href={`/tournaments/players/${player.id}?from=match&match=${matchId}`} key={player.id}>{player.name}</Link>
         ))}
       </span>
       <span className="max-w-full truncate rounded-full border-hairline border-white/25 px-2.5 py-1 text-[9px] font-medium uppercase tracking-[0.06em] shadow-[0_8px_18px_rgba(0,0,0,0.10)] sm:text-[10px]" style={{ background: tone.background, color: tone.textColor }}>
@@ -6381,6 +6890,10 @@ function MatchPlayerSide({ players, teamName, color }: { players: MatchPlayerPro
       </span>
     </span>
   );
+}
+
+function isFallbackPlayerProfileId(playerId: string) {
+  return !playerId || /^(a|b)-\d+$/.test(playerId) || playerId === "team-a" || playerId === "team-b";
 }
 
 function MatchSetScoreboard({ score, leftSide, rightSide, leftTeam, rightTeam, leftColor, rightColor }: { score: MatchScore | null; leftSide: "A" | "B"; rightSide: "A" | "B"; leftTeam: string; rightTeam: string; leftColor: string; rightColor: string }) {
@@ -6530,7 +7043,7 @@ function LiveTeamLeaderboard({ standings, completedMatches, matches, seedingIsFi
         <span className="grid gap-1">
           <em className="text-[10px] font-medium not-italic uppercase tracking-[0.13em] text-text-muted">{seasonYear || new Date().getFullYear()} tournament</em>
           <h2 className="text-[22px] font-medium tracking-[-0.3px] text-text-primary" id="team-leaderboard-title">Team leaderboard</h2>
-          <p className="text-[12px] leading-relaxed text-text-secondary">Ranked by match wins, then set percentage, then game percentage.</p>
+          <p className="text-[12px] leading-relaxed text-text-secondary">Ranked by team-matchup wins, then set percentage, then game percentage.</p>
         </span>
         <span className={seedingIsFinal ? "inline-flex w-max items-center gap-2 rounded-full bg-brand-light px-3 py-1.5 text-[12px] font-medium text-[#3b6d11]" : "inline-flex w-max items-center gap-2 rounded-full bg-[#fff4d8] px-3 py-1.5 text-[12px] font-medium text-[#8a5a00]"}>
           {seedingIsFinal ? <CheckCircle2 size={14} /> : <RefreshCw size={13} />}
@@ -6606,7 +7119,7 @@ function LivePlayerLeaderboard({ standings, seasonYear }: { standings: PlayerSta
               <em className="text-[9px] font-medium not-italic uppercase tracking-[0.08em] text-text-muted">{tierStandings.length} players</em>
             </div>
             {tierStandings.map((standing) => (
-              <article className="grid grid-cols-[32px_40px_minmax(0,1fr)] items-center gap-x-2 gap-y-2 rounded-[17px] border-hairline border-line bg-white p-2.5 shadow-[0_6px_18px_rgba(24,24,26,0.045)] sm:grid-cols-[38px_38px_minmax(180px,1fr)_58px_58px_70px_70px] sm:gap-2 sm:rounded-[15px] sm:bg-surface/38 sm:px-3 sm:shadow-none" key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`}>
+              <Link className="tap-card grid grid-cols-[32px_40px_minmax(0,1fr)] items-center gap-x-2 gap-y-2 rounded-[17px] border-hairline border-line bg-white p-2.5 shadow-[0_6px_18px_rgba(24,24,26,0.045)] transition hover:border-brand/25 hover:bg-brand-light/45 sm:grid-cols-[38px_38px_minmax(180px,1fr)_58px_58px_70px_70px] sm:gap-2 sm:rounded-[15px] sm:bg-surface/38 sm:px-3 sm:shadow-none" href={`/tournaments/players/${standing.player.playerId}?from=player-leaderboard`} aria-label={`View ${standing.player.name} player profile`} key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`}>
                 <strong className="grid h-8 w-8 place-items-center rounded-full border-hairline border-brand/12 bg-[#f4f7ef] text-[13px] font-semibold text-brand sm:bg-white sm:shadow-[inset_0_0_0_1px_rgba(12,59,32,0.08)]">{standing.tierRank}</strong>
                 <Avatar className="relative grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-brand text-[9px] font-medium text-white ring-2 ring-white shadow-[0_4px_12px_rgba(24,24,26,0.08)] sm:h-[38px] sm:w-[38px] sm:ring-0 sm:shadow-none" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="40px" />
                 <span className="grid min-w-0 gap-0.5">
@@ -6619,7 +7132,7 @@ function LivePlayerLeaderboard({ standings, seasonYear }: { standings: PlayerSta
                   <LeaderboardMetric label="Sets" value={`${formatBracketPercentage(standing.setWinPercentage)}%`} />
                   <LeaderboardMetric label="Games" value={`${formatBracketPercentage(standing.gameWinPercentage)}%`} />
                 </span>
-              </article>
+              </Link>
             ))}
           </Fragment>
         ))}
@@ -6755,28 +7268,21 @@ function LiveBracketMatchCard({ node }: { node: LiveBracketNode }) {
       {!!node.result.matches.length && (
         <div className="grid gap-1 border-t-hairline border-line bg-surface/45 p-1.5">
           {node.result.matches.map((match) => {
-            const firstTeamIsA = match.teamAId === node.sideA.team?.id;
-            const firstPlayers = firstTeamIsA ? match.playersA : match.playersB;
-            const secondPlayers = firstTeamIsA ? match.playersB : match.playersA;
-            const playerLabel = `${formatBracketPlayerNames(firstPlayers, node.sideA.team?.name || match.teamAName)} vs ${formatBracketPlayerNames(secondPlayers, node.sideB.team?.name || match.teamBName)}`;
             const pausedFinalMatch = node.phase === "Final" && hasWinner && !match.score?.winnerSide;
-            const content = (
-              <>
+            return pausedFinalMatch ? (
+              <span className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] bg-white/60 px-2 py-1.5" key={match.id}>
                 <span className="grid min-w-0 gap-0.5">
-                  <strong className="truncate text-[9px] font-medium text-text-primary">{playerLabel}</strong>
+                  <span className="flex min-w-0 flex-wrap items-center gap-1 text-[9px] font-medium text-text-primary">
+                    <BracketPlayerProfileNames fallback={match.teamAName} match={match} players={match.playerProfilesA} />
+                    <em className="not-italic text-text-muted">vs</em>
+                    <BracketPlayerProfileNames fallback={match.teamBName} match={match} players={match.playerProfilesB} />
+                  </span>
                   <em className="truncate text-[8px] not-italic text-text-muted">{match.tierRule || match.format} · {match.courtLabel || "Court TBD"}</em>
                 </span>
-                <span className="inline-flex items-center gap-1">
-                  <strong className={pausedFinalMatch ? "text-[9px] font-semibold uppercase tracking-[0.04em] text-text-muted" : "text-[10px] font-semibold text-text-primary"}>{pausedFinalMatch ? "Paused" : formatBracketMatchScore(match, node.sideA.team?.id || "")}</strong>
-                  {hasMatchTieBreaker(match) && <em className="rounded bg-[#fff4d8] px-1 py-0.5 text-[7px] font-semibold not-italic uppercase tracking-[0.04em] text-[#8a5a00]">TB</em>}
-                  {!pausedFinalMatch && <ArrowRight size={9} className="text-brand" />}
-                </span>
-              </>
-            );
-            return pausedFinalMatch ? (
-              <span className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] bg-white/60 px-2 py-1.5" key={match.id}>{content}</span>
+                <strong className="text-[9px] font-semibold uppercase tracking-[0.04em] text-text-muted">Paused</strong>
+              </span>
             ) : (
-              <Link className="tap-card grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] bg-white px-2 py-1.5 text-left transition hover:bg-brand-light" href={`/tournaments/schedule/matches/${match.id}?from=bracket`} key={match.id}>{content}</Link>
+              <ScheduleBracketMatchLink match={match} node={node} key={match.id} />
             );
           })}
         </div>
@@ -6870,9 +7376,12 @@ function buildDayOneRoundNodes(teams: PublishedTeam[], matches: TeamCourtSchedul
 }
 
 function getLiveTeamStandings(teams: PublishedTeam[], matches: TeamCourtScheduleMatch[]): TeamStanding[] {
+  const teamMatchupResults = getTeamMatchupResults(teams, matches);
   const rawStandings = teams.map((team) => {
     const teamMatches = matches.filter((match) => match.teamAId === team.id || match.teamBId === team.id);
     const metrics = teamMatches.reduce((total, match) => addTeamScoreMetrics(total, getTeamScoreMetrics(match, team.id)), getEmptyTeamScoreMetrics());
+    const matchupWins = teamMatchupResults.filter((result) => result.winnerTeamId === team.id).length;
+    const matchupLosses = teamMatchupResults.filter((result) => result.loserTeamId === team.id).length;
     const setTotal = metrics.setsWon + metrics.setsLost;
     const gameTotal = metrics.gamesWon + metrics.gamesLost;
     return {
@@ -6880,8 +7389,8 @@ function getLiveTeamStandings(teams: PublishedTeam[], matches: TeamCourtSchedule
       seed: 0,
       completedMatches: metrics.completedMatches,
       scheduledMatches: teamMatches.length,
-      matchWins: metrics.matchWins,
-      matchLosses: metrics.matchLosses,
+      matchWins: matchupWins,
+      matchLosses: matchupLosses,
       setsWon: metrics.setsWon,
       setsLost: metrics.setsLost,
       gamesWon: metrics.gamesWon,
@@ -6896,6 +7405,24 @@ function getLiveTeamStandings(teams: PublishedTeam[], matches: TeamCourtSchedule
   return rawStandings.map((standing, index, sorted) => {
     const tiedWithNeighbor = allResultsComplete && [sorted[index - 1], sorted[index + 1]].filter(Boolean).some((neighbor) => standingsRankingIsEqual(standing, neighbor));
     return { ...standing, seed: index + 1, requiresReview: tiedWithNeighbor };
+  });
+}
+
+function getTeamMatchupResults(teams: PublishedTeam[], matches: TeamCourtScheduleMatch[]) {
+  const grouped = new Map<string, TeamCourtScheduleMatch[]>();
+  matches.forEach((match) => {
+    const pair = [match.teamAId || normalizeName(match.teamAName), match.teamBId || normalizeName(match.teamBName)].sort().join(":");
+    const round = match.dayNumber === 2 ? normalizeName(match.matchType || "day-2") : String(getScheduleTimeSortValue(match.timeLabel));
+    const key = `${match.dayNumber}:${round}:${pair}`;
+    grouped.set(key, [...(grouped.get(key) || []), match]);
+  });
+  return Array.from(grouped.values()).map((teamMatches) => {
+    const firstMatch = teamMatches[0];
+    const teamA = teams.find((team) => team.id === firstMatch.teamAId) || null;
+    const teamB = teams.find((team) => team.id === firstMatch.teamBId) || null;
+    const sideA: BracketSlot = { team: teamA, seed: null, fallbackLabel: firstMatch.teamAName || "Team A" };
+    const sideB: BracketSlot = { team: teamB, seed: null, fallbackLabel: firstMatch.teamBName || "Team B" };
+    return getTeamTieResult(sideA, sideB, teamMatches, firstMatch.matchType === "Final" ? 6 : 3);
   });
 }
 
@@ -7084,7 +7611,7 @@ function buildLiveTeamBracket(standings: TeamStanding[], dayTwoMatches: TeamCour
   const reentry2 = makeNode("reentry2", "Re-entry 2", "Re-entry", "1:40 PM", [820], outcomeSlot(survival2, "winner", "Survival 2 winner"), outcomeSlot(advantage1, "loser", "Advantage 1 loser"));
   const semifinal1 = makeNode("semifinal1", "Semifinal 1", "Semifinal", "2:50 PM", [890], outcomeSlot(advantage1, "winner", "Advantage 1 winner"), outcomeSlot(reentry2, "winner", "Re-entry 2 winner"));
   const semifinal2 = makeNode("semifinal2", "Semifinal 2", "Semifinal", "2:50 PM", [890], outcomeSlot(advantage2, "winner", "Advantage 2 winner"), outcomeSlot(reentry1, "winner", "Re-entry 1 winner"));
-  const final = makeNode("final", "Championship final", "Final", "4:00 PM onward", [960, 1030], outcomeSlot(semifinal1, "winner", "Semifinal 1 winner"), outcomeSlot(semifinal2, "winner", "Semifinal 2 winner"));
+  const final = makeNode("final", "Championship final", "Final", "4:00 PM & 5:10 PM", [960, 1030], outcomeSlot(semifinal1, "winner", "Semifinal 1 winner"), outcomeSlot(semifinal2, "winner", "Semifinal 2 winner"));
 
   return [
     { key: "quarterfinals", label: "Quarterfinals", helper: "Seeds 1–8 enter the draw", nodes: [qf1, qf2, qf3, qf4] },
@@ -7230,6 +7757,145 @@ function TeamSponsorLogoStamps({ sponsors }: { sponsors: TeamSponsor[] }) {
   );
 }
 
+function PlayerProfilePageCard({ player, team, matches, backHref, backLabel }: { player: PublishedTeamMember; team: PublishedTeam | null; matches: TeamCourtScheduleMatch[]; backHref: string; backLabel: string }) {
+  const performance = getPlayerPerformance(player, matches);
+  const completedMatches = matches.filter((match) => Boolean(match.score?.winnerSide));
+  const upcomingMatches = matches.filter((match) => !match.score?.winnerSide);
+  const winPercentage = performance.played ? (performance.wins / performance.played) * 100 : 0;
+  const lossPercentage = performance.played ? (performance.losses / performance.played) * 100 : 0;
+
+  return (
+    <section className="grid gap-4">
+      <article className="relative overflow-hidden rounded-[26px] border-hairline border-white/25 bg-[linear-gradient(135deg,#0c3b20,#155c34)] text-white shadow-[0_20px_55px_rgba(12,59,32,0.16)]">
+        <CourtBackdrop />
+        <Link className="tap-card absolute left-4 top-4 z-20 inline-grid h-9 max-h-9 min-h-9 w-9 max-w-9 min-w-9 place-items-center rounded-full border-hairline border-white/60 bg-white/90 p-0 text-brand shadow-[0_8px_18px_rgba(0,0,0,0.10)] backdrop-blur transition-transform hover:-translate-x-0.5 active:scale-[0.98]" href={backHref} aria-label={backLabel}>
+          <ArrowLeft size={16} strokeWidth={2.2} />
+        </Link>
+        <div className="relative grid gap-5 p-5 pt-20 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:p-7 sm:pt-16">
+          <div className="flex min-w-0 items-center gap-4">
+            <Avatar className="relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border-[3px] border-white/85 bg-white/14 text-[18px] font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] sm:h-24 sm:w-24 sm:text-[22px]" name={player.name} photoUrl={player.profilePhotoUrl} ariaLabel={`${player.name} profile photo`} sizes="(min-width: 640px) 96px, 80px" />
+            <span className="grid min-w-0 gap-1.5">
+              <em className="text-[11px] font-medium not-italic uppercase tracking-[0.14em] text-white/75">Tournament player</em>
+              <h1 className="break-words text-[30px] font-medium leading-[1.04] tracking-[-0.7px] text-white sm:text-[42px]">{player.name}</h1>
+              <p className="text-[13px] font-medium text-white/82 sm:text-[14px]">{player.city || "MRSA"}{player.tier !== "Tier TBD" ? ` · ${player.tier}` : ""} · Rating {player.rating || "N/A"}</p>
+              {team && (
+                <Link className="tap-card inline-flex w-max max-w-full items-center gap-2 rounded-full border-hairline border-white/25 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-white/18" href={`/tournaments/schedule/teams/${team.id}?from=roster`}>
+                  {team.logoUrl && <span className="grid h-5 w-5 place-items-center overflow-hidden rounded-full bg-white p-0.5"><img className="h-full w-full object-contain" src={team.logoUrl} alt="" aria-hidden="true" /></span>}
+                  <span className="truncate">{team.name}</span>
+                  <ArrowRight size={12} />
+                </Link>
+              )}
+            </span>
+          </div>
+          <div className="grid gap-2 text-center">
+            <div className="grid grid-cols-3 gap-2">
+              <TeamHeroStat label="Completed" value={performance.played} />
+              <TeamHeroStat label="Wins" value={performance.wins} />
+              <TeamHeroStat label="Losses" value={performance.losses} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <TeamHeroStat label="Win %" value={`${formatBracketPercentage(winPercentage)}%`} />
+              <TeamHeroStat label="Loss %" value={`${formatBracketPercentage(lossPercentage)}%`} />
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article className="grid content-start gap-4 rounded-[24px] border-hairline border-line bg-white p-4 shadow-[0_14px_34px_rgba(24,24,26,0.06)] sm:p-5">
+        <div className="flex items-end justify-between gap-3">
+          <span className="grid gap-0.5">
+            <em className="text-[10px] font-medium not-italic uppercase tracking-[0.13em] text-text-muted">Tournament results</em>
+            <h2 className="text-[21px] font-medium tracking-[-0.25px] text-text-primary">Match history</h2>
+          </span>
+          <span className="rounded-full bg-brand-light px-3 py-1 text-[11px] font-medium text-[#3b6d11]">{performance.played} completed · {matches.length} total</span>
+        </div>
+        {!matches.length ? (
+          <p className="rounded-[16px] bg-surface/60 p-4 text-[13px] text-text-secondary">No tournament matches are assigned to this player yet.</p>
+        ) : (
+          <div className="grid gap-4">
+            <section className="grid gap-2.5" aria-labelledby="completed-player-matches">
+              <div className="flex items-center justify-between gap-3 px-1">
+                <h3 className="text-[14px] font-medium text-text-primary" id="completed-player-matches">Completed games</h3>
+                <span className="text-[11px] text-text-secondary">{completedMatches.length}</span>
+              </div>
+              {completedMatches.length ? completedMatches.map((match) => <PlayerProfileMatchRow match={match} player={player} team={team} key={match.id} />) : <p className="rounded-[16px] bg-surface/60 p-4 text-[13px] text-text-secondary">No completed games yet.</p>}
+            </section>
+            {!!upcomingMatches.length && (
+              <section className="grid gap-2.5" aria-labelledby="upcoming-player-matches">
+                <div className="flex items-center justify-between gap-3 px-1">
+                  <h3 className="text-[14px] font-medium text-text-primary" id="upcoming-player-matches">Upcoming games</h3>
+                  <span className="text-[11px] text-text-secondary">{upcomingMatches.length}</span>
+                </div>
+                {upcomingMatches.map((match) => <PlayerProfileMatchRow match={match} player={player} team={team} key={match.id} />)}
+              </section>
+            )}
+          </div>
+        )}
+      </article>
+    </section>
+  );
+}
+
+function PlayerProfileMatchRow({ player, team, match }: { player: PublishedTeamMember; team: PublishedTeam | null; match: TeamCourtScheduleMatch }) {
+  const playerIsA = match.playerProfilesA.some((profile) => profile.id === player.playerId || normalizeName(profile.name) === normalizeName(player.name));
+  const playerSide: "A" | "B" = playerIsA ? "A" : "B";
+  const partnerProfiles = (playerIsA ? match.playerProfilesA : match.playerProfilesB).filter((profile) => profile.id !== player.playerId && normalizeName(profile.name) !== normalizeName(player.name));
+  const opponentProfiles = playerIsA ? match.playerProfilesB : match.playerProfilesA;
+  const opponentTeam = playerIsA ? match.teamBName : match.teamAName;
+  const didWin = match.score?.winnerSide === playerSide;
+  const didLose = Boolean(match.score?.winnerSide && match.score.winnerSide !== playerSide);
+  const status = didWin ? "Won" : didLose ? "Lost" : "Upcoming";
+  const score = formatBracketMatchScore(match, team?.id || (playerIsA ? match.teamAId : match.teamBId));
+
+  return (
+    <article className="grid gap-3 rounded-[17px] border-hairline border-line bg-surface/38 p-3 sm:grid-cols-[112px_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+      <span className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 sm:grid-cols-1 sm:gap-0.5">
+        <strong className="text-[14px] font-semibold text-brand">{match.timeLabel || "Time TBD"}</strong>
+        <em className="truncate text-[10px] font-medium not-italic uppercase tracking-[0.06em] text-text-muted">{match.dayLabel || `Day ${match.dayNumber}`} · {match.courtLabel || "Court TBD"}</em>
+      </span>
+      <span className="grid min-w-0 gap-1">
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-text-secondary">
+          <strong className="font-medium text-text-primary">vs</strong>
+          {opponentProfiles.length ? opponentProfiles.map((opponent, index) => (
+            <Fragment key={`${match.id}:${opponent.id}:${index}`}>
+              {index > 0 && <em className="not-italic text-text-muted">&amp;</em>}
+              <PlayerProfileNameLink player={opponent} from="player-profile" sourcePlayerId={player.playerId} />
+            </Fragment>
+          )) : <strong className="font-medium text-text-primary">Opponent TBD</strong>}
+        </span>
+        <em className="flex min-w-0 flex-wrap items-center gap-1 text-[10px] not-italic text-text-secondary">
+          <span>{opponentTeam} · {match.format}</span>
+          {partnerProfiles.length > 0 && <span>with</span>}
+          {partnerProfiles.map((partner, index) => (
+            <Fragment key={`${partner.id}:${index}`}>
+              {index > 0 && <span>&amp;</span>}
+              {isFallbackPlayerProfileId(partner.id) ? <span>{partner.name}</span> : <PlayerProfileNameLink player={partner} from="player-profile" sourcePlayerId={player.playerId} />}
+            </Fragment>
+          ))}
+        </em>
+      </span>
+      <span className="grid grid-cols-[auto_auto] items-center justify-between gap-3 sm:justify-end">
+        <span className={didWin ? "grid min-w-[72px] gap-0.5 rounded-[11px] bg-brand-light px-2.5 py-1.5 text-center text-[#3b6d11]" : didLose ? "grid min-w-[72px] gap-0.5 rounded-[11px] bg-[#f3ece8] px-2.5 py-1.5 text-center text-[#7a4937]" : "grid min-w-[72px] gap-0.5 rounded-[11px] bg-white px-2.5 py-1.5 text-center text-text-muted"}>
+          <strong className="text-[11px] font-semibold">{status}</strong>
+          <em className="text-[9px] not-italic">{score}</em>
+        </span>
+        <Link className="tap-card grid h-9 w-9 place-items-center rounded-full border-hairline border-line bg-white text-brand transition hover:border-brand/30 hover:bg-brand-light" href={`/tournaments/schedule/matches/${match.id}?from=player-profile&player=${player.playerId}`} aria-label={`View match against ${opponentProfiles.map((opponent) => opponent.name).join(" and ") || opponentTeam}`}>
+          <ArrowRight size={16} />
+        </Link>
+      </span>
+    </article>
+  );
+}
+
+function PlayerProfileNameLink({ player, from, teamId = "", matchId = "", sourcePlayerId = "", className = "" }: { player: MatchPlayerProfile; from: "schedule" | "match" | "player-profile"; teamId?: string; matchId?: string; sourcePlayerId?: string; className?: string }) {
+  const href = `/tournaments/players/${player.id}?from=${from}${teamId ? `&team=${teamId}` : ""}${matchId ? `&match=${matchId}` : ""}${sourcePlayerId ? `&player=${sourcePlayerId}` : ""}`;
+  return (
+    <Link className={`tap-card font-medium underline decoration-current/20 underline-offset-2 transition hover:decoration-current ${className}`} href={href} onClick={(event) => event.stopPropagation()}>
+      {player.name}
+    </Link>
+  );
+}
+
 function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: PublishedTeam; matches: TeamCourtScheduleMatch[]; backHref: string; backLabel: string }) {
   const teamRecord = getTeamPerformanceSummary(team, matches);
   const teamColor = normalizeTeamColor(team.jerseyColor);
@@ -7293,7 +7959,7 @@ function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: Publ
   );
 }
 
-function TeamHeroStat({ label, value }: { label: string; value: number }) {
+function TeamHeroStat({ label, value }: { label: string; value: number | string }) {
   return (
     <span className="grid min-w-0 gap-1 rounded-[14px] border-hairline border-white bg-white px-2.5 py-2.5 shadow-[0_8px_20px_rgba(0,0,0,0.10)] sm:min-w-[78px] sm:px-3">
       <strong className="text-[20px] font-semibold leading-none text-[#0c3b20] sm:text-[22px]">{value}</strong>
@@ -7305,7 +7971,7 @@ function TeamHeroStat({ label, value }: { label: string; value: number }) {
 function TeamRosterMemberCard({ member, team, matches }: { member: PublishedTeamMember; team: PublishedTeam; matches: TeamCourtScheduleMatch[] }) {
   const performance = getMemberPerformance(member, team, matches);
   return (
-    <article className="grid min-w-0 grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[16px] border-hairline border-line bg-surface/40 p-2.5 transition hover:border-brand/20 hover:bg-white hover:shadow-[0_10px_22px_rgba(12,59,32,0.07)]">
+    <Link className="tap-card grid min-w-0 grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[16px] border-hairline border-line bg-surface/40 p-2.5 transition hover:border-brand/20 hover:bg-white hover:shadow-[0_10px_22px_rgba(12,59,32,0.07)]" href={`/tournaments/players/${member.playerId}?from=team-roster&team=${team.id}`} aria-label={`View ${member.name} player profile`}>
       <Avatar className="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-light text-[12px] font-medium text-[#3b6d11] shadow-[0_6px_14px_rgba(12,59,32,0.10)]" name={member.name} photoUrl={member.profilePhotoUrl} ariaLabel={`${member.name} profile photo`} sizes="42px" />
       <span className="grid min-w-0 gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5">
@@ -7319,7 +7985,7 @@ function TeamRosterMemberCard({ member, team, matches }: { member: PublishedTeam
         <TeamPerformancePill label="Won" value={performance.wins} />
         <TeamPerformancePill label="Lost" value={performance.losses} />
       </span>
-    </article>
+    </Link>
   );
 }
 
@@ -7337,12 +8003,18 @@ function ScoreSetInputs({ draft, setNumber, optional = false, disabled, onChange
   const sideBKey = `sideBSet${setNumber}` as keyof ScoreDraft;
   const leftKey = leftSide === "A" ? sideAKey : sideBKey;
   const rightKey = rightSide === "A" ? sideAKey : sideBKey;
+  const maximumScore = setNumber === 3 ? 10 : 4;
+  const normalizeScoreInput = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 2);
+    if (!digits) return "";
+    return String(Math.min(maximumScore, Number(digits)));
+  };
   return (
-    <label className="grid grid-cols-[52px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-[13px] border-hairline border-line bg-surface/55 px-2 py-1.5 text-[12px] text-text-secondary">
+    <label className={disabled ? "grid grid-cols-[52px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-[13px] border-hairline border-line bg-[#efeee9] px-2 py-1.5 text-[12px] text-text-muted opacity-70" : "grid grid-cols-[52px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-[13px] border-hairline border-line bg-surface/55 px-2 py-1.5 text-[12px] text-text-secondary"}>
       <span className="font-medium text-text-primary">Set {setNumber}</span>
-      <input className="min-h-9 rounded-[11px] border-hairline border-line bg-white px-2 text-center text-[15px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[leftKey]} onChange={(event) => onChange({ ...draft, [leftKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="0" aria-label={`Set ${setNumber} score for ${leftLabel}${optional ? " if needed" : ""}`} inputMode="numeric" disabled={disabled} />
+      <input className="min-h-9 rounded-[11px] border-hairline border-line bg-white px-2 text-center text-[15px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[leftKey]} onChange={(event) => onChange({ ...draft, [leftKey]: normalizeScoreInput(event.target.value) })} placeholder="0" aria-label={`Set ${setNumber} score for ${leftLabel}${optional ? " if needed" : ""}`} inputMode="numeric" min={0} max={maximumScore} disabled={disabled} />
       <span className="text-text-muted">-</span>
-      <input className="min-h-9 rounded-[11px] border-hairline border-line bg-white px-2 text-center text-[15px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[rightKey]} onChange={(event) => onChange({ ...draft, [rightKey]: event.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="0" aria-label={`Set ${setNumber} score for ${rightLabel}${optional ? " if needed" : ""}`} inputMode="numeric" disabled={disabled} />
+      <input className="min-h-9 rounded-[11px] border-hairline border-line bg-white px-2 text-center text-[15px] font-medium text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light disabled:bg-surface disabled:text-text-muted" value={draft[rightKey]} onChange={(event) => onChange({ ...draft, [rightKey]: normalizeScoreInput(event.target.value) })} placeholder="0" aria-label={`Set ${setNumber} score for ${rightLabel}${optional ? " if needed" : ""}`} inputMode="numeric" min={0} max={maximumScore} disabled={disabled} />
     </label>
   );
 }
@@ -7362,6 +8034,8 @@ function PlayerScheduleMatchCard({ match, teams, isFeatured, onOpenMatch }: { ma
   const courtNumber = formatCourtNumber(match.courtLabel || "");
   const ballTeam = getBallTeamForMatchup(match.dayNumber, match.teamId, match.opposingTeamId, match.id, teams);
   const isSingles = playerSideNames.length === 1 && opponentNames.length === 1;
+  const playerSideWon = Boolean(match.score?.winnerSide && match.score.winnerSide === match.teamSide);
+  const opponentSideWon = Boolean(match.score?.winnerSide && match.score.winnerSide !== match.teamSide);
 
   return (
     <article className={`relative grid gap-3 overflow-hidden rounded-[24px] border-hairline border-[#d8e1d9] bg-[#fbfcf8] p-3 sm:p-4 ${isFeatured ? "shadow-[0_20px_48px_rgba(12,59,32,0.13)]" : "shadow-[0_14px_34px_rgba(12,59,32,0.08)]"}`}>
@@ -7373,20 +8047,23 @@ function PlayerScheduleMatchCard({ match, teams, isFeatured, onOpenMatch }: { ma
             <em className="mx-1 not-italic text-text-muted">vs</em>
             <ScheduleHeaderTeamName name={match.opposingTeamName} showBallIcon={ballTeam?.id === match.opposingTeamId} />
           </span>
-          {match.score?.winnerSide && <strong className="rounded-full bg-brand-light px-2 py-1 text-[9px] font-medium text-[#3b6d11]">Completed</strong>}
         </span>
       </div>
 
-      <button className="tap-card group grid w-full grid-cols-[minmax(0,1fr)_30px] items-center gap-2 rounded-[17px] border-hairline border-[#dce4dc] bg-white p-2.5 text-left transition hover:border-brand/30 hover:shadow-[0_12px_28px_rgba(12,59,32,0.07)] sm:p-3" type="button" onClick={onOpenMatch} aria-label={`View match details: ${playerSideNames.join(" and ")} versus ${opponentNames.join(" and ")}`}>
+      <div className="tap-card group grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_30px] items-center gap-2 rounded-[17px] border-hairline border-[#dce4dc] bg-white p-2.5 text-left transition hover:border-brand/30 hover:shadow-[0_12px_28px_rgba(12,59,32,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 sm:p-3" role="button" tabIndex={0} onClick={onOpenMatch} onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        onOpenMatch();
+      }} aria-label={`View match details: ${playerSideNames.join(" and ")} versus ${opponentNames.join(" and ")}`}>
         <span className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_46px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] sm:gap-3">
-          <PlayerNameStack label="" names={playerSideNames} tone="primary" centerOnWideScreens={isSingles} />
+          <PlayerNameStack label="" names={playerSideNames} profiles={match.playerSideProfiles} tone="primary" centerOnWideScreens={isSingles} isWinner={playerSideWon} />
           <CourtLineDivider label={courtNumber} />
-          <PlayerNameStack label="" names={opponentNames} tone="opponent" color={match.opposingTeamColor} centerOnWideScreens={isSingles} />
+          <PlayerNameStack label="" names={opponentNames} profiles={match.opponentProfiles} tone="opponent" color={match.opposingTeamColor} centerOnWideScreens={isSingles} isWinner={opponentSideWon} />
         </span>
         <span className="justify-self-center">
           <MatchCardSideCue />
         </span>
-      </button>
+      </div>
     </article>
   );
 }
@@ -7399,28 +8076,34 @@ function MatchCardSideCue() {
   );
 }
 
-function PlayerNameStack({ label, names, tone, color, centerOnWideScreens = false }: { label: string; names: string[]; tone: "primary" | "opponent"; color?: string; centerOnWideScreens?: boolean }) {
+function PlayerNameStack({ label, names, profiles = [], tone, color, centerOnWideScreens = false, isWinner = false }: { label: string; names: string[]; profiles?: MatchPlayerProfile[]; tone: "primary" | "opponent"; color?: string; centerOnWideScreens?: boolean; isWinner?: boolean }) {
   const isPrimary = tone === "primary";
   const teamTone = color ? getTeamCardTone(color) : null;
   const chipStyle = teamTone
     ? { background: teamTone.background, color: teamTone.textColor, borderColor: "rgba(255,255,255,0.28)" }
     : undefined;
   return (
-    <span className={`grid min-w-0 content-center gap-1.5 ${centerOnWideScreens ? "sm:content-center" : ""}`}>
+    <span className={`relative grid min-w-0 content-center gap-1.5 ${centerOnWideScreens ? "sm:content-center" : ""}`}>
+      {isWinner && <span className="absolute -right-1 -top-1 z-10 grid h-6 w-6 place-items-center rounded-full bg-[#d8f36b] text-[#183a2b] shadow-[0_5px_12px_rgba(12,59,32,0.20)]" title="Winner" aria-label="Winner"><Trophy size={12} strokeWidth={2.4} /></span>}
       {label && <em className="truncate px-1 text-[10px] font-medium not-italic text-text-muted">{label}</em>}
-      {names.map((name, index) => (
-        <Fragment key={`${name}-${index}`}>
-          <strong
-            className={isPrimary ? "grid min-h-9 min-w-0 place-items-center rounded-[12px] border-hairline border-[#e3e8e1] bg-[#f3f5f1] px-2 py-1.5 text-center text-[11px] font-semibold leading-tight text-text-primary sm:min-h-11 sm:px-3 sm:py-2 sm:text-[14px]" : "grid min-h-9 min-w-0 place-items-center rounded-[12px] border-hairline border-white/25 bg-surface/70 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight text-text-primary sm:min-h-11 sm:px-3 sm:py-2 sm:text-[14px]"}
-            style={chipStyle}
-          >
+      {names.map((name, index) => {
+        const profile = profiles[index] || profiles.find((candidate) => normalizeName(candidate.name) === normalizeName(name));
+        const content = (
             <span className="block min-w-0 whitespace-normal break-words">{name}</span>
-          </strong>
+        );
+        const chipClass = isPrimary ? "grid min-h-9 min-w-0 place-items-center rounded-[12px] border-hairline border-[#e3e8e1] bg-[#f3f5f1] px-2 py-1.5 text-center text-[11px] font-semibold leading-tight text-text-primary sm:min-h-11 sm:px-3 sm:py-2 sm:text-[14px]" : "grid min-h-9 min-w-0 place-items-center rounded-[12px] border-hairline border-white/25 bg-surface/70 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight text-text-primary sm:min-h-11 sm:px-3 sm:py-2 sm:text-[14px]";
+        return (
+        <Fragment key={`${name}-${index}`}>
+          {profile?.id ? (
+            <Link className={`${chipClass} tap-card transition hover:ring-2 hover:ring-brand/20`} style={chipStyle} href={`/tournaments/players/${profile.id}?from=schedule`} onClick={(event) => event.stopPropagation()} aria-label={`View ${name} player profile`}>{content}</Link>
+          ) : (
+            <strong className={chipClass} style={chipStyle}>{content}</strong>
+          )}
           {index < names.length - 1 && (
             <em className="-my-1 justify-self-center text-[10px] font-semibold not-italic leading-none text-text-muted" aria-hidden="true">&amp;</em>
           )}
         </Fragment>
-      ))}
+      );})}
     </span>
   );
 }
@@ -7751,28 +8434,34 @@ function TeamCourtScheduleGame({ match, teamName, onOpenMatch, grouped = false }
   const teamIsA = match.teamAName === teamName;
   const primaryPlayers = teamIsA ? match.playersA : match.playersB;
   const opponentPlayers = teamIsA ? match.playersB : match.playersA;
+  const primaryProfiles = teamIsA ? match.playerProfilesA : match.playerProfilesB;
+  const opponentProfiles = teamIsA ? match.playerProfilesB : match.playerProfilesA;
   const displayPrimaryPlayers = primaryPlayers.length ? primaryPlayers : [teamName];
   const displayOpponentPlayers = opponentPlayers.length ? opponentPlayers : ["Opponent TBD"];
   const courtNumber = formatCourtNumber(match.courtLabel || "");
   const isSingles = displayPrimaryPlayers.length === 1 && displayOpponentPlayers.length === 1;
   const opponentColor = teamIsA ? match.teamBColor : match.teamAColor;
+  const primarySide: "A" | "B" = teamIsA ? "A" : "B";
+  const primarySideWon = Boolean(match.score?.winnerSide && match.score.winnerSide === primarySide);
+  const opponentSideWon = Boolean(match.score?.winnerSide && match.score.winnerSide !== primarySide);
 
   return (
-    <button className={grouped ? "tap-card group relative grid w-full grid-cols-[minmax(0,1fr)_30px] items-center gap-2 bg-white p-2.5 text-left transition hover:bg-[#fbfcf8] sm:p-3" : "tap-card group relative grid w-full grid-cols-[minmax(0,1fr)_30px] items-center gap-2 rounded-[17px] border-hairline border-[#dce4dc] bg-white p-2.5 text-left transition hover:border-brand/30 hover:shadow-[0_12px_28px_rgba(12,59,32,0.07)] sm:p-3"} type="button" onClick={() => onOpenMatch(match)} aria-label={`View match details: ${displayPrimaryPlayers.join(" and ")} versus ${displayOpponentPlayers.join(" and ")}`}>
+    <div className={grouped ? "tap-card group relative grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_30px] items-center gap-2 bg-white p-2.5 text-left transition hover:bg-[#fbfcf8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/30 sm:p-3" : "tap-card group relative grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_30px] items-center gap-2 rounded-[17px] border-hairline border-[#dce4dc] bg-white p-2.5 text-left transition hover:border-brand/30 hover:shadow-[0_12px_28px_rgba(12,59,32,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 sm:p-3"} role="button" tabIndex={0} onClick={() => onOpenMatch(match)} onKeyDown={(event) => {
+      if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
+      event.preventDefault();
+      onOpenMatch(match);
+    }} aria-label={`View match details: ${displayPrimaryPlayers.join(" and ")} versus ${displayOpponentPlayers.join(" and ")}`}>
       <span className="grid gap-2">
         <span className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_46px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] sm:gap-3">
-          <PlayerNameStack label="" names={displayPrimaryPlayers} tone="primary" centerOnWideScreens={isSingles} />
+          <PlayerNameStack label="" names={displayPrimaryPlayers} profiles={primaryProfiles} tone="primary" centerOnWideScreens={isSingles} isWinner={primarySideWon} />
           <CourtLineDivider label={courtNumber} />
-          <PlayerNameStack label="" names={displayOpponentPlayers} tone="opponent" color={opponentColor} centerOnWideScreens={isSingles} />
+          <PlayerNameStack label="" names={displayOpponentPlayers} profiles={opponentProfiles} tone="opponent" color={opponentColor} centerOnWideScreens={isSingles} isWinner={opponentSideWon} />
         </span>
-        {match.score?.winnerSide && (
-          <strong className="w-max justify-self-end rounded-full bg-brand-light px-2.5 py-1 text-[10px] font-medium leading-none text-[#3b6d11]">Completed</strong>
-        )}
       </span>
       <span className="justify-self-center">
         <MatchCardSideCue />
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -8132,6 +8821,8 @@ function parseScoreDraft(draft: ScoreDraft): { ok: true; values: { sideASet1: nu
   const sideBSet2 = parseOptionalScore(draft.sideBSet2);
   const sideASet3 = parseOptionalScore(draft.sideASet3);
   const sideBSet3 = parseOptionalScore(draft.sideBSet3);
+  if ([sideASet1, sideBSet1, sideASet2, sideBSet2].some((value) => value != null && value > 4)) return { ok: false, message: "Set 1 and Set 2 scores cannot be higher than 4." };
+  if ([sideASet3, sideBSet3].some((value) => value != null && value > 10)) return { ok: false, message: "The Set 3 tie-break score cannot be higher than 10." };
   if ([sideASet1, sideBSet1, sideASet2, sideBSet2].some((value) => value == null)) return { ok: false, message: "Please enter scores for set 1 and set 2." };
 
   const set1Winner = getSetWinner(sideASet1, sideBSet1);
@@ -8141,6 +8832,7 @@ function parseScoreDraft(draft: ScoreDraft): { ok: true; values: { sideASet1: nu
   let winnerSide: "A" | "B" | "" = "";
   if (set1Winner === set2Winner) {
     winnerSide = set1Winner;
+    return { ok: true, values: { sideASet1, sideBSet1, sideASet2, sideBSet2, sideASet3: null, sideBSet3: null, winnerSide } };
   } else {
     if (sideASet3 == null || sideBSet3 == null) return { ok: false, message: "Please enter set 3 because the teams split the first two sets." };
     const set3Winner = getSetWinner(sideASet3, sideBSet3);
@@ -8203,6 +8895,19 @@ function getMemberPerformance(member: PublishedTeamMember, team: PublishedTeam, 
   }, { played: 0, wins: 0, losses: 0 });
 }
 
+function getPlayerPerformance(player: PublishedTeamMember, matches: TeamCourtScheduleMatch[]) {
+  return matches.reduce((summary, match) => {
+    const playerIsA = match.playerProfilesA.some((profile) => profile.id === player.playerId || normalizeName(profile.name) === normalizeName(player.name));
+    const playerIsB = match.playerProfilesB.some((profile) => profile.id === player.playerId || normalizeName(profile.name) === normalizeName(player.name));
+    const playerSide = playerIsA ? "A" : playerIsB ? "B" : "";
+    if (!playerSide || !match.score?.winnerSide) return summary;
+    summary.played += 1;
+    if (match.score.winnerSide === playerSide) summary.wins += 1;
+    else summary.losses += 1;
+    return summary;
+  }, { played: 0, wins: 0, losses: 0 });
+}
+
 function getCourtMatchesForScheduleItem(item: ScheduleItem, matches: TeamCourtScheduleMatch[], teams: PublishedTeam[]) {
   if (item.itemType !== "match") return [];
   const teamA = item.teamASortOrder ? teams.find((team) => team.sortOrder === item.teamASortOrder) : null;
@@ -8252,15 +8957,28 @@ function mapPlayerScheduleMatches(matchRows: PlayerScheduleMatchRow[], playerRow
     const current = participants.find((participant) => participant.player_id === playerId);
     if (!current) return [];
     const currentSide = current.side;
+    const teamSide: "A" | "B" = currentSide === "B" ? "B" : "A";
     const playerSideNames = participants
       .filter((participant) => participant.side === currentSide)
       .map((participant) => participant.source_player_name || "Player");
+    const mapParticipantProfile = (participant: PlayerScheduleParticipantRow): MatchPlayerProfile => {
+      const participantTeam = teams.find((team) => team.id === participant.team_id);
+      const member = participantTeam?.members.find((candidate) => candidate.playerId === participant.player_id)
+        || participantTeam?.members.find((candidate) => normalizeName(candidate.name) === normalizeName(participant.source_player_name || ""));
+      return {
+        id: participant.player_id || member?.playerId || "",
+        name: participant.source_player_name || member?.name || "Player",
+        profilePhotoUrl: member?.profilePhotoUrl || ""
+      };
+    };
+    const playerSideProfiles = participants.filter((participant) => participant.side === currentSide).map(mapParticipantProfile);
     const partnerNames = participants
       .filter((participant) => participant.side === currentSide && participant.player_id !== playerId)
       .map((participant) => participant.source_player_name || "Partner");
     const opponentNames = participants
       .filter((participant) => participant.side !== currentSide)
       .map((participant) => participant.source_player_name || "Opponent");
+    const opponentProfiles = participants.filter((participant) => participant.side !== currentSide).map(mapParticipantProfile);
     const currentTeam = teams.find((team) => team.id === current.team_id);
     const opposingParticipant = participants.find((participant) => participant.side !== currentSide);
     const opposingTeam = teams.find((team) => team.id === opposingParticipant?.team_id);
@@ -8288,6 +9006,7 @@ function mapPlayerScheduleMatches(matchRows: PlayerScheduleMatchRow[], playerRow
       matchType: match.match_type || "",
       matchColor,
       tierRule: match.tier_rule || "",
+      teamSide,
       teamId: currentTeam?.id || current.team_id || "",
       opposingTeamId: opposingTeam?.id || opposingParticipant?.team_id || "",
       teamName: currentTeam?.name || fallbackTeamName || "Your team",
@@ -8298,8 +9017,10 @@ function mapPlayerScheduleMatches(matchRows: PlayerScheduleMatchRow[], playerRow
       opposingTeamLogoUrl: opposingTeam?.logoUrl || "",
       ballTeamName: ballTeam?.name || "",
       playerSideNames,
+      playerSideProfiles,
       partnerNames,
       opponentNames,
+      opponentProfiles,
       score: scoresByMatch[match.id] || null,
       matchId: match.external_match_id || "",
       sortOrder: match.sort_order || 0
@@ -8323,7 +9044,7 @@ function mapTeamCourtScheduleMatches(matchRows: PlayerScheduleMatchRow[], player
       const member = team?.members.find((candidate) => candidate.playerId === participant.player_id)
         || team?.members.find((candidate) => normalizeName(candidate.name) === normalizeName(participant.source_player_name || ""));
       return {
-        id: participant.player_id || participant.id,
+        id: participant.player_id || member?.playerId || "",
         name: participant.source_player_name || member?.name || "Player",
         profilePhotoUrl: member?.profilePhotoUrl || ""
       };
