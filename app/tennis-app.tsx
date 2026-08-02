@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, ChevronRight, Clock, Dumbbell, ExternalLink, House, Info, LogIn, LogOut, Mail, Maximize2, MonitorUp, Pencil, RefreshCw, Search, Shield, Shirt, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, ChevronRight, Clock, Dumbbell, ExternalLink, House, Info, LogIn, LogOut, Mail, MonitorUp, Pencil, RefreshCw, Search, Shield, Shirt, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -3566,6 +3566,35 @@ export function TournamentLiveBracketScreen() {
   return <TournamentScheduleExperience view="bracket" />;
 }
 
+type TvScene = "live" | "team" | "player" | "sponsor";
+type TvSponsorSpotlight = TeamSponsor & { id: string; teamName: string };
+type TvTimelineNode = {
+  id: string;
+  kind: "event" | "matches";
+  timeLabel: string;
+  label: string;
+  sortValue: number;
+  event: ScheduleItem | null;
+  matches: TeamCourtScheduleMatch[];
+};
+
+const tvScenes: Array<{ id: TvScene; label: string }> = [
+  { id: "live", label: "Live view" },
+  { id: "team", label: "Team leaderboard" },
+  { id: "player", label: "Player leaderboard" },
+  { id: "sponsor", label: "Sponsor spotlight" }
+];
+
+function getNextTvScene(scene: TvScene): TvScene {
+  return scene === "sponsor" ? "live" : "sponsor";
+}
+
+function getTvSceneDuration(scene: TvScene) {
+  if (scene === "live") return 60;
+  if (scene === "sponsor") return 10;
+  return 0;
+}
+
 export function TournamentTvDayScreen() {
   const appSession = useProtectedRoute("/tournaments/tv", true);
   const router = useRouter();
@@ -3578,9 +3607,12 @@ export function TournamentTvDayScreen() {
   const [now, setNow] = useState(() => new Date());
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [tvScene, setTvScene] = useState<"live" | "team" | "player">("live");
-  const [sceneSeconds, setSceneSeconds] = useState(45);
+  const [tvScene, setTvScene] = useState<TvScene>("live");
+  const [sceneSeconds, setSceneSeconds] = useState(60);
   const [rotationPaused, setRotationPaused] = useState(false);
+  const [sponsorIndex, setSponsorIndex] = useState(0);
+  const [manualTimelineNodeId, setManualTimelineNodeId] = useState<string | null>(null);
+  const tvSponsors = getTvSponsorSpotlights(teams);
 
   useEffect(() => {
     if (appSession.ready && !appSession.isAdmin) router.replace("/tournaments");
@@ -3592,17 +3624,27 @@ export function TournamentTvDayScreen() {
   }, []);
 
   useEffect(() => {
-    setSceneSeconds(tvScene === "live" ? 45 : 12);
-    if (rotationPaused) return;
+    setSceneSeconds(getTvSceneDuration(tvScene));
+  }, [tvScene]);
+
+  useEffect(() => {
+    setManualTimelineNodeId(null);
+  }, [selectedDay]);
+
+  useEffect(() => {
+    if (rotationPaused || tvScene === "team" || tvScene === "player") return;
     const timer = window.setInterval(() => {
       setSceneSeconds((current) => {
         if (current > 1) return current - 1;
-        setTvScene((scene) => scene === "live" ? "team" : scene === "team" ? "player" : "live");
-        return 0;
+        if (tvScene === "live" && !tvSponsors.length) return getTvSceneDuration("live");
+        const nextScene = getNextTvScene(tvScene);
+        if (tvScene === "sponsor" && tvSponsors.length) setSponsorIndex((index) => (index + 1) % tvSponsors.length);
+        setTvScene(nextScene);
+        return getTvSceneDuration(nextScene);
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [rotationPaused, tvScene]);
+  }, [rotationPaused, tvScene, tvSponsors.length]);
 
   const loadTvSchedule = useCallback(async () => {
     if (!appSession.ready || !appSession.isAdmin) return;
@@ -3616,7 +3658,7 @@ export function TournamentTvDayScreen() {
     const { data: tournamentData, error: tournamentError } = await supabase
       .from("tournaments")
       .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
-      .in("status", ["registration_open", "registration_closed", "live"])
+      .in("status", ["registration_open", "registration_closed", "live", "completed"])
       .order("starts_on", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -3745,320 +3787,679 @@ export function TournamentTvDayScreen() {
   const selectedDateKey = getTournamentDayDateKey(tournament, selectedDay);
   const isToday = selectedDateKey === formatLocalDateKey(now);
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const activeTimeLabel = isToday && timeLabels.length
-    ? timeLabels.reduce((activeLabel, label) => getScheduleTimeSortValue(label) <= currentMinutes ? label : activeLabel, "")
-    : "";
-  const firstOpenTimeLabel = timeLabels.find((label) => matchesByTime[label].some((match) => !match.score?.winnerSide)) || "";
-  const activeBlockHasOpenMatches = Boolean(activeTimeLabel && matchesByTime[activeTimeLabel]?.some((match) => !match.score?.winnerSide));
-  const focusedTimeLabel = activeBlockHasOpenMatches ? activeTimeLabel : firstOpenTimeLabel || activeTimeLabel || timeLabels[timeLabels.length - 1] || "";
-  const focusedTimeIndex = focusedTimeLabel ? timeLabels.indexOf(focusedTimeLabel) : -1;
-  const focusedMatches = focusedTimeLabel ? matchesByTime[focusedTimeLabel] || [] : [];
-  const nextTimeLabel = focusedTimeIndex >= 0 ? timeLabels[focusedTimeIndex + 1] || "" : "";
-  const nextMatches = nextTimeLabel ? matchesByTime[nextTimeLabel] || [] : [];
   const completedDayMatches = selectedMatches.filter((match) => match.score?.winnerSide).length;
-  const remainingDayMatches = Math.max(0, selectedMatches.length - completedDayMatches);
-  const focusedSlotComplete = Boolean(focusedMatches.length && focusedMatches.every((match) => match.score?.winnerSide));
-  const focusedSlotIsLive = Boolean(isToday && focusedTimeLabel === activeTimeLabel && !focusedSlotComplete);
-  const focusedSlotLabel = focusedSlotIsLive ? "On court now" : focusedSlotComplete ? "Latest completed block" : "Next scheduled block";
-  const teamStandings = getLiveTeamStandings(teams, matches);
-  const playerStandings = getLivePlayerStandings(teams, matches);
-  const nextScene = tvScene === "live" ? "Team leaderboard" : tvScene === "team" ? "Player leaderboard" : "Live schedule";
-  const enterFullscreen = () => document.documentElement.requestFullscreen?.();
-  const selectTvScene = (scene: "live" | "team" | "player") => {
+  const dayComplete = Boolean(selectedMatches.length && completedDayMatches === selectedMatches.length);
+  const timelineNodes = buildTvTimelineNodes(dayEvents, matchesByTime, timeLabels);
+  const todayKey = formatLocalDateKey(now);
+  const selectedDayIsPast = Boolean(selectedDateKey && selectedDateKey < todayKey);
+  const clockTimelineActiveIndex = !timelineNodes.length
+    ? -1
+    : isToday
+      ? timelineNodes.reduce((activeIndex, node, index) => node.sortValue <= currentMinutes ? index : activeIndex, 0)
+      : selectedDayIsPast || dayComplete ? timelineNodes.length - 1 : 0;
+  const clockTimelineNode = clockTimelineActiveIndex >= 0 ? timelineNodes[clockTimelineActiveIndex] : null;
+  const scoreAdvancedTimelineIndex = clockTimelineNode?.kind === "matches"
+    && clockTimelineNode.matches.length > 0
+    && clockTimelineNode.matches.every((match) => match.score?.winnerSide)
+    ? timelineNodes.findIndex((node, index) => index > clockTimelineActiveIndex && (node.kind === "event" || node.matches.some((match) => !match.score?.winnerSide)))
+    : -1;
+  const automaticTimelineActiveIndex = scoreAdvancedTimelineIndex >= 0 ? scoreAdvancedTimelineIndex : clockTimelineActiveIndex;
+  const manualTimelineIndex = manualTimelineNodeId ? timelineNodes.findIndex((node) => node.id === manualTimelineNodeId) : -1;
+  const timelineActiveIndex = manualTimelineIndex >= 0 ? manualTimelineIndex : automaticTimelineActiveIndex;
+  const timelineIsManuallySelected = manualTimelineIndex >= 0;
+  const currentTimelineNode = timelineActiveIndex >= 0 ? timelineNodes[timelineActiveIndex] : null;
+  const nextMatchNode = timelineNodes
+    .slice(Math.max(0, timelineActiveIndex + 1))
+    .find((node) => node.kind === "matches" && node.matches.some((match) => !match.score?.winnerSide)) || null;
+  const recentCompletedMatches = [...selectedMatches]
+    .filter((match) => match.score?.winnerSide)
+    .sort((left, right) => {
+      const leftSubmitted = new Date(left.score?.submittedAt || "").getTime() || 0;
+      const rightSubmitted = new Date(right.score?.submittedAt || "").getTime() || 0;
+      return rightSubmitted - leftSubmitted || getScheduleTimeSortValue(right.timeLabel) - getScheduleTimeSortValue(left.timeLabel) || right.sortOrder - left.sortOrder;
+    })
+    .slice(0, 5);
+  const dayTwoPreviewMatches = matches.filter((match) => match.dayNumber === 2);
+  const dayTwoPreviewGroups = groupTeamMatchesByTime(dayTwoPreviewMatches);
+  const dayTwoPreviewTimes = Object.keys(dayTwoPreviewGroups).sort((left, right) => getScheduleTimeSortValue(left) - getScheduleTimeSortValue(right) || left.localeCompare(right));
+  const dayTwoPreviewNode = selectedDay === 1
+    ? buildTvTimelineNodes(getDayScheduleEventItems(items, 2), dayTwoPreviewGroups, dayTwoPreviewTimes)
+      .find((node) => node.kind === "matches" && node.matches.some((match) => !match.score?.winnerSide)) || null
+    : null;
+  const fallbackMatchNode = timelineNodes.find((node) => node.kind === "matches" && node.matches.some((match) => !match.score?.winnerSide))
+    || [...timelineNodes].reverse().find((node) => node.kind === "matches")
+    || null;
+  const displayNode = currentTimelineNode || fallbackMatchNode;
+  const teamStandings = getLiveTeamStandings(teams, selectedMatches);
+  const tierRankedPlayerStandings = getLivePlayerStandings(teams, selectedMatches);
+  const tierLeaders = tierRankedPlayerStandings.filter((standing) => standing.tierRank === 1).sort((left, right) => left.tierNumber - right.tierNumber);
+  const playerStandings = [...tierRankedPlayerStandings]
+    .sort((left, right) => Number(right.player.rating || 0) - Number(left.player.rating || 0)
+      || right.matchWins - left.matchWins
+      || right.gameWinPercentage - left.gameWinPercentage
+      || left.player.name.localeCompare(right.player.name));
+  const tournamentChampion = getTournamentChampion(teams, matches);
+  const tournamentTierLeaders = getLivePlayerStandings(teams, matches)
+    .filter((standing) => standing.tierRank === 1)
+    .sort((left, right) => left.tierNumber - right.tierNumber);
+  const automaticNextScene = tvScene === "team" || tvScene === "player" ? null : tvScene === "live" && !tvSponsors.length ? "live" : getNextTvScene(tvScene);
+  const nextScene = automaticNextScene ? tvScenes.find((scene) => scene.id === automaticNextScene)?.label || "Live view" : "Manual view";
+  const selectTvScene = (scene: TvScene) => {
     setTvScene(scene);
-    setSceneSeconds(scene === "live" ? 45 : 12);
+    setSceneSeconds(getTvSceneDuration(scene));
+  };
+  const toggleTvRotation = () => {
+    if (tvScene === "team" || tvScene === "player") {
+      setRotationPaused(false);
+      selectTvScene("live");
+      return;
+    }
+    setRotationPaused((current) => !current);
   };
 
-  return (
-    <div className="min-h-screen bg-[#edf3e8] font-sans text-[#17251d]">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b3122] px-4 py-3 text-white shadow-[0_14px_38px_rgba(5,30,20,0.24)] lg:px-6">
-        <div className="mx-auto grid max-w-[1920px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4">
-          <Link className="tap-card !w-auto inline-flex items-center gap-2 rounded-[14px] bg-white px-2.5 py-1.5 text-brand shadow-[0_8px_20px_rgba(0,0,0,0.16)]" href="/tournaments" aria-label="Back to tournament">
-            <ArrowLeft size={18} />
-            <span className="hidden text-[13px] font-semibold sm:inline">Tournament</span>
-          </Link>
-          <span className="grid min-w-0 justify-items-center gap-0.5 text-center">
-            <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#d8f36b]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#d8f36b]" />Live day display</span>
-            <h1 className="max-w-full truncate text-[20px] font-semibold leading-tight sm:text-[25px] lg:text-[30px]">{tournament?.name || "Tournament Day View"}</h1>
-          </span>
-          <span className="flex items-center justify-end gap-2">
-            <span className="hidden rounded-[12px] border border-white/12 bg-white/10 px-3 py-1.5 text-right lg:grid">
-              <strong className="text-[18px] font-semibold tabular-nums">{formatTvClock(now)}</strong>
-              <em className="text-[9px] not-italic uppercase tracking-[0.08em] text-white/55">{now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</em>
-            </span>
-            <button className="grid h-10 w-10 place-items-center rounded-[12px] border border-white/15 bg-white/10 text-white transition hover:bg-white/18" type="button" onClick={enterFullscreen} aria-label="Enter fullscreen TV view">
-              <Maximize2 size={18} />
-            </button>
-          </span>
-        </div>
-        <div className="mx-auto mt-3 grid max-w-[1920px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-          <div className="grid grid-cols-2 gap-1 rounded-[13px] border border-white/12 bg-white/8 p-1" aria-label="TV tournament day">
-            {[1, 2].map((day) => (
-              <button className={selectedDay === day ? "min-h-9 rounded-[10px] bg-[#d8f36b] px-5 text-[12px] font-semibold text-[#183a2b] shadow-[0_6px_16px_rgba(0,0,0,0.14)]" : "min-h-9 rounded-[10px] px-5 text-[12px] font-semibold text-white/65 hover:bg-white/8"} type="button" onClick={() => setSelectedDay(day as 1 | 2)} aria-pressed={selectedDay === day} key={day}>Day {day}</button>
-            ))}
-          </div>
-          <div className="mx-auto grid w-full max-w-[680px] grid-cols-3 gap-1 rounded-[13px] border border-white/12 bg-white/8 p-1" aria-label="TV display scene">
-            {([
-              { id: "live" as const, label: "Live view" },
-              { id: "team" as const, label: "Team leaderboard" },
-              { id: "player" as const, label: "Player leaderboard" }
-            ]).map((scene) => (
-              <button className={tvScene === scene.id ? "min-h-9 rounded-[10px] bg-white px-2 text-[11px] font-semibold text-brand shadow-[0_6px_16px_rgba(0,0,0,0.14)]" : "min-h-9 rounded-[10px] px-2 text-[11px] font-semibold text-white/58 hover:bg-white/8"} type="button" onClick={() => selectTvScene(scene.id)} aria-pressed={tvScene === scene.id} key={scene.id}>{scene.label}</button>
-            ))}
-          </div>
-          <span className="flex min-w-[210px] items-stretch justify-end gap-2">
-            <span className="grid min-w-[132px] justify-items-end gap-0.5 rounded-[12px] border border-white/12 bg-white/10 px-3 py-1.5 text-right">
-              <strong className="text-[14px] font-semibold tabular-nums text-[#d8f36b]">{rotationPaused ? "Paused" : `${sceneSeconds}s`}</strong>
-              <em className="text-[8px] font-medium not-italic uppercase tracking-[0.06em] text-white/55">{rotationPaused ? "Manual display" : `${nextScene} next`}</em>
-            </span>
-            <button className={rotationPaused ? "min-w-[70px] rounded-[12px] bg-[#d8f36b] px-3 text-[10px] font-semibold text-[#183a2b]" : "min-w-[70px] rounded-[12px] border border-white/15 bg-white/10 px-3 text-[10px] font-semibold text-white transition hover:bg-white/18"} type="button" onClick={() => setRotationPaused((current) => !current)} aria-pressed={rotationPaused}>
-              {rotationPaused ? "Resume" : "Pause"}
-            </button>
-          </span>
-        </div>
-      </header>
+  if (!loading && !message && tournament && tournamentChampion) {
+    return <TvTournamentFinaleScene champion={tournamentChampion} sponsors={tvSponsors} tierLeaders={tournamentTierLeaders} tournament={tournament} />;
+  }
 
-      <main className="mx-auto grid max-w-[1920px] gap-3 p-3 lg:p-4">
+  return (
+    <div className="flex h-dvh min-h-[720px] flex-col overflow-hidden bg-[#f4f6f1] font-sans text-[#17251d]">
+      <TvPersistentHeader
+        nextScene={nextScene}
+        now={now}
+        onSelectDay={setSelectedDay}
+        onSelectScene={selectTvScene}
+        onTogglePause={toggleTvRotation}
+        paused={rotationPaused}
+        scene={tvScene}
+        seconds={sceneSeconds}
+        selectedDay={selectedDay}
+        tournament={tournament}
+      />
+      <main className="min-h-0 flex-1 overflow-hidden px-[clamp(48px,4.5vw,220px)] py-[clamp(18px,2.5vh,46px)]">
         {loading && <div className="grid min-h-[55vh] place-items-center text-[18px] font-medium text-brand">Loading live day view…</div>}
         {!loading && message && <StatusMessage tone="warning">{message}</StatusMessage>}
         {!loading && !message && tvScene === "live" && (
-          <section className="grid gap-3" aria-label={`Day ${selectedDay} at-a-glance live schedule`}>
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-              <TvGlanceStat label="Matches final" value={`${completedDayMatches}/${selectedMatches.length}`} detail={`${remainingDayMatches} remaining`} tone="green" />
-              <TvGlanceStat label={focusedSlotLabel} value={focusedTimeLabel || "TBD"} detail={`${focusedMatches.length} courts in this block`} tone="lime" />
-              <TvGlanceStat label="Next court block" value={nextTimeLabel || "Day complete"} detail={nextTimeLabel ? `${nextMatches.length} matches scheduled` : "No later matches"} tone="blue" />
-              <TvGlanceStat label="Tournament day" value={`Day ${selectedDay}`} detail={isToday ? "Live today" : selectedDateKey ? new Date(`${selectedDateKey}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "Schedule view"} tone="white" />
-            </div>
-
-            <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_350px]">
-              <section className="min-w-0 overflow-hidden rounded-[20px] border border-[#cad9c5] bg-white shadow-[0_16px_38px_rgba(24,58,43,0.09)]">
-                <header className={focusedSlotIsLive ? "flex min-h-[76px] items-center justify-between gap-4 border-b border-[#bdd397] bg-[linear-gradient(100deg,#dff2aa,#f3f9df)] px-5 py-3" : "flex min-h-[76px] items-center justify-between gap-4 border-b border-[#d5e0d0] bg-[#f5f8f2] px-5 py-3"}>
-                  <span className="grid gap-1">
-                    <em className="inline-flex items-center gap-2 text-[11px] font-semibold not-italic uppercase tracking-[0.12em] text-[#58750d]">
-                      <span className={focusedSlotIsLive ? "h-2.5 w-2.5 animate-pulse rounded-full bg-[#6f980c]" : "h-2.5 w-2.5 rounded-full bg-[#91a28e]"} />
-                      {focusedSlotLabel}
-                    </em>
-                    <strong className="text-[34px] font-semibold leading-none tabular-nums text-brand">{focusedTimeLabel || "Schedule pending"}</strong>
-                  </span>
-                  <span className="grid justify-items-end gap-1 text-right">
-                    <strong className="text-[18px] font-semibold text-brand">{focusedMatches.filter((match) => match.score?.winnerSide).length}/{focusedMatches.length} final</strong>
-                    <em className="text-[11px] not-italic text-text-secondary">Scores refresh automatically</em>
-                  </span>
-                </header>
-                {!focusedMatches.length ? (
-                  <div className="grid min-h-[50vh] place-items-center p-8 text-center">
-                    <span className="grid max-w-[560px] gap-2">
-                      <strong className="text-[28px] font-semibold text-brand">Day {selectedDay} is awaiting pairings</strong>
-                      <em className="text-[16px] not-italic text-text-secondary">This board will update automatically when court assignments are published.</em>
-                    </span>
-                  </div>
-                ) : (
-                  <div className="grid gap-3 bg-[#eaf1e6] p-3 md:grid-cols-2 2xl:grid-cols-4">
-                    {focusedMatches.map((match) => <TvDetailedMatchCard active={focusedSlotIsLive} match={match} teams={teams} key={match.id} />)}
-                  </div>
-                )}
-              </section>
-
-              <aside className="grid content-start gap-3">
-                <section className="overflow-hidden rounded-[18px] border border-[#d2ddce] bg-white shadow-[0_12px_28px_rgba(24,58,43,0.07)]">
-                  <header className="flex items-center justify-between gap-3 border-b border-[#dfe7da] bg-[#f5f8f2] px-4 py-3">
-                    <span className="grid gap-0.5">
-                      <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-text-muted">Coming up</em>
-                      <strong className="text-[20px] font-semibold text-brand">{nextTimeLabel || "No later court block"}</strong>
-                    </span>
-                    {!!nextMatches.length && <span className="rounded-full bg-brand-light px-2.5 py-1 text-[10px] font-semibold text-[#3b6d11]">{nextMatches.length} matches</span>}
-                  </header>
-                  <div className="grid gap-1.5 p-2.5">
-                    {nextMatches.slice(0, 4).map((match) => <TvNextMatchRow match={match} key={match.id} />)}
-                    {!nextMatches.length && <p className="rounded-[12px] bg-surface/65 p-3 text-[12px] leading-relaxed text-text-secondary">The current block is the final scheduled court session for Day {selectedDay}.</p>}
-                  </div>
-                </section>
-
-                <section className="overflow-hidden rounded-[18px] border border-[#d2ddce] bg-white shadow-[0_12px_28px_rgba(24,58,43,0.07)]">
-                  <header className="grid gap-0.5 border-b border-[#dfe7da] bg-[#f5f8f2] px-4 py-3">
-                    <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-text-muted">Off-court schedule</em>
-                    <strong className="text-[20px] font-semibold text-brand">Breaks & gatherings</strong>
-                  </header>
-                  <div className="grid gap-1.5 p-2.5">
-                    {dayEvents.map((event) => (
-                      <article className="grid grid-cols-[42px_minmax(0,1fr)] items-start gap-2.5 rounded-[12px] bg-[#f2f6ef] p-2.5" key={event.id}>
-                        <span className="grid h-10 w-10 place-items-center rounded-[11px] bg-brand text-[#d8f36b]"><Clock size={18} /></span>
-                        <span className="grid min-w-0 gap-0.5">
-                          <strong className="text-[13px] font-semibold tabular-nums text-brand">{event.timeLabel || event.dayLabel}</strong>
-                          <span className="text-[13px] font-semibold leading-tight text-text-primary">{event.matchLabel}</span>
-                          {event.detail && <em className="line-clamp-2 text-[10px] not-italic leading-snug text-text-secondary">{event.detail}</em>}
-                        </span>
-                      </article>
-                    ))}
-                    {!dayEvents.length && <p className="rounded-[12px] bg-surface/65 p-3 text-[12px] text-text-secondary">No off-court events are scheduled for Day {selectedDay}.</p>}
-                  </div>
-                </section>
-              </aside>
-            </div>
-          </section>
+          <TvLiveScene
+            completedDayMatches={completedDayMatches}
+            currentNode={displayNode}
+            dayComplete={dayComplete}
+            isToday={isToday}
+            nextMatchNode={nextMatchNode}
+            nextDayMatchNode={dayComplete ? dayTwoPreviewNode : null}
+            nextDayMatches={dayTwoPreviewMatches}
+            playerStandings={playerStandings}
+            recentCompletedMatches={recentCompletedMatches}
+            selectedDay={selectedDay}
+            selectedMatches={selectedMatches}
+            sponsors={tvSponsors}
+            teamStandings={teamStandings}
+            teams={teams}
+            tierLeaders={tierLeaders}
+            timelineActiveIndex={timelineActiveIndex}
+            timelineIsManuallySelected={timelineIsManuallySelected}
+            timelineNodes={timelineNodes}
+            onSelectTimelineNode={(nodeId) => setManualTimelineNodeId(nodeId)}
+            onUseAutomaticTimeline={() => setManualTimelineNodeId(null)}
+          />
         )}
-        {!loading && !message && tvScene === "team" && <TvTeamLeaderboardScene standings={teamStandings} completedMatches={matches.filter((match) => match.score?.winnerSide).length} totalMatches={matches.length} />}
+        {!loading && !message && tvScene === "team" && <TvTeamLeaderboardScene standings={teamStandings} />}
         {!loading && !message && tvScene === "player" && <TvPlayerLeaderboardScene standings={playerStandings} />}
+        {!loading && !message && tvScene === "sponsor" && <TvSponsorSpotlightScene activeIndex={sponsorIndex} sponsors={tvSponsors} />}
       </main>
     </div>
   );
 }
 
-function TvGlanceStat({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "lime" | "blue" | "white" }) {
-  const toneClass = tone === "green"
-    ? "border-[#194a33] bg-[linear-gradient(135deg,#0b3122,#174f35)] text-white"
-    : tone === "lime"
-      ? "border-[#bad96a] bg-[linear-gradient(135deg,#dff2aa,#f3f9df)] text-brand"
-      : tone === "blue"
-        ? "border-[#bfd7e6] bg-[linear-gradient(135deg,#e8f4fb,#f7fbfd)] text-[#185a7d]"
-        : "border-[#d5e0d0] bg-white text-brand";
-  return (
-    <article className={`${toneClass} grid min-h-[82px] content-center gap-1 rounded-[17px] border px-4 py-3 shadow-[0_10px_24px_rgba(24,58,43,0.06)]`}>
-      <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] opacity-65">{label}</em>
-      <strong className="truncate text-[24px] font-semibold leading-none tabular-nums">{value}</strong>
-      <span className="truncate text-[10px] font-medium opacity-65">{detail}</span>
-    </article>
-  );
+function getTvSponsorSpotlights(teams: PublishedTeam[]): TvSponsorSpotlight[] {
+  const seen = new Set<string>();
+  return teams.flatMap((team) => team.sponsors.map((sponsor, index) => ({
+    ...sponsor,
+    id: `${team.id}:${sponsor.websiteUrl || sponsor.logoUrl || sponsor.name || index}`,
+    teamName: team.name
+  }))).filter((sponsor) => {
+    const key = `${normalizeName(sponsor.name)}:${sponsor.websiteUrl}:${normalizeName(sponsor.teamName)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return Boolean(sponsor.name || sponsor.logoUrl || sponsor.websiteUrl);
+  });
 }
 
-function TvNextMatchRow({ match }: { match: TeamCourtScheduleMatch }) {
-  return (
-    <article className="grid grid-cols-[58px_minmax(0,1fr)] items-center gap-2.5 rounded-[12px] border border-[#e0e7dc] bg-[#f7f9f5] p-2.5">
-      <strong className="rounded-[9px] bg-brand px-2 py-2 text-center text-[11px] font-semibold leading-tight text-white">{formatCourtNumber(match.courtLabel || "") || "TBD"}</strong>
-      <span className="grid min-w-0 gap-1">
-        <strong className="truncate text-[12px] font-semibold text-text-primary">{formatBracketPlayerNames(match.playersA, match.teamAName)}</strong>
-        <span className="flex min-w-0 items-center gap-1.5"><em className="text-[8px] font-semibold not-italic uppercase tracking-[0.08em] text-text-muted">vs</em><strong className="truncate text-[12px] font-semibold text-text-primary">{formatBracketPlayerNames(match.playersB, match.teamBName)}</strong></span>
-      </span>
-    </article>
-  );
+function getTvTimelineBlockLabel(matches: TeamCourtScheduleMatch[], index: number) {
+  const matchType = matches.find((match) => match.matchType)?.matchType || "";
+  if (matchType) return getSchedulePhaseBadgeLabel(matchType);
+  const podLabel = matches.find((match) => match.podLabel)?.podLabel || "";
+  return podLabel || `Round ${index + 1}`;
 }
 
-function TvDetailedMatchCard({ match, teams, active }: { match: TeamCourtScheduleMatch; teams: PublishedTeam[]; active: boolean }) {
-  const teamA = teams.find((team) => team.id === match.teamAId);
-  const teamB = teams.find((team) => team.id === match.teamBId);
-  const ballTeam = getBallTeamForMatchup(match.dayNumber, match.teamAId, match.teamBId, match.id, teams);
-  const score = match.score;
-  const status = score?.winnerSide ? "Final" : active ? "On court" : "Up next";
-  const statusClass = status === "Final" ? "bg-[#e7eee3] text-[#526257]" : status === "On court" ? "bg-[#d8f36b] text-[#183a2b]" : "bg-[#e8f4fb] text-[#185a7d]";
+function buildTvTimelineNodes(dayEvents: ScheduleItem[], matchesByTime: Record<string, TeamCourtScheduleMatch[]>, timeLabels: string[]): TvTimelineNode[] {
+  const matchNodes = timeLabels.map((timeLabel, index) => {
+    const matches = matchesByTime[timeLabel] || [];
+    return {
+      id: `matches:${timeLabel}`,
+      kind: "matches" as const,
+      timeLabel,
+      label: getTvTimelineBlockLabel(matches, index),
+      sortValue: getScheduleTimeSortValue(timeLabel),
+      event: null,
+      matches
+    };
+  });
+  const eventNodes = dayEvents.map((event) => ({
+    id: `event:${event.id}`,
+    kind: "event" as const,
+    timeLabel: event.timeLabel || event.dayLabel,
+    label: getScheduleMilestoneLabel(event),
+    sortValue: getScheduleTimeSortValue(event.timeLabel || event.dayLabel),
+    event,
+    matches: []
+  }));
+  return [...matchNodes, ...eventNodes].sort((left, right) => left.sortValue - right.sortValue || Number(left.kind === "matches") - Number(right.kind === "matches") || left.label.localeCompare(right.label));
+}
 
+function TvPersistentHeader({ tournament, now, selectedDay, scene, seconds, paused, nextScene, onSelectDay, onSelectScene, onTogglePause }: { tournament: Tournament | null; now: Date; selectedDay: 1 | 2; scene: TvScene; seconds: number; paused: boolean; nextScene: string; onSelectDay: (day: 1 | 2) => void; onSelectScene: (scene: TvScene) => void; onTogglePause: () => void }) {
+  const manualScene = scene === "team" || scene === "player";
   return (
-    <article className={active && !score?.winnerSide ? "overflow-hidden rounded-[15px] border-2 border-[#a8ca4c] bg-white shadow-[0_10px_24px_rgba(111,152,12,0.12)]" : "overflow-hidden rounded-[15px] border border-[#d3dfcf] bg-white shadow-[0_8px_20px_rgba(24,58,43,0.06)]"}>
-      <header className="flex min-h-11 items-center justify-between gap-2 border-b border-[#e0e8dc] bg-[#f8faf6] px-3 py-2">
-        <span className="inline-flex min-w-0 items-center gap-2">
-          <strong className="shrink-0 text-[14px] font-semibold text-brand">{match.courtLabel || "Court TBD"}</strong>
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#bdc8b8]" />
-          <em className="truncate text-[10px] font-semibold not-italic uppercase tracking-[0.06em] text-text-muted">{match.format}</em>
+    <header className="relative shrink-0 overflow-hidden border-b border-white/10 bg-[#093b2a] px-[clamp(48px,4.5vw,220px)] pb-[clamp(14px,1.4vh,28px)] pt-[clamp(28px,4vh,80px)] text-white shadow-[0_14px_38px_rgba(5,30,20,0.22)]">
+      <span className="pointer-events-none absolute inset-0 opacity-35 court-lines" aria-hidden="true" />
+      <div className="relative grid grid-cols-[minmax(170px,0.8fr)_minmax(460px,2.8fr)_minmax(210px,0.9fr)] items-center gap-[clamp(16px,2vw,48px)]">
+        <Link className="tap-card !w-max inline-flex min-h-[clamp(44px,3vw,60px)] items-center gap-3 rounded-full bg-white px-[clamp(18px,1.5vw,30px)] text-[clamp(15px,1vw,22px)] font-semibold text-brand shadow-[0_8px_20px_rgba(0,0,0,0.16)]" href="/tournaments" aria-label="Back to tournament">
+          <ArrowLeft className="h-[clamp(18px,1.2vw,26px)] w-[clamp(18px,1.2vw,26px)]" />
+          Tournament
+        </Link>
+        <span className="grid min-w-0 justify-items-center gap-1 text-center">
+          <span className="inline-flex items-center gap-2 text-[clamp(12px,0.8vw,18px)] font-semibold uppercase tracking-[0.14em] text-[#d8f36b]"><span className="h-[clamp(8px,0.55vw,12px)] w-[clamp(8px,0.55vw,12px)] animate-pulse rounded-full bg-[#d8f36b]" />Live day display</span>
+          <h1 className="max-w-full truncate text-[clamp(28px,2.15vw,54px)] font-semibold leading-tight tracking-[-0.03em]">{tournament?.name || "Tournament Day View"}</h1>
         </span>
-        <span className="inline-flex items-center gap-1.5">
-          {ballTeam && <span className="inline-flex max-w-[105px] items-center gap-1 text-[9px] font-semibold text-brand"><TennisBallIcon className="h-3.5 w-3.5" /><span className="truncate">{ballTeam.name}</span></span>}
-          <em className={`${statusClass} rounded-full px-2.5 py-1 text-[8px] font-semibold not-italic uppercase tracking-[0.07em]`}>{status}</em>
+        <span className="grid justify-items-end text-right">
+          <strong className="font-mono text-[clamp(24px,1.75vw,42px)] font-semibold leading-none tabular-nums">{formatTvClock(now)}</strong>
+          <em className="mt-1 text-[clamp(11px,0.7vw,17px)] font-semibold not-italic uppercase tracking-[0.08em] text-white/55">{now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" })}</em>
         </span>
-      </header>
-      <div className="grid gap-1 p-2.5">
-        <div className="grid grid-cols-[minmax(0,1fr)_38px_38px_38px] items-center gap-1.5 px-1 text-center text-[8px] font-semibold uppercase tracking-[0.07em] text-text-muted">
-          <span className="text-left">Players</span><span>S1</span><span>S2</span><span>TB</span>
-        </div>
-        <TvScoreTeamRow team={teamA} fallbackTeam={match.teamAName} players={match.playersA} scores={[score?.sideASet1, score?.sideASet2, score?.sideASet3]} winner={score?.winnerSide === "A"} />
-        <TvScoreTeamRow team={teamB} fallbackTeam={match.teamBName} players={match.playersB} scores={[score?.sideBSet1, score?.sideBSet2, score?.sideBSet3]} winner={score?.winnerSide === "B"} />
       </div>
-    </article>
+
+      <div className="relative mt-[clamp(14px,1.4vh,26px)] grid grid-cols-[minmax(180px,0.8fr)_minmax(620px,3fr)_minmax(250px,1fr)] items-center gap-[clamp(16px,2vw,48px)] border-t border-white/10 pt-[clamp(12px,1.15vh,22px)]">
+        <div className="grid w-max grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/10 p-1" aria-label="TV tournament day">
+          {([1, 2] as const).map((day) => (
+            <button className={selectedDay === day ? "min-h-[clamp(40px,2.5vw,54px)] rounded-full bg-[#d8f36b] px-[clamp(20px,1.5vw,34px)] text-[clamp(14px,0.9vw,20px)] font-semibold text-[#183a2b] shadow-[0_6px_16px_rgba(0,0,0,0.14)]" : "min-h-[clamp(40px,2.5vw,54px)] rounded-full px-[clamp(20px,1.5vw,34px)] text-[clamp(14px,0.9vw,20px)] font-semibold text-white/62 hover:bg-white/8"} type="button" onClick={() => onSelectDay(day)} aria-pressed={selectedDay === day} key={day}>Day {day}</button>
+          ))}
+        </div>
+        <div className="mx-auto grid w-full max-w-[920px] grid-cols-4 gap-1 rounded-full border border-white/10 bg-white/10 p-1" aria-label="TV display scene">
+          {tvScenes.map((candidate) => (
+            <button className={scene === candidate.id ? "min-h-[clamp(40px,2.5vw,54px)] rounded-full bg-white px-3 text-[clamp(13px,0.85vw,19px)] font-semibold text-brand shadow-[0_6px_16px_rgba(0,0,0,0.14)]" : "min-h-[clamp(40px,2.5vw,54px)] rounded-full px-3 text-[clamp(13px,0.85vw,19px)] font-semibold text-white/58 hover:bg-white/8"} type="button" onClick={() => onSelectScene(candidate.id)} aria-pressed={scene === candidate.id} key={candidate.id}>{candidate.label}</button>
+          ))}
+        </div>
+        <span className="flex items-stretch justify-end gap-2">
+          <span className="grid min-w-[clamp(140px,9vw,200px)] content-center justify-items-end rounded-[16px] border border-white/10 bg-white/10 px-4 text-right">
+            <strong className="text-[clamp(16px,1.1vw,24px)] font-semibold tabular-nums text-[#d8f36b]">{manualScene ? "Manual" : paused ? "Paused" : `${seconds}s`}</strong>
+            <em className="text-[clamp(9px,0.55vw,13px)] font-medium not-italic uppercase tracking-[0.06em] text-white/52">{manualScene ? "Stays on this view" : paused ? "Rotation paused" : `${nextScene} next`}</em>
+          </span>
+          <button className={paused || manualScene ? "min-w-[clamp(90px,6vw,132px)] rounded-[16px] bg-[#d8f36b] px-4 text-[clamp(13px,0.8vw,18px)] font-semibold text-[#183a2b]" : "min-w-[clamp(90px,6vw,132px)] rounded-[16px] border border-white/15 bg-white/10 px-4 text-[clamp(13px,0.8vw,18px)] font-semibold text-white transition hover:bg-white/18"} type="button" onClick={onTogglePause} aria-pressed={paused}>{manualScene ? "Return live" : paused ? "Resume" : "Pause"}</button>
+        </span>
+      </div>
+    </header>
   );
 }
 
-function TvScoreTeamRow({ team, fallbackTeam, players, scores, winner }: { team?: PublishedTeam; fallbackTeam: string; players: string[]; scores: Array<number | null | undefined>; winner: boolean }) {
+function TvLiveScene({ timelineNodes, timelineActiveIndex, timelineIsManuallySelected, onSelectTimelineNode, onUseAutomaticTimeline, currentNode, recentCompletedMatches, nextMatchNode, nextDayMatchNode, nextDayMatches, selectedDay, selectedMatches, completedDayMatches, dayComplete, isToday, teams, teamStandings, playerStandings, tierLeaders, sponsors }: { timelineNodes: TvTimelineNode[]; timelineActiveIndex: number; timelineIsManuallySelected: boolean; onSelectTimelineNode: (nodeId: string) => void; onUseAutomaticTimeline: () => void; currentNode: TvTimelineNode | null; recentCompletedMatches: TeamCourtScheduleMatch[]; nextMatchNode: TvTimelineNode | null; nextDayMatchNode: TvTimelineNode | null; nextDayMatches: TeamCourtScheduleMatch[]; selectedDay: 1 | 2; selectedMatches: TeamCourtScheduleMatch[]; completedDayMatches: number; dayComplete: boolean; isToday: boolean; teams: PublishedTeam[]; teamStandings: TeamStanding[]; playerStandings: PlayerStanding[]; tierLeaders: PlayerStanding[]; sponsors: TvSponsorSpotlight[] }) {
+  const currentIsLive = Boolean(isToday && !dayComplete && currentNode && !timelineIsManuallySelected);
+  const remainingMatches = selectedMatches.filter((match) => !match.score?.winnerSide);
   return (
-    <div className={`${winner ? "bg-[#edf7d7] ring-1 ring-[#bedb83]" : "bg-[#f3f6f1]"} grid min-h-[58px] grid-cols-[minmax(0,1fr)_38px_38px_38px] items-center gap-1.5 rounded-[11px] px-2 py-1.5`}>
-      <span className="grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-2">
-        <span className="relative grid h-[34px] w-[34px] place-items-center overflow-hidden rounded-[9px] border border-[#dbe4d6] bg-white p-1 text-[8px] font-semibold text-brand">
-          {team?.logoUrl ? <NextImage src={team.logoUrl} alt="" fill sizes="34px" className="object-contain p-1" /> : getInitials(team?.name || fallbackTeam)}
-        </span>
-        <span className="grid min-w-0 gap-0.5">
-          <strong className="line-clamp-2 text-[13px] font-semibold leading-[1.08] text-text-primary">{formatBracketPlayerNames(players, fallbackTeam)}</strong>
-          <em className="truncate text-[9px] not-italic leading-none text-text-secondary">{team?.name || fallbackTeam}</em>
-        </span>
+    <section className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto_auto] gap-[clamp(8px,0.8vh,16px)]" aria-label={`Day ${selectedDay} at-a-glance live schedule`}>
+      <div className={dayComplete ? "grid min-h-0 grid-cols-[minmax(250px,18fr)_minmax(700px,55fr)_minmax(340px,27fr)] gap-[clamp(12px,1vw,22px)]" : "grid min-h-0 grid-cols-[minmax(240px,18fr)_minmax(520px,38fr)_minmax(320px,24fr)_minmax(260px,20fr)] gap-[clamp(10px,0.8vw,18px)]"}>
+        <TvRecentResultsPanel completedMatches={completedDayMatches} dayComplete={dayComplete} matches={recentCompletedMatches} selectedDay={selectedDay} totalMatches={selectedMatches.length} />
+        <TvCurrentBlockPanel activeIndex={timelineActiveIndex} completedDayMatches={completedDayMatches} currentNode={currentNode} dayComplete={dayComplete} isLive={currentIsLive} isManualFocus={timelineIsManuallySelected} onSelectNode={onSelectTimelineNode} onUseAutomatic={onUseAutomaticTimeline} selectedDay={selectedDay} selectedMatches={selectedMatches} teamStandings={teamStandings} teams={teams} tierLeaders={tierLeaders} timelineNodes={timelineNodes} />
+        {dayComplete ? <TvDayTwoGlancePanel matches={selectedDay === 1 ? nextDayMatches : []} node={selectedDay === 1 ? nextDayMatchNode : null} selectedDay={selectedDay} teams={teams} /> : <><TvNextBlockPanel node={nextMatchNode} selectedDay={selectedDay} teams={teams} /><TvDayRemainingPanel matches={remainingMatches} timelineNodes={timelineNodes} /></>}
+      </div>
+      <TvLeadersTicker playerStandings={playerStandings} teamStandings={teamStandings} />
+      <TvSponsorStrip sponsors={sponsors} />
+    </section>
+  );
+}
+
+function TvPanelHeading({ eyebrow, time, tone = "neutral" }: { eyebrow: string; time: string; tone?: "neutral" | "live" | "upcoming" }) {
+  return (
+    <header className="flex items-center justify-between gap-3 px-[clamp(14px,1vw,22px)] pb-[clamp(9px,0.7vh,14px)]">
+      <span className="inline-flex min-w-0 items-center gap-2">
+        <span className={tone === "live" ? "h-2.5 w-2.5 animate-pulse rounded-full bg-[#bd542f]" : tone === "upcoming" ? "h-2.5 w-2.5 rounded-full border-2 border-[#aeb8af]" : "h-2.5 w-2.5 rounded-full bg-[#738177]"} />
+        <strong className={tone === "live" ? "truncate text-[clamp(13px,0.8vw,18px)] font-semibold uppercase tracking-[0.08em] text-[#bd542f]" : "truncate text-[clamp(13px,0.8vw,18px)] font-semibold uppercase tracking-[0.08em] text-text-secondary"}>{eyebrow}</strong>
       </span>
-      {scores.map((value, index) => <strong className={`${winner ? "text-brand" : "text-[#455248]"} grid h-10 place-items-center rounded-[9px] bg-white text-[18px] font-semibold tabular-nums shadow-[inset_0_0_0_1px_rgba(24,58,43,0.05)]`} key={index}>{value ?? "–"}</strong>)}
+      <time className="shrink-0 text-[clamp(18px,1.25vw,28px)] font-semibold tabular-nums text-brand">{time}</time>
+    </header>
+  );
+}
+
+function TvRecentResultsPanel({ matches, selectedDay, totalMatches, completedMatches, dayComplete }: { matches: TeamCourtScheduleMatch[]; selectedDay: 1 | 2; totalMatches: number; completedMatches: number; dayComplete: boolean }) {
+  return (
+    <section className="min-h-0 overflow-hidden rounded-[clamp(16px,1.25vw,24px)] border border-[#d9dfd7] bg-[#eef1ed] py-[clamp(12px,1vh,20px)]">
+      <header className="flex items-center justify-between gap-3 px-[clamp(14px,1vw,22px)] pb-[clamp(9px,0.7vh,14px)]"><span className="inline-flex items-center gap-2"><CheckCircle2 className="h-[clamp(18px,1.2vw,26px)] w-[clamp(18px,1.2vw,26px)] text-brand" /><strong className="text-[clamp(14px,0.9vw,20px)] font-semibold uppercase tracking-[0.08em] text-brand">{dayComplete ? `Day ${selectedDay} completed` : "Completed"}</strong></span><span className="rounded-full bg-white px-3 py-1.5 text-[clamp(12px,0.75vw,17px)] font-semibold tabular-nums text-brand">{completedMatches}/{totalMatches}</span></header>
+      <div className="grid max-h-full gap-[clamp(6px,0.55vh,10px)] overflow-hidden px-[clamp(10px,0.8vw,16px)]">
+        {matches.map((match) => {
+          const winnerNames = match.score?.winnerSide === "A" ? match.playersA : match.playersB;
+          const fallback = match.score?.winnerSide === "A" ? match.teamAName : match.teamBName;
+          const winningTeamId = match.score?.winnerSide === "A" ? match.teamAId : match.teamBId;
+          return (
+            <article className="grid min-h-[clamp(58px,5.2vh,82px)] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[12px] border border-[#e0e5df] bg-white px-3 py-2" key={match.id}>
+              <strong className="rounded-[8px] bg-brand px-2 py-1.5 text-[clamp(11px,0.68vw,15px)] font-semibold uppercase text-white">{formatCourtNumber(match.courtLabel) || "Court"}</strong>
+              <span className="grid min-w-0 gap-0.5"><strong className="truncate text-[clamp(13px,0.84vw,18px)] font-semibold text-text-primary">{formatBracketPlayerNames(winnerNames, fallback)} won</strong><em className="truncate text-[clamp(11px,0.68vw,15px)] font-semibold not-italic text-text-secondary">{formatBracketMatchScore(match, winningTeamId)} · {getTvWinMargin(match)} games</em></span>
+            </article>
+          );
+        })}
+        {!matches.length && <p className="rounded-[14px] border border-dashed border-[#c8d0c8] bg-white/65 p-4 text-[clamp(13px,0.85vw,18px)] leading-relaxed text-text-secondary">The latest submitted result will appear here automatically.</p>}
+      </div>
+    </section>
+  );
+}
+
+function TvCurrentBlockPanel({ currentNode, dayComplete, selectedDay, selectedMatches, completedDayMatches, isLive, isManualFocus, teams, teamStandings, tierLeaders, timelineNodes, activeIndex, onSelectNode, onUseAutomatic }: { currentNode: TvTimelineNode | null; dayComplete: boolean; selectedDay: 1 | 2; selectedMatches: TeamCourtScheduleMatch[]; completedDayMatches: number; isLive: boolean; isManualFocus: boolean; teams: PublishedTeam[]; teamStandings: TeamStanding[]; tierLeaders: PlayerStanding[]; timelineNodes: TvTimelineNode[]; activeIndex: number; onSelectNode: (nodeId: string) => void; onUseAutomatic: () => void }) {
+  if (dayComplete && selectedDay === 1) return <TvDayOneLeadersPanel teamStanding={teamStandings[0] || null} tierLeaders={tierLeaders} />;
+  if (dayComplete) return <TvDayCompletePanel completedMatches={completedDayMatches} selectedDay={selectedDay} selectedMatches={selectedMatches} />;
+  if (currentNode?.kind === "event") return <TvAmbientEventPanel activeIndex={activeIndex} event={currentNode.event} isLive={isLive} isManual={isManualFocus} nodes={timelineNodes} onSelectNode={onSelectNode} onUseAutomatic={onUseAutomatic} />;
+  const matches = (currentNode?.matches || []).filter((match) => !match.score?.winnerSide);
+  return (
+    <section className="min-h-0 overflow-hidden rounded-[clamp(16px,1.25vw,24px)] border border-[#d7ded5] bg-white py-[clamp(12px,1vh,20px)] shadow-[0_16px_40px_rgba(24,58,43,0.08)]">
+      <TvBlockNavigator activeIndex={activeIndex} isManual={isManualFocus} nodes={timelineNodes} onSelectNode={onSelectNode} onUseAutomatic={onUseAutomatic} />
+      <TvPanelHeading eyebrow={isLive ? `Happening now · ${currentNode?.label || "Court block"}` : isManualFocus ? `Organizer selected · ${currentNode?.label || "Court block"}` : `Current focus · ${currentNode?.label || "Court block"}`} time={currentNode?.timeLabel || "TBD"} tone={isLive ? "live" : "neutral"} />
+      <div className="grid min-h-0 grid-cols-2 gap-[clamp(8px,0.65vw,14px)] overflow-hidden px-[clamp(10px,0.8vw,16px)]">
+        {matches.map((match) => <TvLiveMatchCard isLive={isLive && !match.score?.winnerSide} match={match} teams={teams} key={match.id} />)}
+        {!matches.length && <p className="col-span-2 grid min-h-[220px] place-items-center rounded-[18px] border border-dashed border-[#c9d2ca] bg-[#f3f5f1] p-8 text-center text-[clamp(18px,1.2vw,28px)] font-semibold text-brand">This block is completed. Move to the next block or follow the live schedule.</p>}
+      </div>
+    </section>
+  );
+}
+
+function TvBlockNavigator({ nodes, activeIndex, isManual, onSelectNode, onUseAutomatic }: { nodes: TvTimelineNode[]; activeIndex: number; isManual: boolean; onSelectNode: (nodeId: string) => void; onUseAutomatic: () => void }) {
+  const previousNode = activeIndex > 0 ? nodes[activeIndex - 1] : null;
+  const nextNode = activeIndex >= 0 && activeIndex < nodes.length - 1 ? nodes[activeIndex + 1] : null;
+  return (
+    <div className="mx-[clamp(10px,0.8vw,16px)] mb-[clamp(8px,0.7vh,12px)] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[12px] bg-[#f1f4ef] p-1.5">
+      <button className="inline-flex min-h-9 items-center gap-1 rounded-[9px] bg-white px-2.5 text-[clamp(11px,0.68vw,15px)] font-semibold text-brand disabled:opacity-30" type="button" disabled={!previousNode} onClick={() => previousNode && onSelectNode(previousNode.id)}><ArrowLeft className="h-4 w-4" /> Previous</button>
+      {isManual ? <button className="min-h-9 truncate rounded-[9px] bg-brand px-3 text-[clamp(11px,0.68vw,15px)] font-semibold text-white" type="button" onClick={onUseAutomatic}>Organizer view · Follow live schedule</button> : <strong className="truncate text-center text-[clamp(11px,0.68vw,15px)] font-semibold text-text-secondary">Live schedule position</strong>}
+      <button className="inline-flex min-h-9 items-center gap-1 rounded-[9px] bg-white px-2.5 text-[clamp(11px,0.68vw,15px)] font-semibold text-brand disabled:opacity-30" type="button" disabled={!nextNode} onClick={() => nextNode && onSelectNode(nextNode.id)}>Next <ArrowRight className="h-4 w-4" /></button>
     </div>
   );
 }
 
-function TvTeamLeaderboardScene({ standings, completedMatches, totalMatches }: { standings: TeamStanding[]; completedMatches: number; totalMatches: number }) {
+function TvAmbientEventPanel({ event, isLive, nodes, activeIndex, isManual, onSelectNode, onUseAutomatic }: { event: ScheduleItem | null; isLive: boolean; nodes: TvTimelineNode[]; activeIndex: number; isManual: boolean; onSelectNode: (nodeId: string) => void; onUseAutomatic: () => void }) {
   return (
-    <section className="overflow-hidden rounded-[22px] border border-[#d3dfcd] bg-white shadow-[0_18px_44px_rgba(24,58,43,0.10)]">
-      <header className="grid gap-1.5 border-b border-[#dce5d7] bg-[linear-gradient(100deg,#0b3122,#174f35)] px-7 py-5 text-white lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-        <span className="grid gap-0.5">
-          <em className="text-[11px] font-semibold not-italic uppercase tracking-[0.14em] text-[#d8f36b]">Live tournament standings</em>
-          <h2 className="text-[36px] font-semibold leading-tight">Team leaderboard</h2>
-          <p className="text-[14px] text-white/62">Every submitted result updates the rankings: match wins, set percentage, then game percentage.</p>
-        </span>
-        <strong className="rounded-full border border-white/12 bg-white/10 px-5 py-3 text-[15px] font-semibold text-[#d8f36b]">{completedMatches}/{totalMatches} results final</strong>
-      </header>
-      <div className="grid gap-2 p-4">
-        <div className="grid grid-cols-[62px_minmax(300px,1fr)_110px_110px_130px_130px] items-center gap-2 px-5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
-          <span>Rank</span><span>Team</span><span className="text-center">Wins</span><span className="text-center">Losses</span><span className="text-center">Set %</span><span className="text-center">Game %</span>
-        </div>
-        {standings.map((standing) => (
-          <article className={`${standing.seed === 1 ? "border-[#bfdc72] bg-[#f1f8df]" : "border-[#e0e7dc] bg-[#f7f9f5]"} grid min-h-[76px] grid-cols-[62px_minmax(300px,1fr)_110px_110px_130px_130px] items-center gap-2 rounded-[15px] border px-5 py-2.5`} key={standing.team.id}>
-            <strong className={standing.seed === 1 ? "grid h-11 w-11 place-items-center rounded-full bg-brand text-[20px] font-semibold text-[#d8f36b]" : "grid h-11 w-11 place-items-center rounded-full bg-white text-[20px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(24,58,43,0.09)]"}>{standing.seed}</strong>
-            <span className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)] items-center gap-3.5">
-              <span className="relative grid h-12 w-12 place-items-center overflow-hidden rounded-[11px] bg-white p-1 text-[10px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(24,58,43,0.07)]">{standing.team.logoUrl ? <NextImage src={standing.team.logoUrl} alt="" fill sizes="48px" className="object-contain p-1" /> : getInitials(standing.team.name)}</span>
-              <span className="grid min-w-0 gap-1"><strong className="truncate text-[21px] font-semibold text-text-primary">{standing.team.name}</strong><em className="text-[11px] not-italic text-text-secondary">{standing.completedMatches}/{standing.scheduledMatches} matches played</em></span>
-            </span>
-            <TvLeaderboardValue value={String(standing.matchWins)} />
-            <TvLeaderboardValue value={String(standing.matchLosses)} />
-            <TvLeaderboardValue value={`${formatBracketPercentage(standing.setWinPercentage)}%`} />
-            <TvLeaderboardValue value={`${formatBracketPercentage(standing.gameWinPercentage)}%`} />
-          </article>
-        ))}
+    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[clamp(16px,1.25vw,24px)] border border-[#cfd8cf] bg-[linear-gradient(135deg,#edf1ed,#ffffff)] p-[clamp(12px,1vw,20px)] text-center shadow-[0_16px_40px_rgba(24,58,43,0.08)]">
+      <TvBlockNavigator activeIndex={activeIndex} isManual={isManual} nodes={nodes} onSelectNode={onSelectNode} onUseAutomatic={onUseAutomatic} />
+      <div className="grid min-h-0 place-items-center p-[clamp(16px,2vw,40px)]">
+      <span className="grid max-w-[760px] justify-items-center gap-[clamp(10px,1vh,18px)]">
+        <span className="grid h-[clamp(64px,5vw,104px)] w-[clamp(64px,5vw,104px)] place-items-center rounded-full bg-brand text-[#d8f36b]"><Clock className="h-1/2 w-1/2" /></span>
+        <em className={isLive ? "inline-flex items-center gap-2 text-[clamp(13px,0.85vw,19px)] font-semibold not-italic uppercase tracking-[0.12em] text-[#bd542f]" : "text-[clamp(13px,0.85vw,19px)] font-semibold not-italic uppercase tracking-[0.12em] text-text-secondary"}>{isLive && <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#bd542f]" />}{isLive ? "Happening now" : "Day milestone"}</em>
+        <strong className="text-[clamp(34px,3vw,68px)] font-semibold leading-tight tracking-[-0.04em] text-brand">{event ? getScheduleMilestoneLabel(event) : "Tournament gathering"}</strong>
+        <time className="text-[clamp(22px,1.6vw,36px)] font-semibold tabular-nums text-text-secondary">{event?.timeLabel || "Time to be announced"}</time>
+        {event?.detail && <p className="text-[clamp(16px,1vw,24px)] leading-relaxed text-text-secondary">{event.detail}</p>}
+      </span>
       </div>
     </section>
   );
 }
 
-function TvPlayerLeaderboardScene({ standings }: { standings: PlayerStanding[] }) {
-  const tierGroups = Array.from(standings.reduce((groups, standing) => {
-    const current = groups.get(standing.tierNumber) || [];
-    current.push(standing);
-    groups.set(standing.tierNumber, current);
-    return groups;
-  }, new Map<number, PlayerStanding[]>())).sort(([left], [right]) => left - right);
-
+function TvDayOneLeadersPanel({ teamStanding, tierLeaders }: { teamStanding: TeamStanding | null; tierLeaders: PlayerStanding[] }) {
+  const teamPlayed = teamStanding ? teamStanding.matchWins + teamStanding.matchLosses : 0;
+  const teamWinPercentage = teamStanding && teamPlayed ? (teamStanding.matchWins / teamPlayed) * 100 : 0;
+  const teamTone = getTeamCardTone(teamStanding?.team.jerseyColor || DEFAULT_TEAM_COLOR);
   return (
-    <section className="overflow-hidden rounded-[22px] border border-[#d3dfcd] bg-white shadow-[0_18px_44px_rgba(24,58,43,0.10)]">
-      <header className="grid gap-1.5 border-b border-[#dce5d7] bg-[linear-gradient(100deg,#0b3122,#174f35)] px-7 py-5 text-white">
-        <em className="text-[11px] font-semibold not-italic uppercase tracking-[0.14em] text-[#d8f36b]">Top performers by playing tier</em>
-        <h2 className="text-[36px] font-semibold leading-tight">Player leaderboard</h2>
-        <p className="text-[14px] text-white/62">Singles and doubles count. Each tier ranks independently by wins, set percentage, then game percentage.</p>
+    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[clamp(16px,1.25vw,24px)] border border-[#bfd676] bg-[linear-gradient(135deg,#f4fadf,#ffffff)] p-[clamp(14px,1.2vw,24px)] shadow-[0_16px_40px_rgba(24,58,43,0.08)]">
+      <header className="flex items-end justify-between gap-4 pb-[clamp(10px,1vh,18px)]">
+        <span className="grid gap-0.5"><em className="text-[clamp(12px,0.75vw,17px)] font-semibold not-italic uppercase tracking-[0.12em] text-[#55720f]">Day 1 complete</em><strong className="text-[clamp(24px,1.9vw,42px)] font-semibold leading-none text-brand">Day 1 leaders</strong></span>
+        <span className="rounded-full bg-brand px-4 py-2 text-[clamp(12px,0.75vw,17px)] font-semibold text-white">Final standings</span>
       </header>
-      <div className="grid gap-4 bg-[#eef3ea] p-4 lg:grid-cols-2 2xl:grid-cols-4">
-        {tierGroups.map(([tierNumber, tierStandings]) => (
-          <section className="overflow-hidden rounded-[17px] border border-[#d5dfd0] bg-white" key={tierNumber}>
-            <header className="flex items-center justify-between gap-2 border-b border-[#e0e7dc] bg-[#f5f8f2] px-4 py-3">
-              <strong className="rounded-full bg-[#d8f36b] px-3.5 py-1.5 text-[14px] font-semibold text-brand">{tierNumber === 99 ? "Tier TBD" : `Tier ${tierNumber}`}</strong>
-              <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.07em] text-text-muted">Top {Math.min(4, tierStandings.length)}</em>
-            </header>
-            <div className="grid gap-2 p-2.5">
-              {tierStandings.slice(0, 4).map((standing) => {
-                const winPercentage = standing.completedMatches ? (standing.matchWins / standing.completedMatches) * 100 : 0;
-                return (
-                  <article className={`${standing.tierRank === 1 ? "bg-[#f0f7dc] ring-1 ring-[#c8df88]" : "bg-[#f7f9f5]"} grid min-h-[82px] grid-cols-[34px_44px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[13px] px-3 py-2.5`} key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`}>
-                    <strong className={standing.tierRank === 1 ? "grid h-8 w-8 place-items-center rounded-full bg-brand text-[14px] font-semibold text-[#d8f36b]" : "grid h-8 w-8 place-items-center rounded-full bg-white text-[14px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(24,58,43,0.08)]"}>{standing.tierRank}</strong>
-                    <Avatar className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-brand text-[10px] font-semibold text-white" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="44px" />
-                    <span className="grid min-w-0 gap-1"><strong className="truncate text-[15px] font-semibold text-text-primary">{standing.player.name}</strong><em className="truncate text-[10px] not-italic text-text-secondary">{standing.team.name} · {standing.completedMatches} played</em></span>
-                    <span className="grid min-w-[66px] justify-items-end gap-0.5"><strong className="text-[16px] font-semibold text-brand">{standing.matchWins}W–{standing.matchLosses}L</strong><em className="text-[9px] not-italic text-text-muted">{formatBracketPercentage(winPercentage)}% wins</em></span>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        ))}
+      <div className="grid min-h-0 grid-cols-[minmax(240px,0.8fr)_minmax(420px,1.2fr)] gap-[clamp(10px,0.8vw,18px)]">
+        {teamStanding ? (
+          <article className="grid min-h-0 content-center justify-items-center gap-[clamp(8px,0.8vh,14px)] rounded-[18px] px-[clamp(18px,1.5vw,30px)] py-[clamp(14px,1.5vh,26px)] text-center shadow-[0_14px_30px_rgba(24,58,43,0.12)]" style={{ background: teamTone.background, color: teamTone.textColor }}>
+            <em className="text-[clamp(11px,0.7vw,16px)] font-semibold not-italic uppercase tracking-[0.11em] opacity-75">Top team</em>
+            <TvTeamMark large team={teamStanding.team} />
+            <strong className="text-[clamp(22px,1.6vw,35px)] font-semibold leading-tight">{teamStanding.team.name}</strong>
+            <span className="grid w-full grid-cols-2 gap-2"><span className="rounded-[12px] bg-white/85 px-3 py-2 text-brand"><strong className="block text-[clamp(20px,1.4vw,30px)]">{teamStanding.matchWins}–{teamStanding.matchLosses}</strong><em className="text-[clamp(9px,0.58vw,13px)] font-semibold not-italic uppercase tracking-[0.08em]">Win–loss</em></span><span className="rounded-[12px] bg-white/85 px-3 py-2 text-brand"><strong className="block text-[clamp(20px,1.4vw,30px)]">{formatBracketPercentage(teamWinPercentage)}%</strong><em className="text-[clamp(9px,0.58vw,13px)] font-semibold not-italic uppercase tracking-[0.08em]">Win rate</em></span></span>
+          </article>
+        ) : <div className="grid place-items-center rounded-[18px] border border-dashed border-[#c8d0c8] bg-white/65 p-5 text-center text-[clamp(15px,0.95vw,21px)] font-semibold text-brand">Team standings are being finalized.</div>}
+        <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-[18px] border border-[#dce4d8] bg-white p-[clamp(12px,1vw,20px)]">
+          <strong className="pb-2 text-[clamp(15px,1vw,22px)] font-semibold text-brand">Top player from each tier</strong>
+          <div className="grid min-h-0 grid-cols-2 content-center gap-[clamp(8px,0.65vw,13px)]">
+            {tierLeaders.map((standing) => (
+              <article className="grid min-h-[clamp(76px,7vh,108px)] grid-cols-[clamp(42px,3vw,58px)_minmax(0,1fr)] items-center gap-3 rounded-[14px] bg-[#f3f6f0] px-3 py-2" key={`${standing.tierNumber}:${standing.player.playerId || standing.player.id}`}>
+                <Avatar className="relative grid h-[clamp(42px,3vw,58px)] w-[clamp(42px,3vw,58px)] place-items-center overflow-hidden rounded-full bg-brand text-[clamp(11px,0.75vw,16px)] font-semibold text-white" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="58px" />
+                <span className="grid min-w-0 gap-0.5"><em className="text-[clamp(10px,0.62vw,14px)] font-semibold not-italic uppercase tracking-[0.08em] text-[#55720f]">{standing.tier}</em><strong className="truncate text-[clamp(14px,0.92vw,20px)] font-semibold text-text-primary">{standing.player.name}</strong><span className="truncate text-[clamp(11px,0.68vw,15px)] text-text-secondary">{standing.matchWins}–{standing.matchLosses} · {standing.team.name}</span></span>
+              </article>
+            ))}
+            {!tierLeaders.length && <p className="col-span-2 rounded-[14px] border border-dashed border-[#c8d0c8] p-4 text-center text-[clamp(14px,0.9vw,20px)] text-text-secondary">Tier leaders will appear as final results are processed.</p>}
+          </div>
+        </section>
       </div>
     </section>
+  );
+}
+
+function TvDayCompletePanel({ selectedDay, selectedMatches, completedMatches }: { selectedDay: 1 | 2; selectedMatches: TeamCourtScheduleMatch[]; completedMatches: number }) {
+  const courts = new Set(selectedMatches.map((match) => match.courtLabel).filter(Boolean)).size;
+  return (
+    <section className="grid min-h-0 place-items-center overflow-hidden rounded-[clamp(16px,1.25vw,24px)] border border-[#bfd676] bg-[linear-gradient(135deg,#eff8d7,#ffffff)] p-[clamp(24px,3vw,64px)] text-center shadow-[0_16px_40px_rgba(24,58,43,0.08)]">
+      <span className="grid max-w-[820px] justify-items-center gap-[clamp(10px,1vh,18px)]">
+        <span className="grid h-[clamp(68px,5vw,110px)] w-[clamp(68px,5vw,110px)] place-items-center rounded-full bg-brand text-[#d8f36b]"><CheckCircle2 className="h-1/2 w-1/2" /></span>
+        <em className="text-[clamp(13px,0.85vw,19px)] font-semibold not-italic uppercase tracking-[0.14em] text-[#52720e]">Day {selectedDay} complete</em>
+        <strong className="text-[clamp(38px,3.1vw,72px)] font-semibold leading-none tracking-[-0.04em] text-brand">Every result is in</strong>
+        <span className="mt-2 grid grid-cols-3 gap-3">
+          <TvSummaryStat label="Matches" value={completedMatches} />
+          <TvSummaryStat label="Courts" value={courts} />
+          <TvSummaryStat label="Results" value="100%" />
+        </span>
+      </span>
+    </section>
+  );
+}
+
+function TvSummaryStat({ label, value }: { label: string; value: string | number }) {
+  return <span className="grid min-w-[clamp(110px,8vw,180px)] gap-1 rounded-[16px] border border-white bg-white/85 px-5 py-3 shadow-[0_8px_20px_rgba(24,58,43,0.06)]"><strong className="text-[clamp(24px,1.8vw,40px)] font-semibold leading-none text-brand">{value}</strong><em className="text-[clamp(10px,0.65vw,15px)] font-semibold not-italic uppercase tracking-[0.08em] text-text-secondary">{label}</em></span>;
+}
+
+function TvNextBlockPanel({ node, selectedDay, teams }: { node: TvTimelineNode | null; selectedDay: 1 | 2; teams: PublishedTeam[] }) {
+  const upcomingMatches = (node?.matches || []).filter((match) => !match.score?.winnerSide);
+  return (
+    <section className="min-h-0 overflow-hidden rounded-[clamp(16px,1.25vw,24px)] border border-[#d7ded5] bg-white/58 py-[clamp(12px,1vh,20px)]">
+      <TvPanelHeading eyebrow={node ? `Up next · ${node.label}` : selectedDay === 1 ? "Up next · Day 2" : "Tournament finish"} time={node?.timeLabel || "—"} tone="upcoming" />
+      <div className="grid gap-[clamp(6px,0.55vh,10px)] overflow-hidden px-[clamp(10px,0.8vw,16px)]">
+        {upcomingMatches.map((match) => <TvNextMatchRow match={match} teams={teams} key={match.id} />)}
+        {!node && <div className="grid min-h-[180px] content-center gap-2 rounded-[16px] border-2 border-dashed border-[#c8d0c8] bg-[#f5f7f3] p-5 text-center"><strong className="text-[clamp(18px,1.2vw,28px)] font-semibold text-brand">{selectedDay === 1 ? "Day 2 bracket follows" : "Tournament schedule complete"}</strong><p className="text-[clamp(13px,0.85vw,18px)] leading-relaxed text-text-secondary">{selectedDay === 1 ? "Pairings publish automatically when Day 1 seeding is final." : "Final standings and the champion celebration remain available on screen."}</p></div>}
+        {node && !upcomingMatches.length && <div className="rounded-[14px] border border-dashed border-[#c8d0c8] bg-[#f5f7f3] p-4 text-center text-[clamp(13px,0.82vw,18px)] text-text-secondary">This block is already completed. The following block will appear automatically.</div>}
+      </div>
+    </section>
+  );
+}
+
+function TvDayRemainingPanel({ matches, timelineNodes }: { matches: TeamCourtScheduleMatch[]; timelineNodes: TvTimelineNode[] }) {
+  const groups = Object.entries(groupTeamMatchesByTime(matches)).sort(([left], [right]) => getScheduleTimeSortValue(left) - getScheduleTimeSortValue(right));
+  return (
+    <section className="min-h-0 overflow-hidden rounded-[clamp(16px,1.25vw,24px)] border border-[#d8dfd6] bg-[#eef2ec] py-[clamp(12px,1vh,20px)]">
+      <header className="flex items-center justify-between gap-2 px-[clamp(12px,0.9vw,18px)] pb-[clamp(9px,0.7vh,14px)]"><span className="grid"><strong className="text-[clamp(13px,0.82vw,18px)] font-semibold uppercase tracking-[0.08em] text-brand">Full day remaining</strong><em className="text-[clamp(10px,0.62vw,14px)] not-italic text-text-secondary">Every later court block</em></span><span className="rounded-full bg-white px-3 py-1.5 text-[clamp(12px,0.75vw,17px)] font-semibold text-brand">{matches.length}</span></header>
+      <div className="grid gap-[clamp(6px,0.55vh,10px)] overflow-hidden px-[clamp(10px,0.8vw,16px)]">
+        {groups.map(([timeLabel, blockMatches]) => {
+          const node = timelineNodes.find((candidate) => candidate.kind === "matches" && candidate.timeLabel === timeLabel);
+          const courts = blockMatches.map((match) => formatCourtNumber(match.courtLabel)).filter(Boolean).join(", ");
+          return <article className="grid gap-1 rounded-[12px] border border-[#dfe5de] bg-white px-3 py-2.5" key={timeLabel}><span className="flex items-center justify-between gap-2"><strong className="text-[clamp(15px,0.95vw,21px)] font-semibold tabular-nums text-brand">{timeLabel}</strong><span className="rounded-full bg-brand-light px-2 py-1 text-[clamp(10px,0.62vw,14px)] font-semibold text-[#466c1b]">{blockMatches.length} matches</span></span><em className="truncate text-[clamp(11px,0.68vw,15px)] font-semibold not-italic text-text-secondary">{node?.label || "Court block"}</em><span className="truncate text-[clamp(10px,0.62vw,14px)] text-text-muted">Courts {courts || "TBD"}</span></article>;
+        })}
+        {!groups.length && <div className="grid min-h-[160px] place-items-center rounded-[14px] border border-dashed border-[#c8d0c8] bg-white/65 p-4 text-center text-[clamp(14px,0.9vw,20px)] font-semibold text-brand">No matches remain today.</div>}
+      </div>
+    </section>
+  );
+}
+
+function TvDayTwoGlancePanel({ matches, node, selectedDay, teams }: { matches: TeamCourtScheduleMatch[]; node: TvTimelineNode | null; selectedDay: 1 | 2; teams: PublishedTeam[] }) {
+  const groups = Object.entries(groupTeamMatchesByTime(matches.filter((match) => !match.score?.winnerSide))).sort(([left], [right]) => getScheduleTimeSortValue(left) - getScheduleTimeSortValue(right));
+  const firstMatches = node?.matches.filter((match) => !match.score?.winnerSide).slice(0, 3) || [];
+  return (
+    <section className="min-h-0 overflow-hidden rounded-[clamp(16px,1.25vw,24px)] border border-[#bfd676] bg-[linear-gradient(145deg,#f2f9db,#ffffff)] py-[clamp(12px,1vh,20px)] shadow-[0_14px_32px_rgba(24,58,43,0.07)]">
+      <header className="grid gap-1 px-[clamp(14px,1vw,22px)] pb-[clamp(10px,0.8vh,16px)]"><em className="text-[clamp(11px,0.68vw,15px)] font-semibold not-italic uppercase tracking-[0.1em] text-[#55720f]">{selectedDay === 1 ? "Get ready" : "Tournament complete"}</em><strong className="text-[clamp(22px,1.5vw,34px)] font-semibold leading-tight text-brand">{selectedDay === 1 ? "Day 2 at a glance" : "All scheduled matches completed"}</strong>{selectedDay === 1 && <span className="text-[clamp(12px,0.75vw,17px)] text-text-secondary">{matches.length ? `${matches.length} matches across ${groups.length} court blocks` : "Pairings will publish when seeding is final."}</span>}</header>
+      <div className="grid gap-[clamp(7px,0.6vh,11px)] overflow-hidden px-[clamp(10px,0.8vw,16px)]">
+        {firstMatches.map((match) => <TvNextMatchRow match={match} teams={teams} key={match.id} />)}
+        {groups.slice(firstMatches.length ? 1 : 0, firstMatches.length ? 4 : 5).map(([timeLabel, blockMatches]) => <article className="flex items-center justify-between gap-3 rounded-[12px] border border-[#dfe6d9] bg-white px-3 py-2.5" key={timeLabel}><span className="grid"><strong className="text-[clamp(14px,0.9vw,20px)] font-semibold text-brand">{timeLabel}</strong><em className="text-[clamp(10px,0.62vw,14px)] not-italic text-text-secondary">Later Day 2 block</em></span><strong className="rounded-full bg-brand-light px-2.5 py-1 text-[clamp(11px,0.68vw,15px)] text-[#466c1b]">{blockMatches.length} matches</strong></article>)}
+        {selectedDay === 1 && !matches.length && <div className="grid min-h-[210px] place-items-center rounded-[16px] border-2 border-dashed border-[#c7d3bd] bg-white/65 p-5 text-center text-[clamp(16px,1vw,23px)] font-semibold text-brand">Day 2 matchups will appear here automatically.</div>}
+      </div>
+    </section>
+  );
+}
+
+function TvLiveMatchCard({ match, teams, isLive }: { match: TeamCourtScheduleMatch; teams: PublishedTeam[]; isLive: boolean }) {
+  const score = match.score;
+  const leftWon = score?.winnerSide === "A";
+  const rightWon = score?.winnerSide === "B";
+  const teamA = teams.find((team) => team.id === match.teamAId);
+  const teamB = teams.find((team) => team.id === match.teamBId);
+  return (
+    <article className={isLive ? "overflow-hidden rounded-[14px] border-2 border-[#d38a6d] bg-white shadow-[0_8px_20px_rgba(189,84,47,0.10)]" : "overflow-hidden rounded-[14px] border border-[#dfe4dd] bg-white"}>
+      <header className="flex items-center justify-between gap-3 border-b border-[#e3e7e1] px-3 py-2">
+        <span className="inline-flex min-w-0 items-center gap-2"><strong className="text-[clamp(14px,0.9vw,20px)] font-semibold text-brand">{match.courtLabel || "Court TBD"}</strong><em className="truncate text-[clamp(10px,0.62vw,14px)] font-semibold not-italic uppercase text-text-muted">{match.format}</em></span>
+        <span className={score?.winnerSide ? "rounded-full bg-brand-light px-2.5 py-1 text-[clamp(10px,0.62vw,14px)] font-semibold uppercase text-[#3b6d11]" : isLive ? "inline-flex items-center gap-1.5 rounded-full bg-[#fae8df] px-2.5 py-1 text-[clamp(10px,0.62vw,14px)] font-semibold uppercase text-[#b14d2b]" : "rounded-full bg-[#eef1ed] px-2.5 py-1 text-[clamp(10px,0.62vw,14px)] font-semibold uppercase text-text-secondary"}>{isLive && <span className="h-2 w-2 animate-pulse rounded-full bg-[#bd542f]" />}{score?.winnerSide ? "Completed" : isLive ? "Live" : "Upcoming"}</span>
+      </header>
+      <div className="grid gap-1.5 p-2.5">
+        <TvLiveScoreRow fallback={match.teamAName} isWinner={leftWon} players={match.playersA} scores={[score?.sideASet1, score?.sideASet2, score?.sideASet3]} team={teamA} />
+        <TvLiveScoreRow fallback={match.teamBName} isWinner={rightWon} players={match.playersB} scores={[score?.sideBSet1, score?.sideBSet2, score?.sideBSet3]} team={teamB} />
+        {score?.winnerSide && <span className="justify-self-end rounded-full bg-[#f2f8df] px-3 py-1 text-[clamp(11px,0.7vw,16px)] font-semibold tabular-nums text-brand">Win margin {getTvWinMargin(match)}</span>}
+      </div>
+    </article>
+  );
+}
+
+function TvLiveScoreRow({ team, fallback, players, scores, isWinner }: { team?: PublishedTeam; fallback: string; players: string[]; scores: Array<number | null | undefined>; isWinner: boolean }) {
+  return (
+    <div className={isWinner ? "grid min-h-[clamp(44px,4vh,62px)] grid-cols-[minmax(0,1fr)_repeat(3,clamp(30px,2.1vw,44px))] items-center gap-1.5 rounded-[10px] bg-[#f1f9d8] px-2" : "grid min-h-[clamp(44px,4vh,62px)] grid-cols-[minmax(0,1fr)_repeat(3,clamp(30px,2.1vw,44px))] items-center gap-1.5 rounded-[10px] bg-[#f3f5f2] px-2"}>
+      <span className="grid min-w-0 grid-cols-[clamp(28px,2vw,40px)_minmax(0,1fr)] items-center gap-2">
+        <span className="relative grid aspect-square place-items-center overflow-hidden rounded-[8px] bg-white text-[10px] font-semibold text-brand">{team?.logoUrl ? <NextImage src={team.logoUrl} alt="" fill sizes="40px" className="object-contain p-1" /> : getInitials(team?.name || fallback)}</span>
+        <strong className="line-clamp-2 text-[clamp(12px,0.78vw,17px)] font-semibold leading-tight text-text-primary">{formatBracketPlayerNames(players, fallback)}</strong>
+      </span>
+      {scores.map((value, index) => <strong className="grid aspect-square place-items-center rounded-[8px] bg-white text-[clamp(15px,1vw,22px)] font-semibold tabular-nums text-brand shadow-[inset_0_0_0_1px_rgba(24,58,43,0.05)]" key={index}>{value ?? "–"}</strong>)}
+    </div>
+  );
+}
+
+function getTvWinMargin(match: TeamCourtScheduleMatch) {
+  const score = match.score;
+  if (!score?.winnerSide) return "—";
+  const sideA = [score.sideASet1, score.sideASet2].reduce<number>((total, value) => total + (value || 0), score.sideASet3 != null && score.sideBSet3 != null && score.sideASet3 > score.sideBSet3 ? 1 : 0);
+  const sideB = [score.sideBSet1, score.sideBSet2].reduce<number>((total, value) => total + (value || 0), score.sideASet3 != null && score.sideBSet3 != null && score.sideBSet3 > score.sideASet3 ? 1 : 0);
+  return score.winnerSide === "A" ? `${sideA}–${sideB}` : `${sideB}–${sideA}`;
+}
+
+function TvLeadersTicker({ teamStandings, playerStandings }: { teamStandings: TeamStanding[]; playerStandings: PlayerStanding[] }) {
+  return (
+    <section className="grid min-h-[clamp(58px,5.7vh,86px)] grid-cols-2 overflow-hidden rounded-[clamp(14px,1vw,20px)] bg-brand text-white shadow-[0_10px_24px_rgba(12,59,32,0.14)]">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[clamp(12px,1vw,22px)] border-r border-white/12 px-[clamp(16px,1.4vw,28px)]"><strong className="text-[clamp(12px,0.75vw,17px)] uppercase tracking-[0.08em] text-[#d8f36b]">Team leaders</strong><span className="grid grid-cols-3 gap-2">{teamStandings.slice(0, 3).map((standing) => <TvTickerChip rank={standing.seed} title={standing.team.name} value={`${standing.matchWins}–${standing.matchLosses}`} key={standing.team.id} />)}</span></div>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[clamp(12px,1vw,22px)] px-[clamp(16px,1.4vw,28px)]"><strong className="text-[clamp(12px,0.75vw,17px)] uppercase tracking-[0.08em] text-[#d8f36b]">Player leaders</strong><span className="grid grid-cols-3 gap-2">{playerStandings.slice(0, 3).map((standing, index) => <TvTickerChip rank={index + 1} title={standing.player.name} value={standing.player.rating || "—"} key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`} />)}</span></div>
+    </section>
+  );
+}
+
+function TvTickerChip({ rank, title, value }: { rank: number; title: string; value: string }) {
+  return <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-full bg-white/10 px-2.5 py-1.5"><strong className="grid h-[clamp(24px,1.6vw,34px)] w-[clamp(24px,1.6vw,34px)] place-items-center rounded-full bg-[#d8f36b] text-[clamp(11px,0.7vw,16px)] text-brand">{rank}</strong><span className="truncate text-[clamp(12px,0.78vw,17px)] font-semibold">{title}</span><em className="text-[clamp(11px,0.7vw,16px)] font-semibold not-italic text-white/58">{value}</em></span>;
+}
+
+function TvSponsorStrip({ sponsors }: { sponsors: TvSponsorSpotlight[] }) {
+  return (
+    <section className="flex min-h-[clamp(58px,5.8vh,86px)] items-center gap-[clamp(18px,1.5vw,32px)] overflow-hidden rounded-[clamp(14px,1vw,20px)] border border-[#dce2da] bg-white/72 px-[clamp(16px,1.3vw,28px)] text-text-secondary shadow-[0_8px_24px_rgba(24,58,43,0.05)]">
+      <strong className="shrink-0 text-[clamp(12px,0.75vw,17px)] uppercase tracking-[0.1em] text-brand">Tournament partners</strong>
+      <span className="flex min-w-0 flex-1 items-center justify-around gap-[clamp(20px,2.5vw,54px)] overflow-hidden">{sponsors.slice(0, 8).map((sponsor) => <span className="inline-flex min-w-0 items-center justify-center gap-2" key={sponsor.id}>{sponsor.logoUrl ? <img className="h-[clamp(42px,4.4vh,68px)] max-w-[clamp(110px,10vw,210px)] object-contain" src={sponsor.logoUrl} alt={`${sponsor.name} logo`} /> : <strong className="truncate text-[clamp(15px,0.95vw,21px)] font-semibold text-brand">{sponsor.name}</strong>}</span>)}</span>
+      {!sponsors.length && <em className="text-[clamp(11px,0.7vw,16px)] not-italic">Partner logos appear here when published.</em>}
+    </section>
+  );
+}
+
+function TvSponsorSpotlightScene({ sponsors, activeIndex }: { sponsors: TvSponsorSpotlight[]; activeIndex: number }) {
+  const sponsor = sponsors[activeIndex] || sponsors[0] || null;
+  if (!sponsor) return <section className="grid h-full place-items-center rounded-[28px] border border-[#d7ded5] bg-white"><span className="grid justify-items-center gap-3 text-center"><Trophy className="h-16 w-16 text-brand" /><strong className="text-[clamp(34px,3vw,64px)] font-semibold text-brand">Tournament partners</strong><p className="text-[clamp(18px,1.2vw,28px)] text-text-secondary">Sponsor spotlights will appear as partner profiles are published.</p></span></section>;
+  const qrUrl = sponsor.websiteUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=480x480&margin=12&data=${encodeURIComponent(sponsor.websiteUrl)}` : "";
+  return (
+    <section className="grid h-full place-items-center">
+      <article className={qrUrl ? "grid w-[min(1200px,82vw)] grid-cols-[minmax(0,1.4fr)_minmax(300px,0.6fr)] items-center gap-[clamp(32px,4vw,76px)] rounded-[clamp(26px,2vw,42px)] border border-white bg-white px-[clamp(48px,5vw,96px)] py-[clamp(44px,5vh,88px)] shadow-[0_30px_80px_rgba(24,58,43,0.13)]" : "grid w-[min(920px,72vw)] place-items-center rounded-[clamp(26px,2vw,42px)] border border-white bg-white px-[clamp(58px,6vw,118px)] py-[clamp(56px,7vh,118px)] text-center shadow-[0_30px_80px_rgba(24,58,43,0.13)]"}>
+        <span className={qrUrl ? "grid min-w-0 gap-[clamp(14px,1.6vh,28px)]" : "grid max-w-[760px] justify-items-center gap-[clamp(14px,1.6vh,28px)]"}>
+          <em className="inline-flex items-center gap-2 text-[clamp(14px,0.9vw,21px)] font-semibold not-italic uppercase tracking-[0.12em] text-brand"><span className="h-2.5 w-2.5 rounded-full bg-[#d8f36b]" />Tournament partner</em>
+          {sponsor.logoUrl && <img className={qrUrl ? "max-h-[clamp(90px,10vh,180px)] max-w-[80%] object-contain object-left" : "max-h-[clamp(130px,15vh,250px)] max-w-[85%] object-contain"} src={sponsor.logoUrl} alt={`${sponsor.name} logo`} />}
+          <h2 className="break-words text-[clamp(42px,4vw,88px)] font-semibold leading-[0.98] tracking-[-0.05em] text-brand">{sponsor.name || "Tournament partner"}</h2>
+          <p className="text-[clamp(19px,1.35vw,30px)] leading-relaxed text-text-secondary">Proud tournament partner — supporting players, community, and every match.</p>
+          <strong className="w-max max-w-full rounded-full bg-[#f1f9d7] px-5 py-2.5 text-[clamp(15px,1vw,22px)] font-semibold text-[#315f18]">Official sponsor of {sponsor.teamName}</strong>
+          <span className="flex gap-2 pt-2" aria-label={`Sponsor ${Math.min(activeIndex + 1, sponsors.length)} of ${sponsors.length}`}>{sponsors.map((item, index) => <span className={index === activeIndex ? "h-3 w-3 rounded-full bg-brand" : "h-3 w-3 rounded-full bg-[#dfe4df]"} key={item.id} />)}</span>
+        </span>
+        {qrUrl && <span className="grid justify-items-center gap-3 text-center"><img className="aspect-square w-[min(26vw,330px)] rounded-[24px] border-4 border-brand bg-white p-3" src={qrUrl} alt={`QR code for ${sponsor.name} website`} /><strong className="text-[clamp(15px,1vw,22px)] font-semibold text-brand">Scan to visit {sponsor.name}</strong><em className="max-w-[360px] truncate text-[clamp(12px,0.72vw,17px)] not-italic text-text-secondary">{sponsor.websiteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}</em></span>}
+      </article>
+    </section>
+  );
+}
+
+function TvNextMatchRow({ match, teams }: { match: TeamCourtScheduleMatch; teams: PublishedTeam[] }) {
+  const ballTeam = getBallTeamForMatchup(match.dayNumber, match.teamAId, match.teamBId, match.id, teams);
+  return (
+    <article className="grid gap-2 rounded-[12px] border-2 border-dashed border-[#cbd5ca] bg-[#f7f9f5] p-[clamp(9px,0.75vw,14px)]">
+      <span className="flex items-center justify-between gap-2"><strong className="rounded-[8px] bg-brand px-2.5 py-1.5 text-[clamp(11px,0.68vw,15px)] font-semibold text-white">{match.courtLabel || "Court TBD"}</strong><em className="text-[clamp(10px,0.62vw,14px)] font-semibold not-italic uppercase tracking-[0.07em] text-text-secondary">{match.format}</em></span>
+      <span className="grid min-w-0 gap-1.5">
+        <strong className="line-clamp-2 text-[clamp(13px,0.82vw,18px)] font-semibold leading-tight text-text-primary">{formatBracketPlayerNames(match.playersA, match.teamAName)}</strong>
+        <span className="inline-flex min-w-0 items-center gap-2"><em className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[clamp(9px,0.56vw,13px)] font-semibold not-italic uppercase tracking-[0.08em] text-text-muted">vs</em><strong className="line-clamp-2 text-[clamp(13px,0.82vw,18px)] font-semibold leading-tight text-text-primary">{formatBracketPlayerNames(match.playersB, match.teamBName)}</strong></span>
+      </span>
+      <span className="flex min-w-0 items-center gap-2 rounded-[9px] bg-[#eaf2df] px-2.5 py-1.5 text-[clamp(10px,0.64vw,14px)] font-semibold text-brand"><TennisBallIcon className="h-4 w-4 shrink-0" /><span className="truncate">Balls: {ballTeam?.name || "To be assigned"}</span></span>
+    </article>
+  );
+}
+
+function TvTeamLeaderboardScene({ standings }: { standings: TeamStanding[] }) {
+  const podium = [standings[1], standings[0], standings[2]].filter(Boolean);
+  return (
+    <section className="grid h-full min-h-0 grid-rows-[minmax(260px,0.9fr)_minmax(300px,1.1fr)] gap-[clamp(16px,1.8vh,30px)]" aria-label="Team leaderboard">
+      <div className="flex min-h-0 items-end justify-center gap-[clamp(18px,2vw,42px)] px-[clamp(50px,7vw,140px)]">
+        {podium.map((standing) => <TvTeamPodiumCard standing={standing} key={standing.team.id} />)}
+      </div>
+      <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[clamp(18px,1.4vw,28px)] border border-[#dce2da] bg-white shadow-[0_14px_34px_rgba(24,58,43,0.07)]">
+        <div className="grid h-[clamp(36px,4vh,52px)] grid-cols-[76px_minmax(330px,1.6fr)_repeat(4,minmax(110px,0.6fr))] items-center gap-3 border-b border-[#dfe5dd] bg-[#f6f8f4] px-[clamp(20px,1.8vw,38px)] text-[clamp(12px,0.72vw,16px)] font-semibold uppercase tracking-[0.08em] text-text-secondary">
+          <span>Rank</span><span>Team</span><span className="text-center">Played</span><span className="text-center">Won</span><span className="text-center">Lost</span><span className="text-center">Win %</span>
+        </div>
+        <div className="grid min-h-0 grid-rows-6">
+          {standings.slice(0, 6).map((standing) => {
+            const played = standing.matchWins + standing.matchLosses;
+            const winPercentage = played ? (standing.matchWins / played) * 100 : 0;
+            const captain = standing.team.members.find((member) => member.isCaptain)?.name || "Captain TBD";
+            return (
+              <article className={`${standing.seed === 1 ? "bg-[#f1f9cf]" : "bg-white"} grid min-h-0 grid-cols-[76px_minmax(330px,1.6fr)_repeat(4,minmax(110px,0.6fr))] items-center gap-3 border-b border-[#e8ece7] px-[clamp(20px,1.8vw,38px)] last:border-0`} key={standing.team.id}>
+                <strong className="text-[clamp(18px,1.15vw,26px)] font-semibold text-text-secondary">{standing.seed}</strong>
+                <span className="grid min-w-0 grid-cols-[clamp(42px,3vw,58px)_minmax(0,1fr)] items-center gap-[clamp(12px,1vw,20px)]">
+                  <TvTeamMark team={standing.team} />
+                  <span className="grid min-w-0"><strong className="truncate text-[clamp(17px,1vw,23px)] font-semibold text-text-primary">{standing.team.name}</strong><em className="truncate text-[clamp(12px,0.72vw,16px)] not-italic text-text-secondary">Captain: {captain}</em></span>
+                </span>
+                <TvLeaderboardValue value={String(played)} /><TvLeaderboardValue value={String(standing.matchWins)} /><TvLeaderboardValue value={String(standing.matchLosses)} /><TvLeaderboardValue value={`${formatBracketPercentage(winPercentage)}%`} />
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TvTeamPodiumCard({ standing }: { standing: TeamStanding }) {
+  const first = standing.seed === 1;
+  const third = standing.seed === 3;
+  const captain = standing.team.members.find((member) => member.isCaptain)?.name || "Captain TBD";
+  const played = standing.matchWins + standing.matchLosses;
+  const winPercentage = played ? (standing.matchWins / played) * 100 : 0;
+  const tone = getTeamCardTone(standing.team.jerseyColor);
+  return (
+    <article className={`${first ? "h-full max-h-[370px] w-[clamp(300px,23vw,460px)] border-[#dfa91f] shadow-[0_24px_55px_rgba(24,58,43,0.18)]" : "h-[86%] max-h-[330px] w-[clamp(260px,19vw,390px)] border-white/45"} ${third ? "border-[#c57b42]" : ""} grid min-h-0 content-center justify-items-center gap-[clamp(6px,0.75vh,12px)] overflow-hidden rounded-[clamp(20px,1.6vw,30px)] border-2 px-[clamp(18px,1.6vw,32px)] py-[clamp(14px,1.5vh,26px)] text-center`} style={{ background: tone.background, color: tone.textColor }}>
+      <strong className={`${first ? "ring-4 ring-[#e2aa22]/55" : ""} grid h-[clamp(38px,2.6vw,52px)] w-[clamp(38px,2.6vw,52px)] shrink-0 place-items-center rounded-full bg-white/92 text-[clamp(18px,1.2vw,26px)] font-semibold text-brand shadow-[0_8px_20px_rgba(0,0,0,0.14)]`}>{standing.seed}</strong>
+      <TvTeamMark large team={standing.team} />
+      <span className="grid min-w-0 gap-0.5"><strong className="truncate text-[clamp(20px,1.4vw,30px)] font-semibold">{standing.team.name}</strong><em className="text-[clamp(13px,0.8vw,18px)] not-italic opacity-80">{standing.matchWins} wins · {standing.matchLosses} losses</em><em className="truncate text-[clamp(11px,0.7vw,16px)] not-italic opacity-65">Captain: {captain}</em></span>
+      <span className="grid w-full grid-cols-2 gap-2"><span className="rounded-[clamp(10px,0.8vw,14px)] bg-white/88 px-2 py-[clamp(7px,0.7vh,11px)] text-brand"><strong className="block text-[clamp(18px,1.25vw,27px)] leading-none">{played}</strong><em className="text-[clamp(9px,0.56vw,13px)] font-semibold not-italic uppercase tracking-[0.07em]">Played</em></span><span className="rounded-[clamp(10px,0.8vw,14px)] bg-white/88 px-2 py-[clamp(7px,0.7vh,11px)] text-brand"><strong className="block text-[clamp(18px,1.25vw,27px)] leading-none">{formatBracketPercentage(winPercentage)}%</strong><em className="text-[clamp(9px,0.56vw,13px)] font-semibold not-italic uppercase tracking-[0.07em]">Win rate</em></span></span>
+    </article>
+  );
+}
+
+function TvTeamMark({ team, large = false }: { team: PublishedTeam; large?: boolean }) {
+  const jerseyColor = normalizeTeamColor(team.jerseyColor);
+  return <span className={`${large ? "h-[clamp(64px,4.6vw,88px)] w-[clamp(64px,4.6vw,88px)]" : "h-[clamp(42px,3vw,58px)] w-[clamp(42px,3vw,58px)]"} grid shrink-0 place-items-center rounded-full border-2 border-white/75 bg-white/92 shadow-[0_9px_24px_rgba(0,0,0,0.14)]`} role="img" aria-label={`${team.name} jersey`}><Shirt className={large ? "h-[55%] w-[55%]" : "h-[52%] w-[52%]"} strokeWidth={1.9} style={{ color: "#18221c", fill: jerseyColor }} /></span>;
+}
+
+function TvPlayerLeaderboardScene({ standings }: { standings: PlayerStanding[] }) {
+  const topPlayers = standings.slice(0, 6);
+  const podium = [topPlayers[1], topPlayers[0], topPlayers[2]].filter(Boolean);
+  return (
+    <section className="grid h-full min-h-0 grid-rows-[minmax(260px,0.9fr)_minmax(300px,1.1fr)] gap-[clamp(16px,1.8vh,30px)]" aria-label="Player leaderboard">
+      <div className="flex min-h-0 items-end justify-center gap-[clamp(18px,2vw,42px)] px-[clamp(50px,7vw,140px)]">
+        {podium.map((standing, index) => <TvPlayerPodiumCard rank={index === 0 ? 2 : index === 1 ? 1 : 3} standing={standing} key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`} />)}
+      </div>
+      <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[clamp(18px,1.4vw,28px)] border border-[#dce2da] bg-white shadow-[0_14px_34px_rgba(24,58,43,0.07)]">
+        <div className="grid h-[clamp(36px,4vh,52px)] grid-cols-[76px_minmax(380px,1.7fr)_repeat(5,minmax(100px,0.55fr))] items-center gap-3 border-b border-[#dfe5dd] bg-[#f6f8f4] px-[clamp(20px,1.8vw,38px)] text-[clamp(12px,0.72vw,16px)] font-semibold uppercase tracking-[0.08em] text-text-secondary">
+          <span>Rank</span><span>Player</span><span className="text-center">Matches</span><span className="text-center">Won</span><span className="text-center">Lost</span><span className="text-center">Rating</span><span className="text-center">Team</span>
+        </div>
+        <div className="grid min-h-0 grid-rows-6">
+          {topPlayers.map((standing, index) => (
+            <article className={`${index === 0 ? "bg-[#f1f9cf]" : "bg-white"} grid min-h-0 grid-cols-[76px_minmax(380px,1.7fr)_repeat(5,minmax(100px,0.55fr))] items-center gap-3 border-b border-[#e8ece7] px-[clamp(20px,1.8vw,38px)] last:border-0`} key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`}>
+              <strong className="text-[clamp(18px,1.15vw,26px)] font-semibold text-text-secondary">{index + 1}</strong>
+              <span className="grid min-w-0 grid-cols-[clamp(42px,3vw,58px)_minmax(0,1fr)] items-center gap-[clamp(12px,1vw,20px)]"><Avatar className="relative grid h-[clamp(42px,3vw,58px)] w-[clamp(42px,3vw,58px)] place-items-center overflow-hidden rounded-full bg-brand text-[clamp(12px,0.85vw,18px)] font-semibold text-white" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="58px" /><span className="grid min-w-0"><strong className="truncate text-[clamp(17px,1vw,23px)] font-semibold text-text-primary">{standing.player.name}</strong><em className="truncate text-[clamp(12px,0.72vw,16px)] not-italic text-text-secondary">{standing.player.city || "City pending"}</em></span></span>
+              <TvLeaderboardValue value={String(standing.completedMatches)} /><TvLeaderboardValue value={String(standing.matchWins)} /><TvLeaderboardValue value={String(standing.matchLosses)} /><TvLeaderboardValue value={standing.player.rating || "—"} /><TvLeaderboardValue value={standing.team.name.replace(/^Team\s+/i, "")} />
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TvPlayerPodiumCard({ standing, rank }: { standing: PlayerStanding; rank: number }) {
+  const first = rank === 1;
+  const third = rank === 3;
+  return (
+    <article className={`${first ? "h-[min(100%,390px)] w-[clamp(310px,24vw,480px)] border-[#dfa91f] shadow-[0_24px_55px_rgba(210,157,21,0.17)]" : "h-[min(88%,340px)] w-[clamp(270px,20vw,410px)] border-[#aeb7bc]"} ${third ? "border-[#c57b42]" : ""} grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto] place-items-center gap-[clamp(7px,0.8vh,13px)] overflow-hidden rounded-[clamp(20px,1.6vw,30px)] border-2 bg-white px-[clamp(18px,1.8vw,36px)] py-[clamp(15px,1.7vh,28px)] text-center`}>
+      <strong className={`${first ? "bg-[#e2aa22] text-[#503a00]" : third ? "bg-[#c98249] text-[#43240e]" : "bg-[#b5bbc0] text-[#364047]"} grid h-[clamp(38px,2.7vw,54px)] w-[clamp(38px,2.7vw,54px)] shrink-0 place-items-center rounded-full text-[clamp(18px,1.2vw,27px)] font-semibold leading-none`}>{rank}</strong>
+      <Avatar className="relative grid h-[clamp(58px,4.6vw,88px)] w-[clamp(58px,4.6vw,88px)] shrink-0 place-items-center overflow-hidden rounded-full bg-brand text-[clamp(18px,1.35vw,28px)] font-semibold text-white" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="88px" />
+      <span className="grid min-h-0 min-w-0 content-center gap-0.5 overflow-hidden"><strong className="line-clamp-2 text-[clamp(18px,1.3vw,29px)] font-semibold leading-tight text-text-primary">{standing.player.name}</strong><em className="line-clamp-2 text-[clamp(12px,0.76vw,17px)] leading-tight not-italic text-text-secondary">{standing.player.city || "City pending"} · {standing.team.name}</em></span>
+      <span className="grid w-full shrink-0 justify-items-center gap-1 rounded-[clamp(12px,1vw,18px)] bg-[#f2fad1] px-4 py-[clamp(7px,0.8vh,12px)] text-brand"><strong className="text-[clamp(22px,1.55vw,34px)] font-semibold leading-none tabular-nums">{standing.player.rating || "—"}</strong><em className="text-[clamp(9px,0.58vw,13px)] font-semibold not-italic uppercase leading-none tracking-[0.08em] text-text-secondary">Rating</em></span>
+    </article>
+  );
+}
+
+function TvTournamentFinaleScene({ tournament, champion, tierLeaders, sponsors }: { tournament: Tournament; champion: PublishedTeam; tierLeaders: PlayerStanding[]; sponsors: TvSponsorSpotlight[] }) {
+  const [confettiBurst, setConfettiBurst] = useState(1);
+  const uniqueSponsors = Array.from(new Map(sponsors.map((sponsor) => [`${normalizeName(sponsor.name)}:${sponsor.logoUrl}`, sponsor])).values()).slice(0, 10);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setConfettiBurst((current) => current + 1), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <main className="relative grid h-dvh min-h-[720px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-[radial-gradient(circle_at_50%_24%,#176042_0%,#093b2a_44%,#05291d_100%)] px-[clamp(48px,5vw,112px)] py-[clamp(28px,3.4vh,62px)] font-sans text-white" aria-label={`${champion.name} tournament champions`}>
+      <span className="pointer-events-none absolute inset-0 opacity-25 court-lines" aria-hidden="true" />
+      <TvFinaleConfetti burstId={confettiBurst} team={champion} />
+      <Link className="tap-card absolute left-[clamp(24px,2.5vw,52px)] top-[clamp(24px,3vh,52px)] z-30 inline-flex min-h-12 items-center gap-2 rounded-full border border-white/22 bg-white/12 px-5 text-[clamp(13px,0.82vw,18px)] font-semibold text-white shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:bg-white/20 active:scale-[0.98]" href="/tournaments">
+        <ArrowLeft className="h-[1.05em] w-[1.05em]" />
+        Tournament
+      </Link>
+
+      <header className="relative z-10 grid justify-items-center gap-1 text-center">
+        <em className="inline-flex items-center gap-2 text-[clamp(14px,0.9vw,20px)] font-semibold not-italic uppercase tracking-[0.16em] text-[#d8f36b]"><Trophy className="h-[1.1em] w-[1.1em]" fill="currentColor" /> Tournament champions</em>
+        <h1 className="text-[clamp(24px,2.2vw,46px)] font-semibold tracking-[-0.035em]">{tournament.name}</h1>
+      </header>
+
+      <section className="relative z-10 grid min-h-0 grid-cols-[minmax(480px,1.15fr)_minmax(520px,0.85fr)] items-center gap-[clamp(30px,4vw,78px)] py-[clamp(20px,3vh,54px)]">
+        <article className="grid min-h-0 justify-items-center gap-[clamp(12px,1.5vh,24px)] text-center">
+          <span className="relative grid h-[clamp(120px,11vw,210px)] w-[clamp(120px,11vw,210px)] place-items-center overflow-hidden rounded-[clamp(30px,2.5vw,48px)] border-4 border-white/65 bg-white p-4 text-[clamp(30px,2.6vw,54px)] font-semibold text-brand shadow-[0_30px_80px_rgba(0,0,0,0.30)]">
+            {champion.logoUrl ? <NextImage src={champion.logoUrl} alt={`${champion.name} logo`} fill sizes="210px" className="object-contain p-4" /> : <Shirt className="h-[62%] w-[62%]" style={{ fill: normalizeTeamColor(champion.jerseyColor), color: "#18221c" }} />}
+          </span>
+          <span className="grid gap-2">
+            <strong className="text-[clamp(58px,6vw,118px)] font-semibold leading-[0.9] tracking-[-0.065em] text-white">{champion.name}</strong>
+            <em className="text-[clamp(17px,1.2vw,27px)] font-medium not-italic uppercase tracking-[0.14em] text-[#d8f36b]">2026 tournament winners</em>
+          </span>
+          <div className="flex max-w-[920px] flex-wrap justify-center gap-2.5" aria-label={`${champion.name} winning roster`}>
+            {champion.members.map((player) => <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/12 py-1.5 pl-1.5 pr-3 text-[clamp(12px,0.76vw,17px)] font-semibold backdrop-blur-xl" key={player.id}><Avatar className="relative grid h-[clamp(28px,2vw,40px)] w-[clamp(28px,2vw,40px)] place-items-center overflow-hidden rounded-full bg-white text-[10px] text-brand" name={player.name} photoUrl={player.profilePhotoUrl} sizes="40px" />{player.name}</span>)}
+          </div>
+        </article>
+
+        <section className="grid min-h-0 content-center gap-[clamp(10px,1vh,16px)] rounded-[clamp(24px,2vw,38px)] border border-white/18 bg-white/10 p-[clamp(20px,2vw,38px)] shadow-[0_28px_70px_rgba(0,0,0,0.18)] backdrop-blur-xl" aria-labelledby="tv-tier-leaders-title">
+          <span className="grid gap-1"><em className="text-[clamp(11px,0.68vw,15px)] font-semibold not-italic uppercase tracking-[0.14em] text-[#d8f36b]">Tournament honors</em><h2 className="text-[clamp(25px,2vw,42px)] font-semibold" id="tv-tier-leaders-title">Player leaders by tier</h2></span>
+          <div className="grid grid-cols-2 gap-[clamp(9px,0.8vw,14px)]">
+            {tierLeaders.map((standing) => <article className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-[clamp(14px,1vw,19px)] border border-white/15 bg-white/10 p-[clamp(10px,0.8vw,15px)]" key={`${standing.tier}:${standing.player.playerId || standing.player.id}`}><Avatar className="relative grid h-[clamp(44px,3.2vw,64px)] w-[clamp(44px,3.2vw,64px)] place-items-center overflow-hidden rounded-full bg-white text-[clamp(12px,0.8vw,18px)] font-semibold text-brand" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="64px" /><span className="grid min-w-0 gap-0.5"><em className="text-[clamp(10px,0.62vw,14px)] font-semibold not-italic uppercase tracking-[0.1em] text-[#d8f36b]">{standing.tier} leader</em><strong className="truncate text-[clamp(16px,1.05vw,23px)] font-semibold">{standing.player.name}</strong><span className="truncate text-[clamp(11px,0.7vw,16px)] text-white/62">{standing.team.name} · {standing.matchWins}–{standing.matchLosses} · Rating {standing.player.rating || "—"}</span></span></article>)}
+            {!tierLeaders.length && <p className="col-span-2 rounded-[18px] border border-dashed border-white/20 p-5 text-center text-white/62">Tier leaders will appear when player results are complete.</p>}
+          </div>
+        </section>
+      </section>
+
+      <footer className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[clamp(26px,2.5vw,54px)] rounded-[clamp(20px,1.5vw,30px)] border border-white/18 bg-white/95 px-[clamp(22px,2vw,42px)] py-[clamp(14px,1.7vh,26px)] text-brand shadow-[0_24px_60px_rgba(0,0,0,0.22)]">
+        <span className="grid"><em className="text-[clamp(10px,0.62vw,14px)] font-semibold not-italic uppercase tracking-[0.13em] text-[#55720f]">With gratitude</em><strong className="text-[clamp(18px,1.4vw,30px)] font-semibold">Thank you to our sponsors</strong></span>
+        <span className="flex min-w-0 items-center justify-around gap-[clamp(20px,2.2vw,48px)] overflow-hidden">{uniqueSponsors.map((sponsor) => <span className="grid min-w-0 justify-items-center gap-1" key={sponsor.id}>{sponsor.logoUrl ? <img className="h-[clamp(48px,6vh,88px)] max-w-[clamp(120px,11vw,230px)] object-contain" src={sponsor.logoUrl} alt={`${sponsor.name} logo`} /> : <strong className="truncate text-[clamp(15px,1vw,22px)]">{sponsor.name}</strong>}</span>)}{!uniqueSponsors.length && <em className="text-[clamp(14px,0.9vw,20px)] not-italic text-text-secondary">Thank you to every partner who made this tournament possible.</em>}</span>
+      </footer>
+      <span className="sr-only" role="status" aria-live="polite">Celebrating tournament champions {champion.name}</span>
+    </main>
+  );
+}
+
+function TvFinaleConfetti({ burstId, team }: { burstId: number; team: PublishedTeam }) {
+  const winnerPillTone = getTeamCardTone(team.jerseyColor);
+  return (
+    <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden" key={burstId} aria-hidden="true">
+      {winnerConfettiPieces.map((piece, index) => <span className="winner-confetti-piece" key={index} style={{ "--confetti-delay": piece.delay, "--confetti-duration": piece.duration, "--confetti-x": piece.x, "--confetti-y": piece.y, "--confetti-end-y": piece.endY, "--confetti-drift": piece.drift, "--confetti-rotation": piece.rotation, backgroundColor: piece.color, borderRadius: piece.rounded, clipPath: piece.clipPath, height: piece.height, width: piece.width } as CSSProperties} />)}
+      {winnerFireworkBursts.map((burst) => <span className="winner-firework" key={`${burst.x}:${burst.y}`} style={{ "--firework-x": burst.x, "--firework-y": burst.y, "--firework-delay": burst.delay, "--firework-color": burst.color, "--firework-size": burst.size } as CSSProperties}>{Array.from({ length: 16 }).map((_, sparkIndex) => <span className="winner-firework-spark" style={{ "--firework-angle": `${sparkIndex * 22.5}deg` } as CSSProperties} key={sparkIndex} />)}</span>)}
+      {winnerPillPaths.map((path) => <span className="winner-team-pill" key={path.midX} style={{ "--winner-pill-delay": path.delay, "--winner-pill-mid-x": path.midX, "--winner-pill-mid-y": path.midY, "--winner-pill-end-x": path.endX, "--winner-pill-end-y": path.endY, "--winner-pill-rotation": path.rotation, "--winner-pill-bg": winnerPillTone.background, "--winner-pill-color": winnerPillTone.textColor } as CSSProperties}><Trophy size={20} fill="currentColor" /><strong>{team.name}</strong></span>)}
+    </div>
   );
 }
 
 function TvLeaderboardValue({ value }: { value: string }) {
-  return <strong className="text-center text-[23px] font-semibold tabular-nums text-brand">{value}</strong>;
+  return <strong className="truncate text-center text-[clamp(16px,1vw,23px)] font-semibold tabular-nums text-brand">{value}</strong>;
 }
 
 function formatTvClock(date: Date) {
@@ -4443,7 +4844,7 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
             {!loading && activeScope === "bracket" && <ScheduleDayEventRail day={selectedDay} items={selectedDayEvents} />}
             {activeScope === "my" && (
               <div className="relative grid gap-4">
-                <span className="pointer-events-none absolute bottom-0 left-[8px] top-0 z-[3] w-px bg-[#9faf9f]" aria-hidden="true" />
+                <span className="pointer-events-none absolute bottom-0 left-[20px] top-0 z-[3] w-px bg-[#9faf9f]" aria-hidden="true" />
                 {playerScheduleTimeline.map((entry, timeIndex) => (
                   <Fragment key={entry.key}>
                     {scheduleNowInsertIndex === timeIndex && <ScheduleNowMarker now={scheduleNow} />}
@@ -4471,7 +4872,7 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
             )}
             {activeScope === "team" && assignedTeam && (
               <div className="relative grid gap-4">
-                <span className="pointer-events-none absolute bottom-0 left-[8px] top-0 z-[3] w-px bg-[#9faf9f]" aria-hidden="true" />
+                <span className="pointer-events-none absolute bottom-0 left-[20px] top-0 z-[3] w-px bg-[#9faf9f]" aria-hidden="true" />
                 {teamScheduleTimeline.map((entry, timeIndex) => (
                   <Fragment key={entry.key}>
                     {scheduleNowInsertIndex === timeIndex && <ScheduleNowMarker now={scheduleNow} />}
@@ -6989,7 +7390,7 @@ function ScheduleTimelineSlot({ state, children }: { state: ScheduleMatchState |
   const dotPositionClass = state === "break" ? "top-[11px]" : "top-[18px]";
   return (
     <div className="relative min-w-0">
-      <span className={`absolute left-0 z-[5] h-4 w-4 rounded-full border-[3px] shadow-[0_0_0_3px_rgba(247,249,246,0.88)] ${dotPositionClass} ${dotClass}`} aria-hidden="true" />
+      <span className={`absolute left-3 z-[5] h-4 w-4 rounded-full border-[3px] shadow-[0_0_0_3px_rgba(247,249,246,0.88)] ${dotPositionClass} ${dotClass}`} aria-hidden="true" />
       {children}
     </div>
   );
@@ -6998,8 +7399,8 @@ function ScheduleTimelineSlot({ state, children }: { state: ScheduleMatchState |
 function ScheduleNowMarker({ now }: { now: Date }) {
   const time = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }).format(now);
   return (
-    <div className="relative flex min-h-8 items-center gap-3 pl-7" role="status" aria-label={`Current tournament time ${time}`}>
-      <span className="absolute left-0 z-[5] h-4 w-4 rounded-full border-[3px] border-[#bd542f] bg-[#bd542f] shadow-[0_0_0_3px_rgba(247,249,246,0.88)]" aria-hidden="true" />
+    <div className="relative flex min-h-8 items-center gap-3 pl-12" role="status" aria-label={`Current tournament time ${time}`}>
+      <span className="absolute left-3 z-[5] h-4 w-4 rounded-full border-[3px] border-[#bd542f] bg-[#bd542f] shadow-[0_0_0_3px_rgba(247,249,246,0.88)]" aria-hidden="true" />
       <strong className="shrink-0 rounded-full bg-[#bd542f] px-3 py-1 font-mono text-[11px] font-semibold uppercase text-white shadow-[0_7px_16px_rgba(189,84,47,0.18)]">Now · {time}</strong>
       <span className="h-px flex-1 bg-[#d99378]" aria-hidden="true" />
     </div>
@@ -7030,13 +7431,25 @@ function getScheduleGroupState(matches: Array<{ dayNumber: number; timeLabel: st
   return "upcoming";
 }
 
-function ScheduleMatchStateBadge({ state, score = null }: { state: ScheduleMatchState; score?: MatchScore | null }) {
+function getSchedulePhaseBadgeLabel(matchType: string) {
+  const phase = normalizeSchedulePhase(matchType).replaceAll("_", " ").replaceAll("-", " ");
+  if (phase.includes("quarter")) return "QF";
+  if (phase.includes("semi")) return "Semifinal";
+  if (phase.includes("survival")) return "Survival";
+  if (phase.includes("advantage")) return "Advantage";
+  if (phase.includes("re entry") || phase.includes("reentry")) return "Re-entry";
+  if (phase.includes("final")) return "Finals";
+  return matchType.trim();
+}
+
+function ScheduleMatchStateBadge({ state, score = null, dayNumber = 1, matchType = "" }: { state: ScheduleMatchState; score?: MatchScore | null; dayNumber?: number; matchType?: string }) {
+  const phaseLabel = dayNumber === 2 ? getSchedulePhaseBadgeLabel(matchType) : "";
   if (state === "ongoing") {
     const currentSet = score?.sideASet3 != null || score?.sideBSet3 != null ? 3 : score?.sideASet2 != null || score?.sideBSet2 != null ? 2 : 1;
-    return <span className="inline-flex min-h-7 items-center gap-1.5 rounded-full bg-[#fae8df] px-2.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-[#b14d2b]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#bd542f]" />Live · Set {currentSet}</span>;
+    return <span className="inline-flex min-h-7 items-center gap-1.5 rounded-full bg-[#fae8df] px-2.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-[#b14d2b]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#bd542f]" />{phaseLabel ? `Ongoing · ${phaseLabel}` : `Ongoing · Set ${currentSet}`}</span>;
   }
-  if (state === "completed") return <span className="inline-flex min-h-7 items-center rounded-full bg-brand-light px-2.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-[#3b6d11]">Final</span>;
-  return <span className="inline-flex min-h-7 items-center rounded-full bg-surface px-2.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-text-secondary">Upcoming</span>;
+  if (state === "completed") return <span className="inline-flex min-h-7 items-center rounded-full bg-brand-light px-2.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-[#3b6d11]">{phaseLabel ? `Completed · ${phaseLabel}` : "Completed"}</span>;
+  return <span className="inline-flex min-h-7 items-center rounded-full bg-surface px-2.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-text-secondary">{phaseLabel ? `Upcoming · ${phaseLabel}` : "Upcoming"}</span>;
 }
 
 function PlayerScheduleTimeCard({ label, matches, tournament, teams, onOpenMatch, isFeatured }: { label: string; matches: PlayerScheduleMatch[]; tournament: Tournament | null; teams: PublishedTeam[]; onOpenMatch: (match: PlayerScheduleMatch) => void; isFeatured: boolean }) {
@@ -7073,7 +7486,7 @@ function TeamScheduleTimeCard({ label, matches, team, tournament, teams, onOpenM
     : "";
 
   return (
-    <section className="grid gap-3 overflow-hidden rounded-[22px] border border-[#ccd7cd] bg-white/94 py-4 pl-8 pr-3.5 shadow-[0_18px_42px_rgba(12,59,32,0.11)] backdrop-blur-xl sm:rounded-[24px] sm:p-5">
+    <section className="grid gap-3 overflow-hidden rounded-[22px] border border-[#ccd7cd] bg-white/94 py-4 pl-12 pr-3.5 shadow-[0_18px_42px_rgba(12,59,32,0.11)] backdrop-blur-xl sm:rounded-[24px] sm:py-5 sm:pl-12 sm:pr-5">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <ScheduleTimeDisplay label={label} />
         {resultLabel && <strong className="shrink-0 rounded-full bg-brand-light px-3 py-1.5 text-[11px] font-semibold text-[#315f18] sm:text-[12px]">{resultLabel}</strong>}
@@ -7669,6 +8082,10 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessS
           </p>
         )}
       </article>
+      <Link className="tap-card inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[16px] border-hairline border-line bg-white px-5 text-[14px] font-medium text-brand shadow-[0_10px_24px_rgba(12,59,32,0.07)] transition hover:border-brand/25 hover:bg-brand-light/35 active:scale-[0.99]" href={backHref} aria-label={backLabel}>
+        <ArrowLeft size={16} />
+        <span>{backLabel}</span>
+      </Link>
     </section>
   );
 }
@@ -8877,10 +9294,10 @@ function PlayerScheduleMatchCard({ match, tournament, teams, isFeatured, onOpenM
   const rightSideWon = playerIsSideA ? opponentSideWon : playerSideWon;
 
   return (
-    <article className={`relative grid gap-3 overflow-hidden rounded-[22px] border border-[#ccd7cd] bg-white/94 py-4 pl-8 pr-3.5 backdrop-blur-xl sm:rounded-[24px] sm:p-5 ${isFeatured ? "shadow-[0_20px_48px_rgba(12,59,32,0.14)]" : "shadow-[0_14px_34px_rgba(12,59,32,0.09)]"}`}>
+    <article className={`relative grid gap-3 overflow-hidden rounded-[22px] border border-[#ccd7cd] bg-white/94 py-4 pl-12 pr-3.5 backdrop-blur-xl sm:rounded-[24px] sm:py-5 sm:pl-12 sm:pr-5 ${isFeatured ? "shadow-[0_20px_48px_rgba(12,59,32,0.14)]" : "shadow-[0_14px_34px_rgba(12,59,32,0.09)]"}`}>
       <div className="flex min-w-0 items-center justify-between gap-4">
         <ScheduleTimeDisplay label={match.timeLabel} />
-        <ScheduleMatchStateBadge state={matchState} score={match.score} />
+        <ScheduleMatchStateBadge state={matchState} score={match.score} dayNumber={match.dayNumber} matchType={match.matchType} />
       </div>
 
       <div className="flex w-max max-w-full min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden whitespace-nowrap text-[13px] font-medium leading-tight text-text-secondary sm:text-[14px]">
@@ -9207,7 +9624,7 @@ function ScheduleCompactEventRow({ item }: { item: ScheduleItem }) {
 function ScheduleTimelineEventCard({ item }: { item: ScheduleItem }) {
   const isMeal = /breakfast|lunch|meal|snack/i.test(`${item.matchLabel} ${item.detail}`);
   return (
-    <article className="grid min-h-[78px] grid-cols-[minmax(0,1fr)_32px] items-center gap-x-3 gap-y-1 rounded-[18px] border border-dashed border-[#b9c2ba] bg-[#e7ebe7] py-3 pl-8 pr-3.5 text-text-secondary shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+    <article className="grid min-h-[78px] grid-cols-[minmax(0,1fr)_32px] items-center gap-x-3 gap-y-1 rounded-[18px] border border-dashed border-[#b9c2ba] bg-[#e7ebe7] py-3 pl-12 pr-3.5 text-text-secondary shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
       <span className="grid min-w-0 gap-1">
         <time className="whitespace-nowrap text-[12px] font-semibold leading-none text-[#5f6c64] sm:text-[13px]">{item.timeLabel}</time>
         <strong className="min-w-0 text-left text-[13px] font-semibold leading-snug text-[#405148] sm:text-[14px]">{getScheduleMilestoneLabel(item)}</strong>
@@ -9331,7 +9748,7 @@ function TeamCourtScheduleGame({ match, teamName, tournament, onOpenMatch, group
       }} aria-label={`View ${match.format} match: ${leftPlayers.join(" and ")} versus ${rightPlayers.join(" and ")}`}>
         <span className="flex min-w-0 items-center justify-between gap-3">
           <strong className="text-[12px] font-semibold text-text-secondary sm:text-[13px]">{match.format}</strong>
-          <ScheduleMatchStateBadge state={matchState} score={match.score} />
+          <ScheduleMatchStateBadge state={matchState} score={match.score} dayNumber={match.dayNumber} matchType={match.matchType} />
         </span>
         <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_42px_minmax(0,1fr)_16px] items-center gap-1.5">
           <TeamSchedulePlayerStack names={leftPlayers} profiles={match.playerProfilesA} isWinner={leftWon} />
@@ -9352,7 +9769,7 @@ function TeamCourtScheduleGame({ match, teamName, tournament, onOpenMatch, group
       onOpenMatch(match);
     }} aria-label={`View match details: ${displayPrimaryPlayers.join(" and ")} versus ${displayOpponentPlayers.join(" and ")}`}>
       <span className="grid gap-2">
-        {tournament !== undefined && <span className="flex justify-end"><ScheduleMatchStateBadge state={matchState} /></span>}
+        {tournament !== undefined && <span className="flex justify-end"><ScheduleMatchStateBadge state={matchState} dayNumber={match.dayNumber} matchType={match.matchType} /></span>}
         <span className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_46px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] sm:gap-3">
           <PlayerNameStack label="" names={displayPrimaryPlayers} profiles={primaryProfiles} tone="primary" centerOnWideScreens={isSingles} isWinner={primarySideWon} />
           <CourtLineDivider label={courtNumber} />
