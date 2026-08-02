@@ -1,11 +1,11 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, Clock, DollarSign, Dumbbell, ExternalLink, House, Info, LogIn, LogOut, Mail, MapPin, Maximize2, MonitorUp, Pencil, RefreshCw, Search, Shield, Shirt, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, ChevronRight, Clock, Dumbbell, ExternalLink, House, Info, LogIn, LogOut, Mail, Maximize2, MonitorUp, Pencil, RefreshCw, Search, Shield, Shirt, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import NextImage from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChangeEvent, createContext, FormEvent, Fragment, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { ChangeEvent, createContext, CSSProperties, FormEvent, Fragment, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./lib/supabase";
 
@@ -32,6 +32,7 @@ type ProfileData = {
 };
 
 type TopPlayer = { id: string; name: string; rating: string; city: string; profilePhotoUrl: string };
+type ChicagoWeather = { city: string; date: string; condition: string; temperatureF: number; highF: number | null; lowF: number | null; isCurrent: boolean };
 type AvatarProps = {
   className: string;
   name: string;
@@ -440,19 +441,6 @@ const initialProfile: ProfileData = {
 
 const startingTennisTier = 4;
 const startingTennisRating = 3.6;
-const homeFunFacts = [
-  "A tennis ball can spin more than 4,000 times per minute on a heavy topspin shot.",
-  "The fastest recorded tennis serve is over 160 mph.",
-  "A tennis court is 78 feet long from baseline to baseline.",
-  "The longest professional tennis match lasted over 11 hours.",
-  "Racquet strings can lose tension even when the racquet is not being used.",
-  "Most tennis points are decided in four shots or fewer.",
-  "The word tennis comes from the French word tenez, meaning take or receive.",
-  "Wimbledon first started in 1877.",
-  "Tennis balls were originally white before yellow became standard for TV visibility.",
-  "The center service line divides the service boxes into deuce and ad sides.",
-  "A let serve is replayed when the ball clips the net and still lands in."
-];
 type AppSessionState = {
   ready: boolean;
   session: Session | null;
@@ -520,13 +508,11 @@ function AppTopBar({
   const isSignedIn = Boolean(appSession.userId);
 
   return (
-    <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 py-2.5 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl">
-      <div className="mx-auto grid w-full max-w-shell grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center">
+    <header className="sticky top-0 z-30 border-b-hairline border-white/70 bg-white/70 px-4 pb-2.5 pt-2.5 shadow-[0_10px_30px_rgba(24,24,26,0.04)] backdrop-blur-xl" style={{ paddingTop: "max(10px, env(safe-area-inset-top))" }}>
+      <div className="mx-auto grid w-full max-w-shell grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <Link className="tap-card inline-flex min-w-0 justify-self-start" href={isSignedIn ? "/dashboard" : "/"} aria-label="MRSA home">
           <BrandMark />
         </Link>
-        <span aria-hidden="true" />
-        <span aria-hidden="true" />
         {isSignedIn ? (
           <Link className="tap-card inline-flex justify-self-end" href="/profile" aria-label={`${name} profile`}>
             <Avatar className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-brand text-[14px] font-medium text-white shadow-[0_8px_22px_rgba(24,24,26,0.08)]" name={name} photoUrl={photoUrl} />
@@ -553,6 +539,234 @@ function PageGreeting({ subtitle }: { subtitle: string }) {
   );
 }
 
+function HomeGreeting({ weather, loading, message, match }: { weather: ChicagoWeather | null; loading: boolean; message: string; match: PlayerScheduleMatch | null }) {
+  const appSession = useAppSession();
+  const firstName = appSession.player?.full_name?.trim().split(/\s+/)[0] || "there";
+  const weatherDate = weather?.date
+    ? new Date(`${weather.date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })
+    : "";
+  const weatherSummary = weather
+    ? weather.isCurrent
+      ? `${weather.city} is ${weather.temperatureF}° and ${weather.condition.toLowerCase()}`
+      : `${weather.city} will be ${weather.highF ?? weather.temperatureF}° and ${weather.condition.toLowerCase()} on ${weatherDate}`
+    : loading ? "Loading Chicago weather…" : message || "Chicago weather is unavailable.";
+  const matchContext = match ? `${match.courtLabel || "Your court"} opens at ${match.timeLabel || "a time to be announced"}` : "";
+  return (
+    <section className="mx-auto grid w-full max-w-[600px] gap-1 px-0.5 lg:max-w-none lg:px-0" aria-labelledby="home-greeting-title">
+      <h1 className="break-words text-[22px] font-semibold leading-[1.12] tracking-[-0.4px] text-text-primary sm:text-[25px]" id="home-greeting-title">{getChicagoGreeting()}, {firstName}</h1>
+      <p className="min-h-6 text-[14px] font-medium leading-relaxed text-text-secondary sm:text-[15px]" aria-live="polite">
+        {matchContext && <>{matchContext} <span aria-hidden="true">·</span> </>}{weatherSummary}
+      </p>
+    </section>
+  );
+}
+
+const winnerConfettiColors = ["#d8ff2f", "#ff3d71", "#00c2ff", "#ffb000", "#8b5cf6", "#22c55e", "#ff6b35", "#f43f5e", "#14b8a6", "#fde047", "#ffffff"];
+const winnerConfettiPieces = Array.from({ length: 132 }, (_, index) => {
+  const angle = (18 + ((index * 53) % 145)) * (Math.PI / 180);
+  const travel = 68 + ((index * 19) % 56);
+  const midTravel = travel * (0.48 + (index % 5) * 0.035);
+  const xDirection = Math.cos(angle);
+  const yDirection = Math.sin(angle);
+  return {
+    color: winnerConfettiColors[index % winnerConfettiColors.length],
+    delay: `${(index % 16) * 22}ms`,
+    duration: `${2350 + ((index * 41) % 1150)}ms`,
+    x: `${(xDirection * midTravel).toFixed(1)}vw`,
+    y: `${(-yDirection * midTravel).toFixed(1)}vh`,
+    endY: `${(-yDirection * travel).toFixed(1)}vh`,
+    drift: `${(xDirection * travel).toFixed(1)}vw`,
+    rotation: `${(xDirection >= 0 ? 1 : -1) * (420 + ((index * 47) % 700))}deg`,
+    width: `${6 + (index % 5)}px`,
+    height: `${9 + ((index * 3) % 10)}px`,
+    rounded: index % 4 === 0 ? "999px" : index % 4 === 1 ? "1px" : "3px",
+    clipPath: index % 9 === 0 ? "polygon(50% 0, 100% 100%, 0 100%)" : "none"
+  };
+});
+
+const winnerPillPaths = [
+  { delay: "180ms", midX: "-30vw", midY: "-28vh", endX: "-43vw", endY: "-48vh", rotation: "-9deg" },
+  { delay: "360ms", midX: "2vw", midY: "-36vh", endX: "-8vw", endY: "-64vh", rotation: "5deg" },
+  { delay: "540ms", midX: "31vw", midY: "-25vh", endX: "43vw", endY: "-49vh", rotation: "9deg" }
+];
+
+const winnerFireworkBursts = [
+  { x: "18vw", y: "24vh", delay: "180ms", color: "#00c2ff", size: "84px" },
+  { x: "78vw", y: "20vh", delay: "520ms", color: "#ff3d71", size: "104px" },
+  { x: "52vw", y: "38vh", delay: "880ms", color: "#d8ff2f", size: "92px" },
+  { x: "84vw", y: "48vh", delay: "1220ms", color: "#ffb000", size: "76px" }
+];
+
+function TournamentWinnerBanner({ tournament, team, source }: { tournament: Tournament; team: PublishedTeam; source: "dashboard" | "bracket" }) {
+  return (
+    <section className="relative mx-auto w-full overflow-hidden rounded-[22px] border border-white/20 bg-[linear-gradient(125deg,rgba(5,43,25,0.98),rgba(13,72,42,0.94)_58%,rgba(25,92,55,0.90))] p-4 text-white shadow-[0_22px_54px_rgba(12,59,32,0.22)] sm:p-5" aria-labelledby={`tournament-winner-${source}`}>
+      <span className="pointer-events-none absolute inset-0 opacity-35 court-lines" aria-hidden="true" />
+      <span className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-[#d8ff2f]/20 blur-3xl" aria-hidden="true" />
+      <div className="relative grid gap-4">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+          <span className="relative grid h-14 w-14 place-items-center overflow-hidden rounded-[17px] border border-white/30 bg-white/95 p-1.5 text-[13px] font-bold text-brand shadow-[0_12px_28px_rgba(0,0,0,0.20)] sm:h-16 sm:w-16">
+            {team.logoUrl ? <NextImage src={team.logoUrl} alt={`${team.name} logo`} fill sizes="64px" className="object-contain p-1.5" /> : getInitials(team.name)}
+          </span>
+          <span className="grid min-w-0 gap-1">
+            <em className="inline-flex w-max items-center gap-1.5 rounded-full bg-[#d8ff2f]/15 px-2.5 py-1 text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-[#d8ff2f]"><Trophy size={12} fill="currentColor" /> Tournament champions</em>
+            <h2 className="truncate text-[23px] font-semibold leading-tight tracking-[-0.4px] text-white sm:text-[30px]" id={`tournament-winner-${source}`}>{team.name}</h2>
+            <p className="truncate text-[11px] text-white/58 sm:text-[12px]">{tournament.name}</p>
+          </span>
+          <Link className="col-span-2 inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-full border border-white/15 bg-white/10 px-4 text-[12px] font-semibold text-white backdrop-blur transition hover:bg-white/15 active:scale-[0.98] sm:col-span-1 sm:w-max" href="/tournaments/bracket?day=2">
+            Championship bracket <ArrowRight size={13} />
+          </Link>
+        </div>
+        <div className="grid gap-2 border-t border-white/12 pt-3">
+          <span className="text-[9px] font-semibold uppercase tracking-[0.13em] text-white/50">Winning roster · {team.members.length} players</span>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" aria-label={`${team.name} winning players`}>
+            {team.members.map((player) => (
+              <Link className="inline-flex min-h-10 min-w-0 items-center gap-2 rounded-full border border-white/12 bg-white/10 py-1.5 pl-1.5 pr-2 text-[11px] font-medium text-white backdrop-blur transition hover:bg-white/16 active:scale-[0.98] sm:w-max sm:shrink-0 sm:pr-3" href={`/tournaments/players/${player.playerId}?from=${source}`} key={player.id}>
+                <Avatar className="relative grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-white/90 text-[9px] font-semibold text-brand" name={player.name} photoUrl={player.profilePhotoUrl} sizes="28px" />
+                <span className="min-w-0 truncate sm:max-w-[150px]">{player.name}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TournamentWinnerCelebration({ tournamentId, team, autoPlay = false }: { tournamentId: string; team: PublishedTeam; autoPlay?: boolean }) {
+  const [burstId, setBurstId] = useState(0);
+  const [celebrating, setCelebrating] = useState(false);
+  const stopTimerRef = useRef<number | null>(null);
+  const winnerPillTone = getTeamCardTone(team.jerseyColor);
+  const celebrate = useCallback(() => {
+    if (stopTimerRef.current) window.clearTimeout(stopTimerRef.current);
+    setBurstId((current) => current + 1);
+    setCelebrating(true);
+    stopTimerRef.current = window.setTimeout(() => setCelebrating(false), 5600);
+  }, []);
+
+  useEffect(() => () => {
+    if (stopTimerRef.current) window.clearTimeout(stopTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!autoPlay || !tournamentId || !team.id) return;
+    celebrate();
+  }, [autoPlay, celebrate, team.id, tournamentId]);
+
+  return (
+    <>
+      {celebrating && (
+        <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden" key={burstId} aria-hidden="true">
+          {winnerConfettiPieces.map((piece, index) => (
+            <span
+              className="winner-confetti-piece"
+              key={index}
+              style={{
+                "--confetti-delay": piece.delay,
+                "--confetti-duration": piece.duration,
+                "--confetti-x": piece.x,
+                "--confetti-y": piece.y,
+                "--confetti-end-y": piece.endY,
+                "--confetti-drift": piece.drift,
+                "--confetti-rotation": piece.rotation,
+                backgroundColor: piece.color,
+                borderRadius: piece.rounded,
+                clipPath: piece.clipPath,
+                height: piece.height,
+                width: piece.width
+              } as CSSProperties}
+            />
+          ))}
+          {winnerFireworkBursts.map((burst) => (
+            <span
+              className="winner-firework"
+              key={`${burst.x}:${burst.y}`}
+              style={{
+                "--firework-x": burst.x,
+                "--firework-y": burst.y,
+                "--firework-delay": burst.delay,
+                "--firework-color": burst.color,
+                "--firework-size": burst.size
+              } as CSSProperties}
+            >
+              {Array.from({ length: 16 }).map((_, sparkIndex) => (
+                <span className="winner-firework-spark" style={{ "--firework-angle": `${sparkIndex * 22.5}deg` } as CSSProperties} key={sparkIndex} />
+              ))}
+            </span>
+          ))}
+          {winnerPillPaths.map((path) => (
+            <span
+              className="winner-team-pill"
+              key={path.midX}
+              style={{
+                "--winner-pill-delay": path.delay,
+                "--winner-pill-mid-x": path.midX,
+                "--winner-pill-mid-y": path.midY,
+                "--winner-pill-end-x": path.endX,
+                "--winner-pill-end-y": path.endY,
+                "--winner-pill-rotation": path.rotation,
+                "--winner-pill-bg": winnerPillTone.background,
+                "--winner-pill-color": winnerPillTone.textColor
+              } as CSSProperties}
+            >
+              <Trophy size={15} fill="currentColor" aria-hidden="true" />
+              <strong>{team.name}</strong>
+            </span>
+          ))}
+        </div>
+      )}
+      <span className="sr-only" role="status" aria-live="polite">{celebrating ? `Celebrating tournament champions ${team.name}` : ""}</span>
+      <button
+        className="winner-celebration-button fixed bottom-[calc(88px+env(safe-area-inset-bottom))] left-1/2 z-[61] inline-flex min-h-11 max-w-[calc(100vw-32px)] -translate-x-1/2 items-center justify-center gap-2 rounded-full border border-white/70 bg-[#d8f36b]/90 px-4 py-2 text-[13px] font-semibold text-[#183a2b] shadow-[0_14px_38px_rgba(12,59,32,0.24)] backdrop-blur-xl transition hover:bg-[#d8f36b] active:scale-[0.98] md:bottom-[116px]"
+        type="button"
+        onClick={celebrate}
+        aria-label={`Celebrate tournament champions ${team.name}`}
+      >
+        <Trophy size={16} fill="currentColor" />
+        <span className="truncate">Celebrate {team.name}</span>
+      </button>
+    </>
+  );
+}
+
+function getChicagoGreeting(date = new Date()) {
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", hourCycle: "h23" }).format(date));
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function getChicagoDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
+function getChicagoMinutes(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value || 0);
+  return value("hour") * 60 + value("minute");
+}
+
+function getHomeTournamentWeatherDate(tournament: Tournament | null) {
+  const today = getChicagoDateKey();
+  if (!tournament?.startsOn) return today;
+  const endDate = tournament.endsOn || tournament.startsOn;
+  if (today >= tournament.startsOn && today <= endDate) return today;
+  if (today < tournament.startsOn) return tournament.startsOn;
+  return endDate;
+}
+
 function StatusMessage({ tone = "info", children }: { tone?: "info" | "success" | "error" | "warning"; children: ReactNode }) {
   const toneClass = {
     info: "border-line bg-card text-text-secondary",
@@ -567,21 +781,6 @@ function StatusMessage({ tone = "info", children }: { tone?: "info" | "success" 
       <Icon className="mt-0.5 shrink-0" size={16} />
       <span>{children}</span>
     </p>
-  );
-}
-
-function TournamentDetailRow({ icon, label, value, action, className = "", compact = false }: { icon: ReactNode; label: string; value: string; action?: ReactNode; className?: string; compact?: boolean }) {
-  return (
-    <div className={`grid ${compact ? "grid-cols-[28px_minmax(0,1fr)] gap-1.5 px-2 py-2" : "grid-cols-[52px_minmax(0,1fr)] gap-3 px-4 py-3.5"} border-t-hairline border-white/10 first:border-t-0 ${className}`}>
-      <span className={`grid place-items-center self-center bg-[#34704a] text-[#83f0ad] ${compact ? "h-7 w-7 rounded-[10px]" : "h-10 w-10 rounded-[14px]"}`}>
-        {icon}
-      </span>
-      <span className={`grid min-w-0 ${compact ? "gap-0.5" : "gap-1"}`}>
-        <span className={`${compact ? "text-[10px]" : "text-[12px]"} font-medium uppercase tracking-[0.08em] text-white/50`}>{label}</span>
-        <strong className={`break-words font-medium leading-tight text-white ${compact ? "text-[12px]" : "text-[16px]"}`}>{value}</strong>
-        {action}
-      </span>
-    </div>
   );
 }
 
@@ -1792,22 +1991,52 @@ async function createNewPlayerProfile(
 
 export function HomeScreen() {
   const appSession = useProtectedRoute("/dashboard", true);
-  const [homeFunFact] = useState(() => homeFunFacts[Math.floor(Math.random() * homeFunFacts.length)]);
   const [upcomingTournament, setUpcomingTournament] = useState<Tournament | null>(null);
   const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
+  const [homeWeather, setHomeWeather] = useState<ChicagoWeather | null>(null);
+  const [homeWeatherLoading, setHomeWeatherLoading] = useState(true);
+  const [homeWeatherMessage, setHomeWeatherMessage] = useState("");
   const [dashboardUstaNumber, setDashboardUstaNumber] = useState("");
   const [dashboardUstaMessage, setDashboardUstaMessage] = useState("");
   const [savingDashboardUsta, setSavingDashboardUsta] = useState(false);
   const [showDashboardUstaPrompt, setShowDashboardUstaPrompt] = useState(false);
   const [dashboardUstaDismissed, setDashboardUstaDismissed] = useState(false);
   const [homeCanViewSchedule, setHomeCanViewSchedule] = useState(false);
+  const [homeRegistrationResolutionKey, setHomeRegistrationResolutionKey] = useState("");
   const [homeUpcomingMatches, setHomeUpcomingMatches] = useState<PlayerScheduleMatch[]>([]);
+  const [homeTournamentChampion, setHomeTournamentChampion] = useState<PublishedTeam | null>(null);
+  const homeWeatherDate = getHomeTournamentWeatherDate(upcomingTournament);
+
+  useEffect(() => {
+    if (!homeWeatherDate) return;
+    const controller = new AbortController();
+    setHomeWeatherLoading(true);
+    setHomeWeatherMessage("");
+    fetch(`/api/weather/chicago?date=${encodeURIComponent(homeWeatherDate)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json() as ChicagoWeather & { error?: string };
+        if (!response.ok) throw new Error(payload.error || "Chicago weather is unavailable.");
+        setHomeWeather(payload);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setHomeWeather(null);
+        setHomeWeatherMessage(error instanceof Error ? error.message : "Chicago weather is unavailable.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setHomeWeatherLoading(false);
+      });
+    return () => controller.abort();
+  }, [homeWeatherDate]);
 
   useEffect(() => {
     if (!appSession.ready || !appSession.userId) return;
 
     const supabase = getSupabaseClient();
-    if (!supabase) return;
+    if (!supabase) {
+      setHomeRegistrationResolutionKey(`${appSession.userId}:none`);
+      return;
+    }
 
     const loadDashboard = async () => {
       const [{ data: tournamentData }, { data: profileData }, { data: playersData }] = await Promise.all([
@@ -1844,6 +2073,45 @@ export function HomeScreen() {
           city: row.jamaat_city || "City not added",
           profilePhotoUrl: row.profile_photo_url || ""
       })));
+      setHomeTournamentChampion(null);
+      if (tournamentData) {
+        const [championTeamsResult, championMatchesResult, championPlayersResult, championScoresResult] = await Promise.all([
+          supabase
+            .from("tournament_teams")
+            .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+            .eq("tournament_id", tournamentData.id)
+            .eq("is_published", true)
+            .order("sort_order", { ascending: true })
+            .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
+            .limit(40),
+          supabase
+            .from("tournament_schedule_matches")
+            .select("id, tournament_id, day_number, day_label, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
+            .eq("tournament_id", tournamentData.id)
+            .eq("is_published", true)
+            .order("day_number", { ascending: true })
+            .order("sort_order", { ascending: true })
+            .limit(300),
+          supabase
+            .from("tournament_schedule_match_players")
+            .select("id, schedule_match_id, team_id, player_id, side, slot, source_player_name")
+            .eq("tournament_id", tournamentData.id)
+            .limit(1200),
+          supabase
+            .from("tournament_match_scores")
+            .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+            .eq("tournament_id", tournamentData.id)
+            .limit(400)
+        ]);
+        const championScheduleMissing = isScheduleSchemaMissing(championMatchesResult.error?.message || championPlayersResult.error?.message || "");
+        const championScoresMissing = isScoreSchemaMissing(championScoresResult.error?.message || "");
+        if (!championTeamsResult.error && !championScheduleMissing && !championMatchesResult.error && !championPlayersResult.error) {
+          const championTeams = mapPublishedTeamsFromRows(championTeamsResult.data || []);
+          const championScores = championScoresMissing || championScoresResult.error ? [] : mapMatchScores(championScoresResult.data || []);
+          const championMatches = mapTeamCourtScheduleMatches(championMatchesResult.data || [], championPlayersResult.data || [], championTeams, championScores);
+          setHomeTournamentChampion(getTournamentChampion(championTeams, championMatches));
+        }
+      }
       if (profileData) {
         setDashboardUstaNumber(profileData.usta_number || "");
       }
@@ -1869,6 +2137,7 @@ export function HomeScreen() {
         const schedulePlayerId = moizPreviewPlayer?.id || profileData.id;
         const canViewPlayerSchedule = paidRegistration || usesMoizPreview;
         setHomeCanViewSchedule(canViewPlayerSchedule);
+        setHomeRegistrationResolutionKey(`${appSession.userId}:${tournamentData.id}`);
         setShowDashboardUstaPrompt(Boolean(paidRegistration && !profileData.usta_number?.trim() && !dashboardUstaDismissed));
         if (canViewPlayerSchedule) {
           const { data: playerMatchRows, error: playerMatchError } = await supabase
@@ -1911,11 +2180,7 @@ export function HomeScreen() {
             if (!scheduleSchemaMissing && !matchesResult.error && !participantsResult.error && !teamsResult.error) {
               const mappedTeams = mapPublishedTeamsFromRows(teamsResult.data || []);
               const mappedScores = scoreSchemaMissing || scoresResult.error ? [] : mapMatchScores(scoresResult.data || []);
-              setHomeUpcomingMatches(
-                mapPlayerScheduleMatches(matchesResult.data || [], participantsResult.data || [], mappedTeams, mappedScores, schedulePlayerId)
-                  .filter((match) => !match.score?.winnerSide)
-                  .slice(0, 2)
-              );
+              setHomeUpcomingMatches(mapPlayerScheduleMatches(matchesResult.data || [], participantsResult.data || [], mappedTeams, mappedScores, schedulePlayerId));
             } else {
               setHomeUpcomingMatches([]);
             }
@@ -1929,6 +2194,7 @@ export function HomeScreen() {
         setHomeCanViewSchedule(false);
         setHomeUpcomingMatches([]);
         setShowDashboardUstaPrompt(false);
+        setHomeRegistrationResolutionKey(`${appSession.userId}:${tournamentData?.id || "none"}`);
       }
     };
 
@@ -1986,102 +2252,66 @@ export function HomeScreen() {
   };
 
   const homeTournamentCountdown = useTournamentCountdown(upcomingTournament?.startsOn || null);
+  const homeIncompleteMatches = homeUpcomingMatches.filter((match) => !match.score?.winnerSide);
+  const homePrimaryMatch = homeIncompleteMatches[0] || null;
+  const homeSecondMatch = homeIncompleteMatches[1] || null;
+  const homeQueuedMatch = homePrimaryMatch
+    ? homeIncompleteMatches.slice(1).find((match) => match.dayNumber === homePrimaryMatch.dayNumber) || null
+    : null;
+  const expectedHomeRegistrationResolutionKey = `${appSession.userId}:${upcomingTournament?.id || "none"}`;
+  const homeRegistrationResolved = homeRegistrationResolutionKey === expectedHomeRegistrationResolutionKey;
 
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
-  const homeRegistrationClosed = upcomingTournament?.status === "registration_closed";
 
   return (
     <AppFrame active="home">
       <div className={memberPageClass}>
         <AppTopBar />
 
-        <main className={memberMainClass}>
-          <PageGreeting subtitle={`Did you know? ${homeFunFact}`} />
-          {upcomingTournament ? (
-            <section className={`relative grid overflow-hidden border-hairline border-white/20 bg-[linear-gradient(135deg,#103f24_0%,#174d2c_54%,#0f3a22_100%)] text-white shadow-[0_18px_46px_rgba(12,59,32,0.16)] ${homeRegistrationClosed ? "rounded-[18px] p-2.5" : "rounded-[22px] p-4"}`}>
-              <TournamentHeroAmbience />
-              <div className="pointer-events-none absolute inset-0 -right-16 -top-6 z-0 text-white opacity-[0.06]" aria-hidden="true">
-                <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
-                  <path d="M22 95H318M170 20V170M82 20V170M258 20V170M82 58H258M82 132H258" stroke="currentColor" strokeWidth="1.2" />
-                </svg>
-              </div>
-              <div className={`relative z-10 grid ${homeRegistrationClosed ? "gap-2" : "gap-3"}`}>
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-                  <span className={`grid min-w-0 ${homeRegistrationClosed ? "gap-1" : "gap-2"}`}>
-                    <span className={homeRegistrationClosed ? "inline-flex w-max items-center gap-1.5 text-[12px] font-normal text-white/60" : "inline-flex w-max items-center gap-2 rounded-full bg-white/[0.13] px-2.5 py-1 text-[12px] font-medium text-[#83f0ad]"}>
-                      {upcomingTournament.status === "registration_open" && <span className="h-[7px] w-[7px] animate-pulse rounded-full bg-accent-green" />}
-                      {formatTournamentStatus(upcomingTournament.status)}
-                    </span>
-                    <h1 className={homeRegistrationClosed ? "min-w-0 max-w-full truncate whitespace-nowrap text-[16px] font-medium leading-tight text-white md:text-[19px]" : "max-w-[760px] text-[24px] font-medium leading-[1.1] tracking-[-0.3px] text-white md:text-[30px]"}>{upcomingTournament.name}</h1>
-                  </span>
-                  {homeRegistrationClosed && (
-                    <span className="grid w-full gap-1.5 rounded-[13px] border-hairline border-white/10 bg-white/[0.08] px-2.5 py-1.5 text-left sm:w-auto sm:grid-cols-[max-content_auto] sm:items-center">
-                      <em className="block whitespace-nowrap text-[11px] not-italic leading-tight text-white/60">Tournament starts in</em>
-                      <TournamentStartCountdown countdown={homeTournamentCountdown} />
-                    </span>
-                  )}
-                </div>
+        <main className="mx-auto grid w-full max-w-shell gap-4 px-4 py-4 pb-32 sm:gap-5 sm:px-5 sm:py-5 md:px-8 lg:px-10">
+          <HomeGreeting
+            loading={homeWeatherLoading}
+            match={homeCanViewSchedule ? homePrimaryMatch : null}
+            message={homeWeatherMessage}
+            weather={homeWeather}
+          />
 
-                <div className={homeRegistrationClosed ? "grid grid-cols-2 overflow-hidden rounded-[13px] border-hairline border-white/14 bg-white/[0.08]" : "grid overflow-hidden rounded-[20px] border-hairline border-white/14 bg-white/[0.10] md:grid-cols-2"}>
-                  <TournamentDetailRow compact={homeRegistrationClosed} className={homeRegistrationClosed ? "!border-t-0" : "md:border-t-0"} icon={<Calendar size={homeRegistrationClosed ? 14 : 18} />} label="Dates" value={formatTournamentDates(upcomingTournament)} />
-                  {!homeRegistrationClosed && <TournamentDetailRow className="md:border-l-hairline md:border-l-white/10 md:border-t-0" icon={<DollarSign size={20} />} label="Entry fee" value={formatCurrency(upcomingTournament.registrationFeeCents, "USD")} />}
-                  <TournamentDetailRow
-                    compact={homeRegistrationClosed}
-                    className={homeRegistrationClosed ? "!border-t-0 border-l-hairline border-l-white/10" : "md:col-span-2"}
-                    icon={<MapPin size={homeRegistrationClosed ? 14 : 20} />}
-                    label="Venue"
-                    value={upcomingTournament.venueName || "Venue TBD"}
-                    action={(
-                      <a className={`tap-card inline-flex w-max items-center gap-1 font-medium text-[#83f0ad] ${homeRegistrationClosed ? "text-[11px]" : "text-[14px]"}`} href={upcomingTournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(upcomingTournament.venueName || "")}`} target="_blank" rel="noreferrer">
-                        <ExternalLink size={homeRegistrationClosed ? 12 : 14} />
-                        Open in maps
-                      </a>
-                    )}
-                  />
-                </div>
+          {upcomingTournament && homeTournamentChampion && (
+            <TournamentWinnerBanner source="dashboard" team={homeTournamentChampion} tournament={upcomingTournament} />
+          )}
 
-                <Link className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-[#B8FF35] px-4 text-[14px] font-medium text-[#153419] shadow-[0_18px_38px_rgba(184,255,53,0.16)] sm:w-max sm:justify-self-end xl:justify-self-center" href="/tournaments">
-                  View tournament details
-                  <ArrowRight size={15} />
-                </Link>
+          {upcomingTournament && homeCanViewSchedule && homePrimaryMatch && (
+            <section className="mx-auto grid w-full max-w-[600px] gap-2 lg:max-w-none lg:gap-3" aria-labelledby="home-upcoming-matches-title">
+              <h2 className="px-0.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-text-secondary" id="home-upcoming-matches-title">Up next</h2>
+              <div className={`grid gap-3 ${homeSecondMatch ? "lg:grid-cols-2" : ""}`}>
+                <HomePrimaryMatchCard match={homePrimaryMatch} tournament={upcomingTournament} />
+                {homeSecondMatch && <div className="hidden lg:block"><HomePrimaryMatchCard match={homeSecondMatch} tournament={upcomingTournament} /></div>}
               </div>
+              {homeQueuedMatch && <div className="lg:hidden"><HomeQueuedMatchLine match={homeQueuedMatch} /></div>}
+              <Link className="tap-card inline-flex min-h-10 w-max items-center gap-1 justify-self-center px-3 text-[12px] font-medium text-brand sm:min-h-11 sm:text-[13px]" href="/tournaments/schedule">
+                View full schedule <ArrowRight size={14} />
+              </Link>
             </section>
+          )}
+
+          {upcomingTournament ? homeRegistrationResolved ? (
+            <HomeTournamentOverviewCard countdown={homeTournamentCountdown} registered={homeCanViewSchedule} tournament={upcomingTournament} />
           ) : (
-            <StatusMessage tone="info">No live tournament found.</StatusMessage>
+            <HomeTournamentOverviewSkeleton />
+          ) : homeRegistrationResolved ? (
+            <div className="mx-auto w-full max-w-[600px]"><StatusMessage tone="info">No live tournament found.</StatusMessage></div>
+          ) : (
+            <HomeTournamentOverviewSkeleton />
           )}
 
-          {homeCanViewSchedule && !!homeUpcomingMatches.length && upcomingTournament && (
-            <section className="grid gap-2" aria-labelledby="home-upcoming-matches-title">
-              <div className="flex items-center justify-between gap-3 px-0.5">
-                <span className="grid gap-0.5">
-                  <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-[#3b6d11]">Your schedule</em>
-                  <h2 className="text-[18px] font-semibold leading-tight text-text-primary" id="home-upcoming-matches-title">Up next</h2>
-                </span>
-                <Link className="tap-card group !w-auto shrink-0 self-center inline-flex min-h-9 items-center gap-2 rounded-full border-hairline border-brand/15 bg-brand px-2 py-1 pl-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(24,58,43,0.12)]" href="/tournaments/schedule">
-                  Full schedule
-                  <span className="grid h-6 w-6 place-items-center rounded-full bg-[#d8f36b] text-brand transition-transform group-hover:translate-x-0.5" aria-hidden="true">
-                    <ArrowRight size={12} />
-                  </span>
-                </Link>
-              </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                {homeUpcomingMatches.map((match) => <HomeUpcomingMatchCard match={match} tournament={upcomingTournament} key={match.id} />)}
-              </div>
-            </section>
-          )}
-
-          <section className="grid gap-3">
+          <section className="mx-auto grid w-full max-w-[960px] gap-3">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-              <span className="grid gap-1">
-                <strong className="text-[16px] font-medium leading-tight text-text-primary">Top performers</strong>
-                <em className="text-[14px] not-italic leading-relaxed text-text-secondary">Current MRSA leaderboard.</em>
-              </span>
-              <Link className="tap-card inline-flex items-center justify-self-end gap-1 rounded-full bg-brand-light px-3 py-1.5 text-[13px] font-medium text-[#3b6d11]" href="/players">
+              <strong className="text-[20px] font-semibold leading-tight tracking-[-0.25px] text-text-primary">Top performers</strong>
+              <Link className="tap-card inline-flex min-h-11 items-center justify-self-end gap-1 rounded-full bg-white/55 px-3.5 py-1.5 text-[13px] font-medium text-brand shadow-[inset_0_0_0_1px_rgba(24,58,43,0.05)] backdrop-blur" href="/players">
                 View all <ArrowRight size={14} />
               </Link>
             </div>
-            <div className="grid gap-2">
+            <div className="grid gap-2 md:grid-cols-2">
               {topPlayers.map((player, index) => (
                 <article className="grid min-h-[58px] grid-cols-[24px_36px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[12px] border-hairline border-line bg-white/84 p-2.5 shadow-[0_6px_18px_rgba(24,24,26,0.04)] backdrop-blur" key={player.id}>
                   <span className={index < 3 ? "text-center text-[14px] font-medium text-[#b8860b]" : "text-center text-[14px] font-medium text-text-muted"}>{index + 1}</span>
@@ -2164,6 +2394,9 @@ export function HomeScreen() {
             </section>
           </div>
         )}
+        {upcomingTournament && homeTournamentChampion && (
+          <TournamentWinnerCelebration autoPlay team={homeTournamentChampion} tournamentId={upcomingTournament.id} />
+        )}
       </div>
     </AppFrame>
   );
@@ -2174,6 +2407,7 @@ export function DrawScreen() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [registeredPlayers, setRegisteredPlayers] = useState<RegisteredPlayer[]>([]);
   const [publishedTeams, setPublishedTeams] = useState<PublishedTeam[]>([]);
+  const [tournamentChampion, setTournamentChampion] = useState<PublishedTeam | null>(null);
   const [registeredPlayersOpen, setRegisteredPlayersOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [registered, setRegistered] = useState(false);
@@ -2211,6 +2445,7 @@ export function DrawScreen() {
       setTournament(null);
       setRegisteredPlayers([]);
       setPublishedTeams([]);
+      setTournamentChampion(null);
       setRegistrationShirtName("");
       setLoading(false);
       return;
@@ -2219,7 +2454,7 @@ export function DrawScreen() {
     const mappedTournament = mapTournament(tournamentData);
     setTournament(mappedTournament);
 
-    const [registrationsResult, myRegistrationResult, latestPaymentResult, teamsResult, fitnessProgressResult] = await Promise.all([
+    const [registrationsResult, myRegistrationResult, latestPaymentResult, teamsResult, fitnessProgressResult, matchesResult, participantsResult, scoresResult] = await Promise.all([
       supabase
         .from("tournament_registrations")
         .select("player_id, players(id, full_name, jamaat_city, age, date_of_birth, rating, tennis_video_url)")
@@ -2263,6 +2498,27 @@ export function DrawScreen() {
             .eq("player_id", appSession.player.id)
             .order("day_number", { ascending: true })
         : Promise.resolve({ data: [] })
+      ,
+      supabase
+        .from("tournament_schedule_matches")
+        .select("id, tournament_id, day_number, day_label, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
+        .eq("tournament_id", mappedTournament.id)
+        .eq("is_published", true)
+        .order("day_number", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .limit(300)
+      ,
+      supabase
+        .from("tournament_schedule_match_players")
+        .select("id, schedule_match_id, team_id, player_id, side, slot, source_player_name")
+        .eq("tournament_id", mappedTournament.id)
+        .limit(1200)
+      ,
+      supabase
+        .from("tournament_match_scores")
+        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+        .eq("tournament_id", mappedTournament.id)
+        .limit(400)
     ]);
     const registrations = registrationsResult.data || [];
     const myRegistration = myRegistrationResult.data;
@@ -2279,7 +2535,7 @@ export function DrawScreen() {
         tennisVideoUrl: hasPlayerVideoLink(player?.tennis_video_url) ? player?.tennis_video_url || "" : ""
       };
     }));
-    setPublishedTeams((teamsResult.data || []).map((team) => {
+    const nextPublishedTeams = (teamsResult.data || []).map((team) => {
       const members = Array.isArray(team.tournament_team_members) ? team.tournament_team_members : team.tournament_team_members ? [team.tournament_team_members] : [];
       return {
         id: team.id,
@@ -2308,7 +2564,17 @@ export function DrawScreen() {
           })
           .sort((a, b) => Number(b.isCaptain) - Number(a.isCaptain) || (a.draftOrder || 9999) - (b.draftOrder || 9999) || a.name.localeCompare(b.name))
       };
-    }));
+    });
+    setPublishedTeams(nextPublishedTeams);
+    const scheduleSchemaMissing = isScheduleSchemaMissing(matchesResult.error?.message || participantsResult.error?.message || "");
+    const scoreSchemaMissing = isScoreSchemaMissing(scoresResult.error?.message || "");
+    if (!teamsResult.error && !scheduleSchemaMissing && !matchesResult.error && !participantsResult.error) {
+      const mappedScores = scoreSchemaMissing || scoresResult.error ? [] : mapMatchScores(scoresResult.data || []);
+      const mappedMatches = mapTeamCourtScheduleMatches(matchesResult.data || [], participantsResult.data || [], nextPublishedTeams, mappedScores);
+      setTournamentChampion(getTournamentChampion(nextPublishedTeams, mappedMatches));
+    } else {
+      setTournamentChampion(null);
+    }
     setCompletedFitnessDays((fitnessProgressResult.data || []).map((row) => Number(row.day_number)).filter(Boolean));
 
     if (appSession.player?.id) {
@@ -2400,6 +2666,9 @@ export function DrawScreen() {
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_registrations" }, loadTournament)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_teams" }, loadTournament)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_team_members" }, loadTournament)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_matches" }, loadTournament)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_match_players" }, loadTournament)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_match_scores" }, loadTournament)
       .subscribe();
 
     return () => {
@@ -2665,6 +2934,9 @@ export function DrawScreen() {
           </section>
         </section>
         </main>
+        {tournament && tournamentChampion && (
+          <TournamentWinnerCelebration team={tournamentChampion} tournamentId={tournament.id} />
+        )}
       </div>
     </AppFrame>
   );
@@ -3847,7 +4119,13 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
   const [openingMatchId, setOpeningMatchId] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [scheduleNow, setScheduleNow] = useState(() => new Date());
   const dayTwoInitialSyncRef = useRef("");
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setScheduleNow(new Date()), 30000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const loadSchedule = useCallback(async () => {
     if (!appSession.ready) return;
@@ -4068,12 +4346,22 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
   const groupedTeamMatches = groupTeamMatchesByTime(selectedTeamMatches);
   const teamScheduleTimeLabels = Object.keys(groupedTeamMatches).sort((a, b) => getScheduleTimeSortValue(a) - getScheduleTimeSortValue(b) || a.localeCompare(b));
   const dayTwoBracketStages = buildLiveTeamBracket(dayOneStandings, dayTwoMatches, dayOneIsFinal);
+  const tournamentChampion = getTournamentChampionFromStages(dayTwoBracketStages);
   const fullBracketNodes = selectedDay === 1
     ? buildDayOneRoundNodes(teams, dayOneMatches)
     : dayTwoBracketStages.flatMap((stage) => stage.nodes);
   const selectedDayEvents = getDayScheduleEventItems(items, selectedDay);
   const playerScheduleTimeline = buildScheduleTimelineEntries(playerScheduleTimeLabels, selectedDayEvents);
   const teamScheduleTimeline = buildScheduleTimelineEntries(teamScheduleTimeLabels, selectedDayEvents);
+  const activeScope = view === "bracket" ? "bracket" : scope;
+  const selectedScheduleTimeline = activeScope === "team" ? teamScheduleTimeline : playerScheduleTimeline;
+  const selectedDayDateKey = getTournamentDayDateKey(tournament, selectedDay);
+  const scheduleTodayKey = getChicagoDateKey(scheduleNow);
+  const scheduleCurrentMinutes = getChicagoMinutes(scheduleNow);
+  const showScheduleNowMarker = view === "schedule" && selectedDayDateKey === scheduleTodayKey;
+  const scheduleNowInsertIndex = showScheduleNowMarker
+    ? selectedScheduleTimeline.findIndex((entry) => getScheduleTimeSortValue(entry.label) > scheduleCurrentMinutes)
+    : -2;
   const selectedFallbackItems = items.filter((item) => item.dayNumber === selectedDay && !isLunchScheduleItem(item));
   const openMatchDetails = (match: TeamCourtScheduleMatch) => {
     if (openingMatchId) return;
@@ -4081,16 +4369,23 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
     router.push(`/tournaments/schedule/matches/${match.id}`);
   };
   const openTeamDetails = (teamId: string) => router.push(`/tournaments/schedule/teams/${teamId}`);
-  const activeScope = view === "bracket" ? "bracket" : scope;
-  const scopeTabs = [
-    { id: "my" as const, label: "My schedule" },
-    { id: "team" as const, label: "Team schedule" }
-  ];
   return (
     <AppFrame active="tournament" withNav={view === "schedule" || Boolean(appSession.userId)}>
       <div className={memberPageClass}>
         <AppTopBar publicNextPath={view === "bracket" ? "/tournaments/bracket" : undefined} />
-        <main className={memberMainClass}>
+        <main className={view === "schedule" ? "mx-auto grid w-full max-w-[1040px] gap-4 px-3 py-4 pb-32 min-[480px]:px-5 sm:gap-5 sm:py-5 lg:px-8 lg:py-7" : memberMainClass}>
+          {view === "schedule" && (
+            <SchedulePageHeader
+              activeScope={activeScope === "team" ? "team" : "my"}
+              notesCount={notes.length}
+              now={scheduleNow}
+              onSelectDay={setSelectedDay}
+              onSelectScope={setScope}
+              selectedDay={selectedDay}
+              tournament={tournament}
+            />
+          )}
+          {view === "bracket" && (
           <section className="relative overflow-hidden rounded-[26px] border-hairline border-white/20 bg-brand p-3 text-white shadow-[0_22px_52px_rgba(12,59,32,0.20)] sm:p-4 lg:p-5">
             <span className="pointer-events-none absolute inset-0 opacity-35 court-lines" aria-hidden="true" />
             <div className="relative grid gap-3">
@@ -4099,26 +4394,15 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
                   <ArrowLeft size={15} />
                 </Link>
                 <div className="grid min-w-0 justify-items-center gap-1 text-center">
-                  <h1 className="text-[24px] font-medium leading-tight tracking-[-0.3px] text-white sm:text-[28px]">{view === "bracket" ? "Live Bracket" : "Schedule"}</h1>
+                  <h1 className="text-[24px] font-medium leading-tight tracking-[-0.3px] text-white sm:text-[28px]">Live Bracket</h1>
                 </div>
-                {view === "bracket" ? (
-                  <span className="inline-flex h-8 items-center justify-center gap-1 rounded-full border-hairline border-white/20 bg-white/10 px-2 text-[8px] font-semibold uppercase tracking-[0.08em] text-[#d8f36b]" aria-label="Live scores">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#d8f36b]" />
-                    Live
-                  </span>
-                ) : <span aria-hidden="true" />}
+                <span className="inline-flex h-8 items-center justify-center gap-1 rounded-full border-hairline border-white/20 bg-white/10 px-2 text-[8px] font-semibold uppercase tracking-[0.08em] text-[#d8f36b]" aria-label="Live scores">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#d8f36b]" />
+                  Live
+                </span>
               </div>
 
               <div className="grid gap-2">
-                {view === "schedule" && (
-                  <div className="grid grid-cols-2 gap-1 rounded-[16px] border-hairline border-white/15 bg-white/10 p-1.5 backdrop-blur">
-                    {scopeTabs.map((tab) => (
-                      <button className={activeScope === tab.id ? "tap-card grid min-h-11 min-w-0 place-items-center rounded-[12px] bg-white px-1.5 text-center text-brand shadow-[0_10px_22px_rgba(0,0,0,0.14)] sm:px-3" : "tap-card grid min-h-11 min-w-0 place-items-center rounded-[12px] px-1.5 text-center text-white/68 hover:bg-white/10 sm:px-3"} type="button" onClick={() => setScope(tab.id)} key={tab.id} aria-pressed={activeScope === tab.id}>
-                        <strong className="block max-w-full text-center text-[11px] font-medium leading-tight sm:text-[13px]">{tab.label}</strong>
-                      </button>
-                    ))}
-                  </div>
-                )}
                 <div className="grid grid-cols-2 gap-1 rounded-[16px] border-hairline border-white/15 bg-white/10 p-1.5 backdrop-blur" aria-label="Schedule day">
                   {[1, 2].map((day) => (
                     <button className={selectedDay === day ? "tap-card flex min-h-10 items-center justify-center gap-2 rounded-[12px] bg-[#d8f36b] px-3 text-[#183a2b] shadow-[0_8px_18px_rgba(0,0,0,0.12)]" : "tap-card flex min-h-10 items-center justify-center gap-2 rounded-[12px] px-3 text-white/70 hover:bg-white/10"} type="button" onClick={() => setSelectedDay(day as 1 | 2)} aria-pressed={selectedDay === day} key={day}>
@@ -4128,32 +4412,19 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
                 </div>
               </div>
 
-              {view === "schedule" ? (
-                <nav className="grid w-full grid-cols-3 gap-1 text-[9px] font-medium sm:mx-auto sm:max-w-[620px] sm:gap-2 sm:text-[11px]" aria-label="Tournament links">
-                  <Link className="tap-card inline-flex min-h-8 min-w-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-full border-hairline border-white/18 bg-white/[0.08] px-1.5 py-1 text-white/82 transition hover:bg-white/14 hover:text-white sm:px-3" href="/tournaments/schedule/rules" aria-label={`Rules & Regulations, ${notes.length} sections`}>
-                    <span className="sm:hidden">Rules</span>
-                    <span className="hidden sm:inline">Rules &amp; Regulations</span>
-                    <ArrowRight className="shrink-0" size={11} />
-                  </Link>
-                  <Link className="tap-card inline-flex min-h-8 min-w-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-full border-hairline border-[#d8f36b]/35 bg-[#d8f36b]/10 px-1.5 py-1 text-[#d8f36b] transition hover:bg-[#d8f36b]/18 hover:text-white sm:px-3" href="/tournaments/leaderboard">
-                    <span>Leaderboard</span>
-                    <ArrowRight className="shrink-0" size={11} />
-                  </Link>
-                  <Link className="tap-card inline-flex min-h-8 min-w-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-full border-hairline border-white/18 bg-white/[0.08] px-1.5 py-1 text-white/82 transition hover:bg-white/14 hover:text-white sm:px-3" href="/tournaments/bracket">
-                    <span>Live bracket</span>
-                    <ArrowRight className="shrink-0" size={11} />
-                  </Link>
-                </nav>
-              ) : (
-                <div className="flex items-center justify-center text-[11px] font-medium">
-                  <Link className="tap-card inline-flex min-h-7 items-center justify-center gap-1 whitespace-nowrap rounded-full border-hairline border-[#d8f36b]/35 bg-[#d8f36b]/10 px-3 py-1 text-[#d8f36b] transition hover:bg-[#d8f36b]/18 hover:text-white" href="/tournaments/leaderboard">
-                    Leaderboard
-                    <ArrowRight size={11} />
-                  </Link>
-                </div>
-              )}
+              <div className="flex items-center justify-center text-[11px] font-medium">
+                <Link className="tap-card inline-flex min-h-7 items-center justify-center gap-1 whitespace-nowrap rounded-full border-hairline border-[#d8f36b]/35 bg-[#d8f36b]/10 px-3 py-1 text-[#d8f36b] transition hover:bg-[#d8f36b]/18 hover:text-white" href="/tournaments/leaderboard">
+                  Leaderboard
+                  <ArrowRight size={11} />
+                </Link>
+              </div>
             </div>
           </section>
+          )}
+
+          {view === "bracket" && tournament && tournamentChampion && (
+            <TournamentWinnerBanner source="bracket" team={tournamentChampion} tournament={tournament} />
+          )}
 
           {message && <StatusMessage tone="error">{message}</StatusMessage>}
           {openingMatchId && <ScheduleLoadingNotice label="Opening match..." overlay />}
@@ -4171,33 +4442,47 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
             )}
             {!loading && activeScope === "bracket" && <ScheduleDayEventRail day={selectedDay} items={selectedDayEvents} />}
             {activeScope === "my" && (
-              <div className="grid gap-4 xl:grid-cols-3">
+              <div className="relative grid gap-4">
+                <span className="pointer-events-none absolute bottom-0 left-[8px] top-0 z-[3] w-px bg-[#9faf9f]" aria-hidden="true" />
                 {playerScheduleTimeline.map((entry, timeIndex) => (
-                  entry.kind === "event"
-                    ? <ScheduleTimelineEventCard item={entry.item} key={entry.key} />
-                    : (
-                      <PlayerScheduleTimeCard
-                        label={entry.label}
-                        matches={groupedPlayerMatches[entry.label] || []}
-                        teams={teams}
-                        onOpenMatch={(match) => {
-                          const fullMatch = teamCourtMatches.find((teamMatch) => teamMatch.id === match.id);
-                          if (fullMatch) openMatchDetails(fullMatch);
-                        }}
-                        isFeatured={timeIndex === 1}
-                        key={entry.key}
-                      />
-                    )
+                  <Fragment key={entry.key}>
+                    {scheduleNowInsertIndex === timeIndex && <ScheduleNowMarker now={scheduleNow} />}
+                    <ScheduleTimelineSlot state={entry.kind === "event" ? "break" : getScheduleGroupState(groupedPlayerMatches[entry.label] || [], tournament, scheduleNow)}>
+                      {entry.kind === "event"
+                        ? <ScheduleTimelineEventCard item={entry.item} />
+                        : (
+                          <PlayerScheduleTimeCard
+                            label={entry.label}
+                            matches={groupedPlayerMatches[entry.label] || []}
+                            tournament={tournament}
+                            teams={teams}
+                            onOpenMatch={(match) => {
+                              const fullMatch = teamCourtMatches.find((teamMatch) => teamMatch.id === match.id);
+                              if (fullMatch) openMatchDetails(fullMatch);
+                            }}
+                            isFeatured={timeIndex === 1}
+                          />
+                        )}
+                    </ScheduleTimelineSlot>
+                  </Fragment>
                 ))}
+                {scheduleNowInsertIndex === -1 && <ScheduleNowMarker now={scheduleNow} />}
               </div>
             )}
             {activeScope === "team" && assignedTeam && (
-              <div className="grid gap-4 xl:grid-cols-3">
-                {teamScheduleTimeline.map((entry) => (
-                  entry.kind === "event"
-                    ? <ScheduleTimelineEventCard item={entry.item} key={entry.key} />
-                    : <TeamScheduleTimeCard label={entry.label} matches={groupedTeamMatches[entry.label] || []} team={assignedTeam} teams={teams} onOpenMatch={openMatchDetails} key={entry.key} />
+              <div className="relative grid gap-4">
+                <span className="pointer-events-none absolute bottom-0 left-[8px] top-0 z-[3] w-px bg-[#9faf9f]" aria-hidden="true" />
+                {teamScheduleTimeline.map((entry, timeIndex) => (
+                  <Fragment key={entry.key}>
+                    {scheduleNowInsertIndex === timeIndex && <ScheduleNowMarker now={scheduleNow} />}
+                    <ScheduleTimelineSlot state={entry.kind === "event" ? "break" : getScheduleGroupState(groupedTeamMatches[entry.label] || [], tournament, scheduleNow)}>
+                      {entry.kind === "event"
+                        ? <ScheduleTimelineEventCard item={entry.item} />
+                        : <TeamScheduleTimeCard label={entry.label} matches={groupedTeamMatches[entry.label] || []} team={assignedTeam} tournament={tournament} teams={teams} onOpenMatch={openMatchDetails} />}
+                    </ScheduleTimelineSlot>
+                  </Fragment>
                 ))}
+                {scheduleNowInsertIndex === -1 && <ScheduleNowMarker now={scheduleNow} />}
               </div>
             )}
             {activeScope === "bracket" && !!fullBracketNodes.length && (
@@ -4238,6 +4523,9 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
             {!loading && activeScope === "bracket" && !fullBracketNodes.length && !selectedFallbackItems.length && !(selectedDay === 2 && !dayOneIsFinal) && <StatusMessage tone="info">Day {selectedDay} matchups will appear here once posted.</StatusMessage>}
           </section>
         </main>
+        {view === "bracket" && tournament && tournamentChampion && (
+          <TournamentWinnerCelebration autoPlay team={tournamentChampion} tournamentId={tournament.id} />
+        )}
       </div>
     </AppFrame>
   );
@@ -6170,80 +6458,309 @@ function formatCountdownValue(value: number) {
   return value < 10 ? `0${value}` : String(value);
 }
 
-function TournamentStartCountdown({ countdown }: { countdown: TournamentCountdown }) {
-  if (countdown.state !== "countdown") {
-    return <strong className="block text-[15px] font-medium text-white">{countdown.label}</strong>;
-  }
+function useHomeMatchTiming(match: PlayerScheduleMatch, tournament: Tournament) {
+  const [now, setNow] = useState(() => Date.now());
 
-  return (
-    <span className="grid gap-1">
-      <span className="grid grid-cols-4 gap-1.5 text-center">
-        <CountdownUnit value={countdown.days} label={countdown.days === 1 ? "day" : "days"} />
-        <CountdownUnit value={countdown.hours} label={countdown.hours === 1 ? "hour" : "hours"} />
-        <CountdownUnit value={countdown.minutes} label="min" />
-        <span className="relative grid min-w-[42px] gap-0.5 rounded-[12px] bg-white/12 px-2 py-1.5">
-          <span className="tennis-countdown-ball" key={countdown.seconds} aria-hidden="true" />
-          <strong className="text-[15px] font-medium leading-none text-white">{formatCountdownValue(countdown.seconds)}</strong>
-          <em className="text-[10px] not-italic leading-none text-white/60">sec</em>
-        </span>
-      </span>
-    </span>
-  );
+  useEffect(() => {
+    setNow(Date.now());
+    const interval = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(interval);
+  }, [match.id, match.timeLabel, match.dayNumber]);
+
+  if (!tournament.startsOn) return { dayLabel: match.dayLabel || `Day ${match.dayNumber}`, countdownLabel: "Scheduled" };
+  const matchDate = new Date(`${tournament.startsOn}T12:00:00Z`);
+  matchDate.setUTCDate(matchDate.getUTCDate() + Math.max(0, match.dayNumber - 1));
+  const matchDateKey = matchDate.toISOString().slice(0, 10);
+  const chicagoParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(new Date(now));
+  const part = (type: Intl.DateTimeFormatPartTypes) => chicagoParts.find((item) => item.type === type)?.value || "0";
+  const todayKey = `${part("year")}-${part("month")}-${part("day")}`;
+  const dayDifference = Math.round((Date.parse(`${matchDateKey}T00:00:00Z`) - Date.parse(`${todayKey}T00:00:00Z`)) / 86400000);
+  const matchMinutes = getScheduleTimeSortValue(match.timeLabel);
+  const currentMinutes = Number(part("hour")) * 60 + Number(part("minute"));
+  const minutesUntil = Number.isFinite(matchMinutes) && matchMinutes < 1440 ? dayDifference * 1440 + matchMinutes - currentMinutes : null;
+  const dayLabel = dayDifference === 0 ? "Today" : dayDifference === 1 ? "Tomorrow" : formatHomeMatchDate(tournament, match.dayNumber, match.dayLabel);
+
+  if (minutesUntil == null) return { dayLabel, countdownLabel: "Scheduled" };
+  if (minutesUntil <= 0) return { dayLabel, countdownLabel: minutesUntil > -90 ? "In progress" : "Scheduled" };
+  if (minutesUntil < 60) return { dayLabel, countdownLabel: `starts in ${minutesUntil}m` };
+  if (minutesUntil < 1440) return { dayLabel, countdownLabel: `starts in ${Math.floor(minutesUntil / 60)}h ${minutesUntil % 60}m` };
+  return { dayLabel, countdownLabel: `starts in ${Math.floor(minutesUntil / 1440)}d ${Math.floor((minutesUntil % 1440) / 60)}h` };
 }
 
-function CountdownUnit({ value, label }: { value: number; label: string }) {
-  return (
-    <span className="grid min-w-[42px] gap-0.5 rounded-[12px] bg-white/12 px-2 py-1.5">
-      <strong className="text-[15px] font-medium leading-none text-white">{formatCountdownValue(value)}</strong>
-      <em className="text-[10px] not-italic leading-none text-white/60">{label}</em>
-    </span>
-  );
-}
-
-function HomeUpcomingMatchCard({ match, tournament }: { match: PlayerScheduleMatch; tournament: Tournament }) {
+function HomePrimaryMatchCard({ match, tournament }: { match: PlayerScheduleMatch; tournament: Tournament }) {
   const opponentNames = match.opponentNames.length ? match.opponentNames : [match.opposingTeamName];
   const partnerProfiles = match.playerSideProfiles.filter((profile) => match.partnerNames.some((name) => normalizeName(name) === normalizeName(profile.name)));
   const matchDate = formatHomeMatchDate(tournament, match.dayNumber, match.dayLabel);
+  const timing = useHomeMatchTiming(match, tournament);
 
   return (
-    <article className="tap-card group relative grid min-h-[128px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 overflow-hidden rounded-[16px] border-hairline border-[#d6e2cb] bg-[linear-gradient(135deg,#ffffff_0%,#f2f8e9_100%)] p-3 shadow-[0_8px_20px_rgba(24,58,43,0.065)] transition hover:-translate-y-0.5 hover:border-brand/25 hover:shadow-[0_12px_26px_rgba(12,59,32,0.10)]">
+    <article
+      className="tap-card group relative grid min-h-[268px] overflow-hidden rounded-[22px] border-hairline border-white/10 bg-[#10442f] p-3 text-white shadow-[0_18px_42px_rgba(12,59,32,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_48px_rgba(12,59,32,0.2)] sm:min-h-[300px] sm:rounded-[24px] sm:p-4 lg:min-h-[318px]"
+      style={{
+        backgroundImage: "linear-gradient(rgba(255,255,255,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.09) 1px, transparent 1px), linear-gradient(135deg, rgba(7,48,34,0.2), rgba(24,92,62,0.1))",
+        backgroundSize: "44px 44px, 44px 44px, 100% 100%"
+      }}
+    >
       <Link className="absolute inset-0 z-0" href={`/tournaments/schedule/matches/${match.id}?from=dashboard`} aria-label={`View match against ${opponentNames.join(" and ")}`} />
-      <span className="absolute inset-y-0 left-0 w-1 bg-[#d8f36b]" aria-hidden="true" />
-      <span className="pointer-events-none relative z-10 grid min-w-0 gap-2 pl-1">
-        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <strong className="text-[17px] font-semibold leading-none tabular-nums text-brand">{match.timeLabel || "Time TBD"}</strong>
-          <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.05em] text-text-muted">{matchDate}</em>
-          <span className="ml-auto rounded-full border-hairline border-[#d6e2cb] bg-white/85 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.06em] text-[#3b6d11]">{match.format}</span>
-        </span>
-        <span className="grid min-w-0 gap-1 rounded-[11px] border-hairline border-white/90 bg-white/75 px-2.5 py-2 shadow-[0_4px_12px_rgba(24,58,43,0.035)]">
-          {match.format === "Doubles" && match.partnerNames.length > 0 && (
-            <em className="text-[9px] font-medium not-italic leading-snug text-text-secondary">With {match.partnerNames.map((name, index) => {
-              const profile = partnerProfiles.find((candidate) => normalizeName(candidate.name) === normalizeName(name));
-              return <Fragment key={`${name}:${index}`}>{index > 0 && " & "}{profile ? <Link className="tap-card pointer-events-auto underline decoration-current/20 underline-offset-2 hover:decoration-current" href={`/tournaments/players/${profile.id}?from=dashboard`}>{name}</Link> : name}</Fragment>;
-            })}</em>
-          )}
-          <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-1.5">
-            <em className="pt-0.5 text-[9px] font-semibold not-italic uppercase tracking-[0.08em] text-[#7d8876]">vs</em>
-            <span className="grid min-w-0 gap-0.5">
-              {opponentNames.map((name, index) => (
-                match.opponentProfiles[index]?.id ? <Link className="tap-card pointer-events-auto break-words text-[13px] font-semibold leading-[1.15] text-text-primary underline decoration-current/20 underline-offset-2 hover:decoration-current" href={`/tournaments/players/${match.opponentProfiles[index].id}?from=dashboard`} key={`${name}-${index}`}>{name}</Link> : <strong className="break-words text-[13px] font-semibold leading-[1.15] text-text-primary" key={`${name}-${index}`}>{name}</strong>
-              ))}
+      <div className="pointer-events-none relative z-10 grid h-full min-w-0 content-between gap-3.5 sm:gap-5">
+        <div className="grid min-w-0 gap-3.5 sm:gap-5">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <span className="inline-flex min-h-8 items-center gap-2 rounded-full bg-[#d8f36b]/15 px-2.5 text-[12px] font-semibold text-[#d8f36b] backdrop-blur sm:min-h-9 sm:px-3 sm:text-[13px]">
+              <span className="h-2 w-2 rounded-full bg-[#d8f36b]" aria-hidden="true" />
+              {timing.dayLabel}
             </span>
-          </span>
-          <em className="text-[9px] font-medium not-italic leading-snug text-[#587050]">{match.opposingTeamName}</em>
+            <span className="text-right text-[11px] font-medium text-white/65 sm:text-[13px]">{timing.countdownLabel}</span>
+          </div>
+
+          <div className="grid min-w-0 gap-2 sm:gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+              <strong className="text-[29px] font-semibold leading-none tracking-[-1px] tabular-nums text-white sm:text-[34px] lg:text-[36px]">{match.timeLabel || "Time TBD"}</strong>
+              <em className="text-[11px] font-medium not-italic text-white/60 sm:text-[13px]">{matchDate}</em>
+              <span className="ml-auto rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 backdrop-blur sm:px-3 sm:py-1.5 sm:text-[12px]">{match.format}</span>
+            </div>
+
+            <div className="grid min-w-0 gap-1 text-[12px] leading-snug sm:gap-1.5 sm:text-[14px]">
+              {match.format === "Doubles" && match.partnerNames.length > 0 && (
+                <p className="min-w-0 text-white/60">With {match.partnerNames.map((name, index) => {
+                  const profile = partnerProfiles.find((candidate) => normalizeName(candidate.name) === normalizeName(name));
+                  return <Fragment key={`${name}:${index}`}>{index > 0 && " & "}{profile ? <Link className="tap-card pointer-events-auto relative z-20 font-medium text-white underline decoration-white/35 underline-offset-2 hover:decoration-white" href={`/tournaments/players/${profile.id}?from=dashboard`}>{name}</Link> : <span className="font-medium text-white">{name}</span>}</Fragment>;
+                })} <span aria-hidden="true">·</span> {match.teamName}</p>
+              )}
+              {match.format === "Singles" && <p className="text-white/60">Playing for <span className="font-medium text-white">{match.teamName}</span></p>}
+              <p className="min-w-0 text-white/60">vs {opponentNames.map((name, index) => (
+                <Fragment key={`${name}-${index}`}>{index > 0 && " & "}{match.opponentProfiles[index]?.id ? <Link className="tap-card pointer-events-auto relative z-20 font-semibold text-white underline decoration-white/35 underline-offset-2 hover:decoration-white" href={`/tournaments/players/${match.opponentProfiles[index].id}?from=dashboard`}>{name}</Link> : <strong className="font-semibold text-white">{name}</strong>}</Fragment>
+              ))}</p>
+            </div>
+          </div>
+
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="inline-flex min-h-9 items-center gap-2 rounded-full bg-white/10 px-2.5 text-[11px] font-medium text-white backdrop-blur sm:min-h-10 sm:px-3 sm:text-[13px]">
+              <span className="h-2 w-2 rounded-full bg-[#d8f36b]" aria-hidden="true" />
+              {match.courtLabel || "Court TBD"}
+            </span>
+            <span className="inline-flex min-h-9 min-w-0 items-center gap-2 rounded-full bg-white/10 px-2.5 text-[11px] font-medium text-white backdrop-blur sm:min-h-10 sm:px-3 sm:text-[13px]">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-[#d8f36b]" aria-hidden="true" />
+              <span className="truncate">Balls: {match.ballTeamName || "TBD"}</span>
+            </span>
+          </div>
+        </div>
+
+        <span className="pointer-events-none inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#d8f83f] px-5 text-[14px] font-semibold text-[#183a24] shadow-[0_14px_30px_rgba(216,248,63,0.12)] transition-transform group-hover:scale-[1.01] sm:min-h-14 sm:text-[16px]">
+          Get match details
         </span>
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand px-2 py-1 text-[9px] font-semibold text-white">
-            <MapPin size={10} />
-            {match.courtLabel || "Court TBD"}
-          </span>
-          <BallTeamBadge teamName={match.ballTeamName} pending={!match.ballTeamName} compact />
-        </span>
-      </span>
-      <span className="pointer-events-none relative z-10 grid h-8 w-8 place-items-center rounded-full border-hairline border-brand/10 bg-white text-brand shadow-[0_5px_12px_rgba(24,58,43,0.07)] transition-transform group-hover:translate-x-0.5" aria-hidden="true">
-        <ArrowRight size={14} />
-      </span>
+      </div>
     </article>
+  );
+}
+
+function HomeTournamentOverviewSkeleton() {
+  return (
+    <section className="mx-auto grid min-h-[250px] w-full max-w-[600px] animate-pulse gap-4 rounded-[24px] border-hairline border-white/80 bg-white/70 p-4 shadow-[0_16px_42px_rgba(24,24,26,0.05)] backdrop-blur-xl sm:min-h-[286px] sm:p-5 lg:max-w-none" role="status" aria-label="Loading your tournament registration">
+      <span className="flex items-start justify-between gap-4">
+        <span className="grid w-full max-w-[330px] gap-2">
+          <span className="h-5 w-4/5 rounded-full bg-[#e7eae4]" />
+          <span className="h-3 w-2/5 rounded-full bg-[#eceee9]" />
+        </span>
+        <span className="h-7 w-20 rounded-full bg-[#e7eae4]" />
+      </span>
+      <span className="grid grid-cols-4 gap-2">
+        {Array.from({ length: 4 }).map((_, index) => <span className="h-16 rounded-[14px] bg-[#f0f1ed] sm:h-20" key={index} />)}
+      </span>
+      <span className="grid grid-cols-2 gap-2.5">
+        <span className="h-[72px] rounded-[16px] bg-[#f0f1ed] sm:h-[86px]" />
+        <span className="h-[72px] rounded-[16px] bg-[#f0f1ed] sm:h-[86px]" />
+      </span>
+      <span className="h-5 w-44 justify-self-center rounded-full bg-[#e7eae4]" />
+      <span className="sr-only">Checking your tournament registration…</span>
+    </section>
+  );
+}
+
+function HomeTournamentOverviewCard({ tournament, countdown, registered }: { tournament: Tournament; countdown: TournamentCountdown; registered: boolean }) {
+  const statusLabel = tournament.status === "registration_open" ? "Reg. open" : tournament.status === "registration_closed" ? "Reg. closed" : formatTournamentStatus(tournament.status);
+  const statusClass = tournament.status === "registration_open" ? "bg-[#eaf3de] text-[#3b6d11]" : tournament.status === "registration_closed" ? "bg-[#fae8df] text-[#b14d2b]" : "bg-[#e5f1ff] text-[#185fa5]";
+  const venueText = `${tournament.venueName} ${tournament.venueAddress}`;
+  const venueLabel = /chicago/i.test(venueText) ? "Chicago" : tournament.venueName || "Venue TBD";
+  const mapsUrl = tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueAddress || tournament.venueName || "")}`;
+
+  if (countdown.state === "today" || countdown.state === "started") {
+    return (
+      <section className="mx-auto grid w-full max-w-[600px] gap-3 rounded-[22px] border-hairline border-white/80 bg-white/76 p-3.5 shadow-[0_16px_42px_rgba(24,24,26,0.06)] backdrop-blur-xl sm:p-5 lg:max-w-none" aria-label="Tournament details">
+        <div className="grid grid-cols-2 gap-2.5">
+          <span className="grid min-h-[72px] content-center gap-1 rounded-[16px] bg-[#f4f5f1]/90 px-3 py-2.5 sm:min-h-[86px] sm:rounded-[18px] sm:px-3.5 sm:py-3">
+            <em className="text-[11px] font-medium not-italic uppercase tracking-[0.08em] text-text-secondary">Dates</em>
+            <strong className="text-[15px] font-semibold leading-tight text-text-primary sm:text-[16px]">{formatTournamentDates(tournament)}</strong>
+          </span>
+          <span className="grid min-h-[72px] content-center gap-1 rounded-[16px] bg-[#f4f5f1]/90 px-3 py-2.5 sm:min-h-[86px] sm:rounded-[18px] sm:px-3.5 sm:py-3">
+            <em className="text-[11px] font-medium not-italic uppercase tracking-[0.08em] text-text-secondary">Venue</em>
+            <strong className="truncate text-[15px] font-semibold leading-tight text-text-primary sm:text-[16px]">{venueLabel}</strong>
+            <a className="tap-card inline-flex min-h-6 w-max items-center gap-1 text-[11px] font-semibold text-brand" href={mapsUrl} target="_blank" rel="noreferrer">Open in maps ↗</a>
+          </span>
+        </div>
+        <Link className="tap-card inline-flex min-h-11 items-center justify-center gap-1 text-center text-[14px] font-semibold text-brand" href="/tournaments">
+          View full tournament details <ArrowRight size={15} />
+        </Link>
+      </section>
+    );
+  }
+
+  if (!registered) {
+    return <HomeTournamentDiscoveryCard countdown={countdown} mapsUrl={mapsUrl} statusLabel={statusLabel} tournament={tournament} venueLabel={venueLabel} />;
+  }
+
+  return (
+    <section className="mx-auto grid w-full max-w-[600px] gap-3 rounded-[22px] border-hairline border-white/80 bg-white/76 p-3.5 shadow-[0_16px_42px_rgba(24,24,26,0.06)] backdrop-blur-xl sm:gap-4 sm:rounded-[24px] sm:p-5 lg:max-w-none" aria-labelledby="home-tournament-title">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <span className="grid min-w-0 gap-1">
+          <h2 className="break-words text-[16px] font-semibold leading-tight tracking-[-0.2px] text-text-primary sm:text-[20px]" id="home-tournament-title">{tournament.name}</h2>
+          <em className="text-[11px] not-italic text-text-secondary sm:text-[13px]">{countdown.state === "countdown" ? "Tournament starts in" : countdown.label}</em>
+        </span>
+        <span className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ${statusClass}`}>{statusLabel}</span>
+      </div>
+
+      {countdown.state === "countdown" && (
+        <div className="grid grid-cols-4 gap-2 text-center">
+          <HomeCountdownUnit label="Days" value={countdown.days} />
+          <HomeCountdownUnit label="Hrs" value={countdown.hours} />
+          <HomeCountdownUnit label="Min" value={countdown.minutes} />
+          <HomeCountdownUnit label="Sec" value={countdown.seconds} />
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <span className="grid min-h-[72px] content-center gap-1 rounded-[16px] bg-[#f4f5f1]/90 px-3 py-2.5 sm:min-h-[86px] sm:rounded-[18px] sm:px-3.5 sm:py-3">
+          <em className="text-[11px] font-medium not-italic uppercase tracking-[0.08em] text-text-secondary">Dates</em>
+          <strong className="text-[15px] font-semibold leading-tight text-text-primary sm:text-[16px]">{formatTournamentDates(tournament)}</strong>
+        </span>
+        <span className="grid min-h-[72px] content-center gap-1 rounded-[16px] bg-[#f4f5f1]/90 px-3 py-2.5 sm:min-h-[86px] sm:rounded-[18px] sm:px-3.5 sm:py-3">
+          <em className="text-[11px] font-medium not-italic uppercase tracking-[0.08em] text-text-secondary">Venue</em>
+          <strong className="truncate text-[15px] font-semibold leading-tight text-text-primary sm:text-[16px]">{venueLabel}</strong>
+          <a className="tap-card inline-flex min-h-6 w-max items-center gap-1 text-[11px] font-semibold text-brand" href={mapsUrl} target="_blank" rel="noreferrer">Open in maps ↗</a>
+        </span>
+      </div>
+
+      <Link className="tap-card inline-flex min-h-11 items-center justify-center gap-1 text-center text-[14px] font-semibold text-brand" href="/tournaments">
+        View full tournament details <ArrowRight size={15} />
+      </Link>
+    </section>
+  );
+}
+
+function HomeTournamentDiscoveryCard({ tournament, countdown, mapsUrl, statusLabel, venueLabel }: { tournament: Tournament; countdown: TournamentCountdown; mapsUrl: string; statusLabel: string; venueLabel: string }) {
+  const registrationOpen = tournament.status === "registration_open";
+  const tournamentLive = tournament.status === "live";
+  const description = registrationOpen
+    ? "You’re not on the player list yet. Join the tournament and get your personal match schedule right here."
+    : tournamentLive
+      ? "The tournament is underway. Follow every court, score and bracket update from one place."
+      : "Registration is closed, but you can still follow the teams, schedule, bracket and live results.";
+  const actionLabel = registrationOpen ? "Register for tournament" : tournamentLive ? "Follow live tournament" : "Explore tournament";
+
+  return (
+    <section
+      className="relative mx-auto grid w-full max-w-[600px] gap-4 overflow-hidden rounded-[24px] border-hairline border-white/10 bg-[#10442f] p-4 text-white shadow-[0_22px_54px_rgba(12,59,32,0.2)] sm:p-5 lg:max-w-none lg:gap-5 lg:p-6"
+      style={{
+        backgroundImage: "radial-gradient(circle at 92% 5%, rgba(216,248,63,0.16), transparent 28%), linear-gradient(rgba(255,255,255,0.075) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.075) 1px, transparent 1px), linear-gradient(135deg, rgba(7,48,34,0.12), rgba(24,92,62,0.22))",
+        backgroundSize: "100% 100%, 52px 52px, 52px 52px, 100% 100%"
+      }}
+      aria-labelledby="home-tournament-title"
+    >
+      <div className="relative z-10 grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)] lg:items-center">
+        <div className="grid min-w-0 gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex min-h-8 items-center gap-2 rounded-full bg-[#d8f36b]/15 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#d8f36b] backdrop-blur">
+              <span className="h-2 w-2 rounded-full bg-[#d8f36b]" aria-hidden="true" />
+              Tournament central
+            </span>
+            <span className="rounded-full border-hairline border-white/10 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/80 backdrop-blur">{statusLabel}</span>
+          </div>
+          <span className="grid gap-2">
+            <h2 className="max-w-[720px] break-words text-[23px] font-semibold leading-[1.08] tracking-[-0.45px] text-white sm:text-[28px] lg:text-[32px]" id="home-tournament-title">{tournament.name}</h2>
+            <p className="max-w-[720px] text-[13px] leading-relaxed text-white/65 sm:text-[15px]">{description}</p>
+          </span>
+        </div>
+
+        <div className="grid gap-2.5 rounded-[20px] border-hairline border-white/10 bg-black/10 p-3 backdrop-blur-sm sm:p-4">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/50">{countdown.state === "countdown" ? "Tournament starts in" : "Tournament status"}</span>
+          {countdown.state === "countdown" ? (
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <HomeDiscoveryCountdownUnit label="Days" value={countdown.days} />
+              <HomeDiscoveryCountdownUnit label="Hrs" value={countdown.hours} />
+              <HomeDiscoveryCountdownUnit label="Min" value={countdown.minutes} />
+              <HomeDiscoveryCountdownUnit label="Sec" value={countdown.seconds} />
+            </div>
+          ) : (
+            <strong className="text-[20px] font-semibold text-[#d8f36b]">{countdown.label}</strong>
+          )}
+        </div>
+      </div>
+
+      <div className="relative z-10 grid grid-cols-2 gap-2.5 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,0.9fr)_minmax(260px,1.2fr)]">
+        <span className="grid min-h-[76px] content-center gap-1 rounded-[18px] border-hairline border-white/10 bg-white/10 px-4 py-3 backdrop-blur">
+          <em className="text-[10px] font-semibold not-italic uppercase tracking-[0.1em] text-white/45">Dates</em>
+          <strong className="text-[16px] font-semibold text-white">{formatTournamentDates(tournament)}</strong>
+        </span>
+        <span className="grid min-h-[76px] content-center gap-1 rounded-[18px] border-hairline border-white/10 bg-white/10 px-4 py-3 backdrop-blur">
+          <em className="text-[10px] font-semibold not-italic uppercase tracking-[0.1em] text-white/45">Venue</em>
+          <strong className="truncate text-[16px] font-semibold text-white">{venueLabel}</strong>
+          <a className="tap-card inline-flex min-h-6 w-max items-center text-[11px] font-semibold text-[#d8f36b]" href={mapsUrl} target="_blank" rel="noreferrer">Open in maps ↗</a>
+        </span>
+        <Link className="tap-card col-span-2 inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-[#d8f83f] px-5 text-[15px] font-semibold text-[#183a24] shadow-[0_14px_30px_rgba(216,248,63,0.14)] transition hover:scale-[1.01] lg:col-span-1" href="/tournaments">
+          {actionLabel} <ArrowRight size={16} />
+        </Link>
+      </div>
+
+      <nav className="relative z-10 grid grid-cols-3 gap-2" aria-label="Tournament shortcuts">
+        <Link className="tap-card inline-flex min-h-11 items-center justify-center rounded-full border-hairline border-white/10 bg-white/[0.07] px-2 text-[11px] font-semibold text-white/75 backdrop-blur transition hover:bg-white/12 hover:text-white sm:text-[12px]" href="/tournaments/schedule">Schedule</Link>
+        <Link className="tap-card inline-flex min-h-11 items-center justify-center rounded-full border-hairline border-white/10 bg-white/[0.07] px-2 text-[11px] font-semibold text-white/75 backdrop-blur transition hover:bg-white/12 hover:text-white sm:text-[12px]" href="/tournaments/teams">Teams</Link>
+        <Link className="tap-card inline-flex min-h-11 items-center justify-center rounded-full border-hairline border-white/10 bg-white/[0.07] px-2 text-[11px] font-semibold text-white/75 backdrop-blur transition hover:bg-white/12 hover:text-white sm:text-[12px]" href="/tournaments/bracket">Bracket</Link>
+      </nav>
+    </section>
+  );
+}
+
+function HomeDiscoveryCountdownUnit({ value, label }: { value: number; label: string }) {
+  return (
+    <span className="grid min-w-0 gap-1 rounded-[14px] bg-white/10 px-1 py-3">
+      <strong className="text-[19px] font-semibold leading-none tabular-nums text-[#d8f36b] sm:text-[23px]">{formatCountdownValue(value)}</strong>
+      <em className="text-[8px] font-semibold not-italic uppercase tracking-[0.08em] text-white/45 sm:text-[9px]">{label}</em>
+    </span>
+  );
+}
+
+function HomeCountdownUnit({ value, label }: { value: number; label: string }) {
+  return (
+    <span className="grid min-w-0 gap-1 rounded-[14px] bg-[#f4f5f1]/90 px-1 py-3 sm:rounded-[16px] sm:py-4">
+      <strong className="text-[19px] font-semibold leading-none tabular-nums text-brand sm:text-[24px]">{formatCountdownValue(value)}</strong>
+      <em className="text-[9px] font-medium not-italic uppercase tracking-[0.08em] text-text-secondary sm:text-[10px]">{label}</em>
+    </span>
+  );
+}
+
+function HomeQueuedMatchLine({ match }: { match: PlayerScheduleMatch }) {
+  const opponentNames = match.opponentNames.length ? match.opponentNames : [match.opposingTeamName];
+  const opponentLabel = opponentNames.join(" & ");
+  return (
+    <Link
+      className="tap-card grid min-h-11 w-full grid-cols-[auto_minmax(0,1fr)_auto_24px] items-center gap-2 overflow-hidden rounded-[14px] border-hairline border-[#d8e1d9] bg-white/88 px-3 py-2 text-left shadow-[0_6px_16px_rgba(24,58,43,0.045)] transition hover:border-brand/25 hover:bg-white"
+      href={`/tournaments/schedule/matches/${match.id}?from=dashboard`}
+      aria-label={`View queued match at ${match.timeLabel || "time to be determined"} against ${opponentLabel} on ${match.courtLabel || "court to be determined"}`}
+    >
+      <strong className="shrink-0 text-[12px] font-semibold tabular-nums text-brand">{match.timeLabel || "TBD"}</strong>
+      <span className="min-w-0 truncate text-[11px] font-medium text-text-primary">
+        <em className="mr-1 not-italic text-text-muted">vs</em>{opponentLabel}
+      </span>
+      <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[9px] font-semibold text-text-secondary">{match.courtLabel || "Court TBD"}</span>
+      <ArrowRight className="justify-self-end text-brand" size={14} aria-hidden="true" />
+    </Link>
   );
 }
 
@@ -6409,11 +6926,124 @@ function ScheduleLoadingNotice({ label, overlay = false }: { label: string; over
   );
 }
 
-function PlayerScheduleTimeCard({ label, matches, teams, onOpenMatch, isFeatured }: { label: string; matches: PlayerScheduleMatch[]; teams: PublishedTeam[]; onOpenMatch: (match: PlayerScheduleMatch) => void; isFeatured: boolean }) {
+type ScheduleMatchState = "upcoming" | "ongoing" | "completed";
+
+function SchedulePageHeader({ tournament, selectedDay, activeScope, notesCount, now, onSelectDay, onSelectScope }: { tournament: Tournament | null; selectedDay: 1 | 2; activeScope: "my" | "team"; notesCount: number; now: Date; onSelectDay: (day: 1 | 2) => void; onSelectScope: (scope: "my" | "team") => void }) {
+  const todayKey = getChicagoDateKey(now);
+  return (
+    <section className="grid gap-3" aria-labelledby="schedule-page-title">
+      <div className="relative overflow-hidden rounded-[24px] border border-white/15 bg-[linear-gradient(135deg,#0a3b24,#135837)] p-3.5 text-white shadow-[0_20px_46px_rgba(12,59,32,0.20)] sm:p-5">
+        <span className="pointer-events-none absolute inset-0 opacity-30 court-lines" aria-hidden="true" />
+        <span className="pointer-events-none absolute -right-14 -top-20 h-52 w-52 rounded-full bg-[#d8f36b]/15 blur-3xl" aria-hidden="true" />
+        <div className="relative grid gap-4">
+          <header className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3">
+            <Link className="tap-card !h-11 !w-11 grid place-items-center rounded-full border border-white/15 bg-white/10 text-white backdrop-blur transition hover:bg-white/18" href="/tournaments" aria-label="Back to tournament">
+              <ArrowLeft size={18} />
+            </Link>
+            <span className="grid min-w-0 gap-0.5">
+              <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.14em] text-[#d8f36b]">Tournament</em>
+              <h1 className="text-[26px] font-semibold leading-none tracking-[-0.45px] text-white sm:text-[31px]" id="schedule-page-title">Schedule</h1>
+            </span>
+            <span className="hidden rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[10px] font-semibold text-white/65 sm:inline-flex">Live updates</span>
+          </header>
+
+          <div className="grid grid-cols-2 gap-2" aria-label="Schedule day">
+            {([1, 2] as const).map((day) => {
+              const dateKey = getTournamentDayDateKey(tournament, day);
+              const isActive = selectedDay === day;
+              const isToday = dateKey === todayKey;
+              const dayStatus = isToday ? "In progress" : dateKey && dateKey < todayKey ? "Completed" : "Upcoming";
+              return (
+                <button className={isActive ? "tap-card grid min-h-[68px] content-center gap-1 rounded-[15px] border border-[#d8f36b]/70 bg-[#d8f36b] px-3 py-2 text-left text-[#183a2b] shadow-[0_12px_24px_rgba(0,0,0,0.16)]" : "tap-card grid min-h-[68px] content-center gap-1 rounded-[15px] border border-white/12 bg-white/10 px-3 py-2 text-left text-white backdrop-blur transition hover:bg-white/15"} type="button" onClick={() => onSelectDay(day)} aria-pressed={isActive} key={day}>
+                  <span className="flex items-center justify-between gap-2">
+                    <strong className="text-[14px] font-semibold leading-none sm:text-[15px]">Day {day}</strong>
+                    <em className={isActive ? "text-[8px] font-semibold not-italic uppercase tracking-[0.06em] text-[#466415]" : "text-[8px] font-semibold not-italic uppercase tracking-[0.06em] text-white/45"}>{dayStatus}</em>
+                  </span>
+                  <span className={isActive ? "text-[10px] font-medium text-[#36550d] sm:text-[11px]" : "text-[10px] font-medium text-white/58 sm:text-[11px]"}>{formatScheduleDayDate(tournament, day)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-2 rounded-[20px] border-hairline border-white/80 bg-white/78 p-2.5 shadow-[0_12px_30px_rgba(24,58,43,0.07)] backdrop-blur-xl lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.72fr)] lg:items-center">
+        <div className="grid grid-cols-2 rounded-[14px] bg-[#edf1ec] p-1" aria-label="Schedule view">
+          {([{"id":"my","label":"My schedule"},{"id":"team","label":"Team schedule"}] as const).map((tab) => (
+            <button className={activeScope === tab.id ? "tap-card min-h-11 rounded-[11px] bg-white px-3 text-left text-[14px] font-semibold text-brand shadow-[0_6px_16px_rgba(24,58,43,0.08)] sm:text-[15px]" : "tap-card min-h-11 rounded-[11px] px-3 text-left text-[14px] font-semibold text-text-secondary sm:text-[15px]"} type="button" onClick={() => onSelectScope(tab.id)} aria-pressed={activeScope === tab.id} key={tab.id}>{tab.label}</button>
+          ))}
+        </div>
+
+        <nav className="grid grid-cols-3 gap-1.5" aria-label="Tournament quick links">
+          <Link className="tap-card inline-flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-[12px] border-hairline border-line bg-white px-1.5 text-[10px] font-semibold text-brand transition hover:border-brand/20 sm:text-[12px]" href="/tournaments/schedule/rules" aria-label={`Rules, ${notesCount} sections`}><Info size={14} />Rules</Link>
+          <Link className="tap-card inline-flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-[12px] border-hairline border-line bg-white px-1.5 text-[10px] font-semibold text-brand transition hover:border-brand/20 sm:text-[12px]" href="/tournaments/leaderboard"><Trophy size={14} />Leaderboard</Link>
+          <Link className="tap-card inline-flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-[12px] border-hairline border-line bg-white px-1.5 text-[10px] font-semibold text-brand transition hover:border-brand/20 sm:text-[12px]" href="/tournaments/bracket"><MonitorUp size={14} />Bracket</Link>
+        </nav>
+      </div>
+    </section>
+  );
+}
+
+function ScheduleTimelineSlot({ state, children }: { state: ScheduleMatchState | "break"; children: ReactNode }) {
+  const dotClass = state === "completed" ? "border-brand bg-brand" : state === "ongoing" ? "border-[#bd542f] bg-[#bd542f]" : state === "break" ? "border-text-secondary bg-page" : "border-text-secondary bg-white";
+  const dotPositionClass = state === "break" ? "top-[11px]" : "top-[18px]";
+  return (
+    <div className="relative min-w-0">
+      <span className={`absolute left-0 z-[5] h-4 w-4 rounded-full border-[3px] shadow-[0_0_0_3px_rgba(247,249,246,0.88)] ${dotPositionClass} ${dotClass}`} aria-hidden="true" />
+      {children}
+    </div>
+  );
+}
+
+function ScheduleNowMarker({ now }: { now: Date }) {
+  const time = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }).format(now);
+  return (
+    <div className="relative flex min-h-8 items-center gap-3 pl-7" role="status" aria-label={`Current tournament time ${time}`}>
+      <span className="absolute left-0 z-[5] h-4 w-4 rounded-full border-[3px] border-[#bd542f] bg-[#bd542f] shadow-[0_0_0_3px_rgba(247,249,246,0.88)]" aria-hidden="true" />
+      <strong className="shrink-0 rounded-full bg-[#bd542f] px-3 py-1 font-mono text-[11px] font-semibold uppercase text-white shadow-[0_7px_16px_rgba(189,84,47,0.18)]">Now · {time}</strong>
+      <span className="h-px flex-1 bg-[#d99378]" aria-hidden="true" />
+    </div>
+  );
+}
+
+function formatScheduleDayDate(tournament: Tournament | null, day: 1 | 2) {
+  const dateKey = getTournamentDayDateKey(tournament, day);
+  if (!dateKey) return "Date TBD";
+  return new Date(`${dateKey}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function getScheduleMatchState(match: { dayNumber: number; timeLabel: string; score: MatchScore | null }, tournament: Tournament | null, now = new Date()): ScheduleMatchState {
+  if (match.score?.winnerSide) return "completed";
+  const hasEnteredScore = Boolean(match.score && [match.score.sideASet1, match.score.sideBSet1, match.score.sideASet2, match.score.sideBSet2, match.score.sideASet3, match.score.sideBSet3].some((value) => value != null));
+  if (hasEnteredScore) return "ongoing";
+  const matchDateKey = getTournamentDayDateKey(tournament, match.dayNumber === 2 ? 2 : 1);
+  const todayKey = getChicagoDateKey(now);
+  if (matchDateKey < todayKey) return "ongoing";
+  if (matchDateKey > todayKey) return "upcoming";
+  return getScheduleTimeSortValue(match.timeLabel) <= getChicagoMinutes(now) ? "ongoing" : "upcoming";
+}
+
+function getScheduleGroupState(matches: Array<{ dayNumber: number; timeLabel: string; score: MatchScore | null }>, tournament: Tournament | null, now: Date): ScheduleMatchState {
+  const states = matches.map((match) => getScheduleMatchState(match, tournament, now));
+  if (states.some((state) => state === "ongoing")) return "ongoing";
+  if (states.length && states.every((state) => state === "completed")) return "completed";
+  return "upcoming";
+}
+
+function ScheduleMatchStateBadge({ state, score = null }: { state: ScheduleMatchState; score?: MatchScore | null }) {
+  if (state === "ongoing") {
+    const currentSet = score?.sideASet3 != null || score?.sideBSet3 != null ? 3 : score?.sideASet2 != null || score?.sideBSet2 != null ? 2 : 1;
+    return <span className="inline-flex min-h-7 items-center gap-1.5 rounded-full bg-[#fae8df] px-2.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-[#b14d2b]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#bd542f]" />Live · Set {currentSet}</span>;
+  }
+  if (state === "completed") return <span className="inline-flex min-h-7 items-center rounded-full bg-brand-light px-2.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-[#3b6d11]">Final</span>;
+  return <span className="inline-flex min-h-7 items-center rounded-full bg-surface px-2.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-text-secondary">Upcoming</span>;
+}
+
+function PlayerScheduleTimeCard({ label, matches, tournament, teams, onOpenMatch, isFeatured }: { label: string; matches: PlayerScheduleMatch[]; tournament: Tournament | null; teams: PublishedTeam[]; onOpenMatch: (match: PlayerScheduleMatch) => void; isFeatured: boolean }) {
   return (
     <section className="grid gap-3" aria-label={`${label} matches`}>
       {matches.map((match, index) => (
-        <PlayerScheduleMatchCard match={match} teams={teams} isFeatured={isFeatured && index === 0} onOpenMatch={() => onOpenMatch(match)} key={match.id} />
+        <PlayerScheduleMatchCard match={match} tournament={tournament} teams={teams} isFeatured={isFeatured && index === 0} onOpenMatch={() => onOpenMatch(match)} key={match.id} />
       ))}
     </section>
   );
@@ -6427,36 +7057,43 @@ function ScheduleTimeDisplay({ label }: { label: string }) {
   );
 }
 
-function TeamScheduleTimeCard({ label, matches, team, teams, onOpenMatch }: { label: string; matches: TeamCourtScheduleMatch[]; team: PublishedTeam; teams: PublishedTeam[]; onOpenMatch: (match: TeamCourtScheduleMatch) => void }) {
+function TeamScheduleTimeCard({ label, matches, team, tournament, teams, onOpenMatch }: { label: string; matches: TeamCourtScheduleMatch[]; team: PublishedTeam; tournament: Tournament | null; teams: PublishedTeam[]; onOpenMatch: (match: TeamCourtScheduleMatch) => void }) {
   const firstMatch = matches[0];
-  const teamIsA = firstMatch?.teamAId === team.id;
-  const teamName = teamIsA ? firstMatch?.teamAName : firstMatch?.teamBName;
-  const opponentName = teamIsA ? firstMatch?.teamBName : firstMatch?.teamAName;
-  const opponentId = teamIsA ? firstMatch?.teamBId : firstMatch?.teamAId;
+  const opponentId = firstMatch?.teamAId === team.id ? firstMatch?.teamBId : firstMatch?.teamAId;
   const matchupKey = firstMatch ? `team-schedule:${label}:${[team.id, opponentId || ""].sort().join(":")}` : "";
   const ballTeam = firstMatch ? getBallTeamForMatchup(firstMatch.dayNumber, firstMatch.teamAId, firstMatch.teamBId, matchupKey, teams) : null;
   const allMatchesComplete = Boolean(matches.length && matches.every((match) => match.score?.winnerSide));
+  const teamAWins = matches.filter((match) => match.score?.winnerSide === "A").length;
+  const teamBWins = matches.filter((match) => match.score?.winnerSide === "B").length;
+  const winnerName = teamAWins > teamBWins ? firstMatch?.teamAName : teamBWins > teamAWins ? firstMatch?.teamBName : "";
+  const winnerScore = Math.max(teamAWins, teamBWins);
+  const loserScore = Math.min(teamAWins, teamBWins);
+  const resultLabel = allMatchesComplete
+    ? winnerName ? `${getCompactTeamName(winnerName)} won ${winnerScore}–${loserScore}` : `Final ${teamAWins}–${teamBWins}`
+    : "";
 
   return (
-    <section className="overflow-hidden rounded-[24px] border-hairline border-[#d8e1d9] bg-[#fbfcf8] shadow-[0_20px_48px_rgba(12,59,32,0.11)]">
-      <div className="flex min-h-[66px] items-start justify-between gap-4 border-b-hairline border-[#dce4dc] bg-[linear-gradient(135deg,#eef4e7,#fbfcf8)] px-4 py-3 sm:min-h-[72px] sm:items-center sm:px-5">
+    <section className="grid gap-3 overflow-hidden rounded-[22px] border border-[#ccd7cd] bg-white/94 py-4 pl-8 pr-3.5 shadow-[0_18px_42px_rgba(12,59,32,0.11)] backdrop-blur-xl sm:rounded-[24px] sm:p-5">
+      <div className="flex min-w-0 items-center justify-between gap-3">
         <ScheduleTimeDisplay label={label} />
-        {firstMatch && (
-          <span className="flex min-w-0 flex-wrap items-center justify-end gap-1 text-right">
-            <span className="min-w-0 text-[12px] font-medium leading-tight text-text-secondary sm:text-[14px]">
-              <ScheduleHeaderTeamName name={teamName || team.name} showBallIcon={ballTeam?.id === team.id} />
-              <em className="mx-1 not-italic text-text-muted">vs</em>
-              <ScheduleHeaderTeamName name={opponentName || "Opponent TBD"} showBallIcon={ballTeam?.id === opponentId} />
-            </span>
-            {allMatchesComplete && <strong className="rounded-full bg-brand-light px-2 py-1 text-[9px] font-medium text-[#3b6d11]">Completed</strong>}
-          </span>
-        )}
+        {resultLabel && <strong className="shrink-0 rounded-full bg-brand-light px-3 py-1.5 text-[11px] font-semibold text-[#315f18] sm:text-[12px]">{resultLabel}</strong>}
       </div>
-      <div className="divide-y divide-line bg-white">
-        {matches.map((match) => <TeamCourtScheduleGame match={match} teamName={team.name} onOpenMatch={onOpenMatch} grouped key={match.id} />)}
+      {firstMatch && (
+        <div className="flex w-max max-w-full min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden whitespace-nowrap text-[13px] font-medium leading-tight text-text-secondary sm:text-[14px]">
+          <ScheduleHeaderTeamName name={firstMatch.teamAName || "Team A"} showBallIcon={ballTeam?.id === firstMatch.teamAId} />
+          <em className="shrink-0 not-italic text-text-muted">vs</em>
+          <ScheduleHeaderTeamName name={firstMatch.teamBName || "Team B"} showBallIcon={ballTeam?.id === firstMatch.teamBId} />
+        </div>
+      )}
+      <div className="grid gap-2.5">
+        {matches.map((match) => <TeamCourtScheduleGame match={match} teamName={team.name} tournament={tournament} onOpenMatch={onOpenMatch} grouped key={match.id} />)}
       </div>
     </section>
   );
+}
+
+function getCompactTeamName(name: string) {
+  return name.replace(/^team\s+/i, "").trim() || name;
 }
 
 function ScheduleFullBracketBoard({ day, dayOneNodes, dayTwoStages, coinTossDecisions, viewerTeamId, viewerIsAdmin, viewerIsSignedIn, savingCoinTossNode, openNodes, onToggleNode, onSaveCoinToss }: { day: 1 | 2; dayOneNodes: LiveBracketNode[]; dayTwoStages: LiveBracketStage[]; coinTossDecisions: DayTwoCoinTossDecision[]; viewerTeamId: string; viewerIsAdmin: boolean; viewerIsSignedIn: boolean; savingCoinTossNode: string; openNodes: Record<string, boolean>; onToggleNode: (nodeId: string) => void; onSaveCoinToss: (nodeKey: DayTwoCoinTossNodeKey, winningTeamId: string, formatChoice: DayTwoFormatChoice) => Promise<string> }) {
@@ -6915,12 +7552,9 @@ function ScheduleBracketTeamRow({ slot, score, isWinner }: { slot: BracketSlot; 
 }
 
 function ScheduleHeaderTeamName({ name, showBallIcon = false }: { name: string; showBallIcon?: boolean }) {
-  const parts = name.trim().split(/\s+/);
-  const prefix = parts.length > 1 ? `${parts.shift()} ` : "";
   return (
-    <span className="inline-flex min-w-0 items-center gap-1 align-middle">
-      {prefix && <span className="text-text-secondary">{prefix}</span>}
-      <strong className="font-semibold text-brand">{parts.join(" ") || name}</strong>
+    <span className="inline-flex w-max min-w-0 max-w-full shrink items-center gap-1 align-middle">
+      <strong className="min-w-0 truncate font-semibold text-text-primary">{name}</strong>
       {showBallIcon && <TennisBallIcon className="h-4 w-4" />}
     </span>
   );
@@ -7760,6 +8394,23 @@ function standingsRankingIsEqual(left: Pick<TeamStanding, "matchWins" | "setWinP
     && Math.abs(left.gameWinPercentage - right.gameWinPercentage) < 0.0001;
 }
 
+function getTournamentChampion(teams: PublishedTeam[], matches: TeamCourtScheduleMatch[]) {
+  const dayOneMatches = matches.filter((match) => match.dayNumber === 1);
+  const dayTwoMatches = matches.filter((match) => match.dayNumber === 2);
+  const standings = getLiveTeamStandings(teams, dayOneMatches);
+  const dayOneIsFinal = Boolean(dayOneMatches.length
+    && dayOneMatches.every((match) => Boolean(match.score?.winnerSide))
+    && !standings.some((standing) => standing.requiresReview));
+  if (!dayOneIsFinal) return null;
+  return getTournamentChampionFromStages(buildLiveTeamBracket(standings, dayTwoMatches, true));
+}
+
+function getTournamentChampionFromStages(stages: LiveBracketStage[]) {
+  const finalNode = stages.find((stage) => stage.key === "final")?.nodes[0];
+  if (!finalNode?.result.winnerTeamId) return null;
+  return [finalNode.sideA.team, finalNode.sideB.team].find((team) => team?.id === finalNode.result.winnerTeamId) || null;
+}
+
 function buildLiveTeamBracket(standings: TeamStanding[], dayTwoMatches: TeamCourtScheduleMatch[], revealProjectedTeams: boolean): LiveBracketStage[] {
   const seedSlot = (seed: number): BracketSlot => {
     const standing = standings[seed - 1];
@@ -8204,7 +8855,7 @@ function TeamPerformancePill({ label, value }: { label: string; value: number })
   );
 }
 
-function PlayerScheduleMatchCard({ match, teams, isFeatured, onOpenMatch }: { match: PlayerScheduleMatch; teams: PublishedTeam[]; isFeatured: boolean; onOpenMatch: () => void }) {
+function PlayerScheduleMatchCard({ match, tournament, teams, isFeatured, onOpenMatch }: { match: PlayerScheduleMatch; tournament: Tournament | null; teams: PublishedTeam[]; isFeatured: boolean; onOpenMatch: () => void }) {
   const playerSideNames = match.playerSideNames.length ? match.playerSideNames : ["You"];
   const opponentNames = match.opponentNames.length ? match.opponentNames : ["Opponent TBD"];
   const courtNumber = formatCourtNumber(match.courtLabel || "");
@@ -8212,29 +8863,45 @@ function PlayerScheduleMatchCard({ match, teams, isFeatured, onOpenMatch }: { ma
   const isSingles = playerSideNames.length === 1 && opponentNames.length === 1;
   const playerSideWon = Boolean(match.score?.winnerSide && match.score.winnerSide === match.teamSide);
   const opponentSideWon = Boolean(match.score?.winnerSide && match.score.winnerSide !== match.teamSide);
+  const matchState = getScheduleMatchState(match, tournament);
+  const playerIsSideA = match.teamSide === "A";
+  const leftNames = playerIsSideA ? playerSideNames : opponentNames;
+  const rightNames = playerIsSideA ? opponentNames : playerSideNames;
+  const leftProfiles = playerIsSideA ? match.playerSideProfiles : match.opponentProfiles;
+  const rightProfiles = playerIsSideA ? match.opponentProfiles : match.playerSideProfiles;
+  const leftTeamName = playerIsSideA ? match.teamName : match.opposingTeamName;
+  const rightTeamName = playerIsSideA ? match.opposingTeamName : match.teamName;
+  const leftTeamId = playerIsSideA ? match.teamId : match.opposingTeamId;
+  const rightTeamId = playerIsSideA ? match.opposingTeamId : match.teamId;
+  const leftSideWon = playerIsSideA ? playerSideWon : opponentSideWon;
+  const rightSideWon = playerIsSideA ? opponentSideWon : playerSideWon;
 
   return (
-    <article className={`relative grid gap-3 overflow-hidden rounded-[24px] border-hairline border-[#d8e1d9] bg-[#fbfcf8] p-3 sm:p-4 ${isFeatured ? "shadow-[0_20px_48px_rgba(12,59,32,0.13)]" : "shadow-[0_14px_34px_rgba(12,59,32,0.08)]"}`}>
-      <div className="flex min-w-0 items-start justify-between gap-4">
+    <article className={`relative grid gap-3 overflow-hidden rounded-[22px] border border-[#ccd7cd] bg-white/94 py-4 pl-8 pr-3.5 backdrop-blur-xl sm:rounded-[24px] sm:p-5 ${isFeatured ? "shadow-[0_20px_48px_rgba(12,59,32,0.14)]" : "shadow-[0_14px_34px_rgba(12,59,32,0.09)]"}`}>
+      <div className="flex min-w-0 items-center justify-between gap-4">
         <ScheduleTimeDisplay label={match.timeLabel} />
-        <span className="flex min-w-0 flex-wrap items-center justify-end gap-1 text-right">
-          <span className="min-w-0 text-[12px] font-medium leading-tight text-text-secondary sm:text-[14px]">
-            <ScheduleHeaderTeamName name={match.teamName} showBallIcon={ballTeam?.id === match.teamId} />
-            <em className="mx-1 not-italic text-text-muted">vs</em>
-            <ScheduleHeaderTeamName name={match.opposingTeamName} showBallIcon={ballTeam?.id === match.opposingTeamId} />
-          </span>
-        </span>
+        <ScheduleMatchStateBadge state={matchState} score={match.score} />
       </div>
 
-      <div className="tap-card group grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_30px] items-center gap-2 rounded-[17px] border-hairline border-[#dce4dc] bg-white p-2.5 text-left transition hover:border-brand/30 hover:shadow-[0_12px_28px_rgba(12,59,32,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 sm:p-3" role="button" tabIndex={0} onClick={onOpenMatch} onKeyDown={(event) => {
+      <div className="flex w-max max-w-full min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden whitespace-nowrap text-[13px] font-medium leading-tight text-text-secondary sm:text-[14px]">
+        <ScheduleHeaderTeamName name={leftTeamName} showBallIcon={ballTeam?.id === leftTeamId} />
+        <em className="shrink-0 not-italic text-text-muted">vs</em>
+        <ScheduleHeaderTeamName name={rightTeamName} showBallIcon={ballTeam?.id === rightTeamId} />
+      </div>
+
+      <div className="tap-card group grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_30px] items-center gap-2 rounded-[17px] text-left transition hover:bg-white/58 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30" role="button" tabIndex={0} onClick={onOpenMatch} onKeyDown={(event) => {
         if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
         event.preventDefault();
         onOpenMatch();
-      }} aria-label={`View match details: ${playerSideNames.join(" and ")} versus ${opponentNames.join(" and ")}`}>
-        <span className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_46px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] sm:gap-3">
-          <PlayerNameStack label="" names={playerSideNames} profiles={match.playerSideProfiles} tone="primary" centerOnWideScreens={isSingles} isWinner={playerSideWon} />
-          <CourtLineDivider label={courtNumber} />
-          <PlayerNameStack label="" names={opponentNames} profiles={match.opponentProfiles} tone="opponent" color={match.opposingTeamColor} centerOnWideScreens={isSingles} isWinner={opponentSideWon} />
+      }} aria-label={`View match details: ${leftNames.join(" and ")} versus ${rightNames.join(" and ")}`}>
+        <span className="grid gap-2">
+          <span className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_54px_minmax(0,1fr)] sm:gap-3">
+            <PlayerNameStack label="" names={leftNames} profiles={leftProfiles} tone="primary" centerOnWideScreens={isSingles} isWinner={leftSideWon} />
+            <CourtLineDivider label={courtNumber} />
+            <PlayerNameStack label="" names={rightNames} profiles={rightProfiles} tone="opponent" centerOnWideScreens={isSingles} isWinner={rightSideWon} />
+          </span>
+          {matchState === "completed" && match.score && <CompletedMatchScore score={match.score} />}
+          {matchState === "ongoing" && match.score && <LiveMatchScore score={match.score} />}
         </span>
         <span className="justify-self-center">
           <MatchCardSideCue />
@@ -8244,20 +8911,46 @@ function PlayerScheduleMatchCard({ match, teams, isFeatured, onOpenMatch }: { ma
   );
 }
 
-function MatchCardSideCue() {
+function LiveMatchScore({ score }: { score: MatchScore }) {
+  const sets = [
+    [score.sideASet1, score.sideBSet1],
+    [score.sideASet2, score.sideBSet2],
+    [score.sideASet3, score.sideBSet3]
+  ].filter(([sideA, sideB]) => sideA != null && sideB != null).map(([sideA, sideB]) => `${sideA}–${sideB}`);
+  if (!sets.length) return null;
   return (
-    <span className="pointer-events-none grid h-7 w-7 place-items-center rounded-full bg-[#f1f4ee] text-brand transition group-hover:bg-brand group-hover:text-white" aria-hidden="true">
-      <ArrowRight className="transition-transform group-hover:translate-x-0.5" size={17} strokeWidth={2.3} />
+    <span className="flex flex-wrap justify-end gap-1.5" aria-label={`Live score, ${sets.join(", ")}`}>
+      {sets.map((set, index) => <strong className="rounded-[9px] border-hairline border-line bg-[#f4f6f2] px-2.5 py-1 text-[12px] font-semibold tabular-nums text-text-primary" key={`${set}:${index}`}>{set}</strong>)}
     </span>
   );
 }
 
-function PlayerNameStack({ label, names, profiles = [], tone, color, centerOnWideScreens = false, isWinner = false }: { label: string; names: string[]; profiles?: MatchPlayerProfile[]; tone: "primary" | "opponent"; color?: string; centerOnWideScreens?: boolean; isWinner?: boolean }) {
+function CompletedMatchScore({ score }: { score: MatchScore }) {
+  const winnerIsA = score.winnerSide === "A";
+  const sets = [
+    [score.sideASet1, score.sideBSet1],
+    [score.sideASet2, score.sideBSet2],
+    [score.sideASet3, score.sideBSet3]
+  ].filter(([sideA, sideB]) => sideA != null && sideB != null)
+    .map(([sideA, sideB]) => winnerIsA ? `${sideA}–${sideB}` : `${sideB}–${sideA}`);
+  if (!sets.length) return null;
+  return (
+    <span className="flex flex-wrap justify-end gap-1.5" aria-label={`Completed score, winner first, ${sets.join(", ")}`}>
+      {sets.map((set, index) => <strong className="rounded-[9px] border-hairline border-line bg-[#f4f6f2] px-2.5 py-1 text-[12px] font-semibold tabular-nums text-text-primary" key={`${set}:${index}`}>{set}</strong>)}
+    </span>
+  );
+}
+
+function MatchCardSideCue() {
+  return (
+    <span className="pointer-events-none grid h-7 w-7 place-items-center text-text-secondary transition group-hover:text-brand" aria-hidden="true">
+      <ChevronRight className="transition-transform group-hover:translate-x-0.5" size={20} strokeWidth={2.4} />
+    </span>
+  );
+}
+
+function PlayerNameStack({ label, names, profiles = [], tone, centerOnWideScreens = false, isWinner = false }: { label: string; names: string[]; profiles?: MatchPlayerProfile[]; tone: "primary" | "opponent"; centerOnWideScreens?: boolean; isWinner?: boolean }) {
   const isPrimary = tone === "primary";
-  const teamTone = color ? getTeamCardTone(color) : null;
-  const chipStyle = teamTone
-    ? { background: teamTone.background, color: teamTone.textColor, borderColor: "rgba(255,255,255,0.28)" }
-    : undefined;
   return (
     <span className={`relative grid min-w-0 content-center gap-1.5 ${centerOnWideScreens ? "sm:content-center" : ""}`}>
       {isWinner && <span className="absolute -right-1 -top-1 z-10 grid h-6 w-6 place-items-center rounded-full bg-[#d8f36b] text-[#183a2b] shadow-[0_5px_12px_rgba(12,59,32,0.20)]" title="Winner" aria-label="Winner"><Trophy size={12} strokeWidth={2.4} /></span>}
@@ -8267,13 +8960,13 @@ function PlayerNameStack({ label, names, profiles = [], tone, color, centerOnWid
         const content = (
             <span className="block min-w-0 whitespace-normal break-words">{name}</span>
         );
-        const chipClass = isPrimary ? "grid min-h-9 min-w-0 place-items-center rounded-[12px] border-hairline border-[#e3e8e1] bg-[#f3f5f1] px-2 py-1.5 text-center text-[11px] font-semibold leading-tight text-text-primary sm:min-h-11 sm:px-3 sm:py-2 sm:text-[14px]" : "grid min-h-9 min-w-0 place-items-center rounded-[12px] border-hairline border-white/25 bg-surface/70 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight text-text-primary sm:min-h-11 sm:px-3 sm:py-2 sm:text-[14px]";
+        const chipClass = isWinner ? "grid min-h-14 min-w-0 place-items-center rounded-[13px] border-hairline border-[#cde677] bg-[#f1fad7] px-2.5 py-2 text-center text-[13px] font-semibold leading-tight text-[#35570f] sm:min-h-16 sm:px-3 sm:text-[14px]" : isPrimary ? "grid min-h-14 min-w-0 place-items-center rounded-[13px] border-hairline border-[#dfe4dc] bg-[#f4f5f1] px-2.5 py-2 text-center text-[13px] font-semibold leading-tight text-text-primary sm:min-h-16 sm:px-3 sm:text-[14px]" : "grid min-h-14 min-w-0 place-items-center rounded-[13px] border-hairline border-[#dfe4dc] bg-[#f4f5f1] px-2.5 py-2 text-center text-[13px] font-semibold leading-tight text-text-primary sm:min-h-16 sm:px-3 sm:text-[14px]";
         return (
         <Fragment key={`${name}-${index}`}>
           {profile?.id ? (
-            <Link className={`${chipClass} tap-card transition hover:ring-2 hover:ring-brand/20`} style={chipStyle} href={`/tournaments/players/${profile.id}?from=schedule`} onClick={(event) => event.stopPropagation()} aria-label={`View ${name} player profile`}>{content}</Link>
+            <Link className={`${chipClass} tap-card transition hover:ring-2 hover:ring-brand/20`} href={`/tournaments/players/${profile.id}?from=schedule`} onClick={(event) => event.stopPropagation()} aria-label={`View ${name} player profile`}>{content}</Link>
           ) : (
-            <strong className={chipClass} style={chipStyle}>{content}</strong>
+            <strong className={chipClass}>{content}</strong>
           )}
           {index < names.length - 1 && (
             <em className="-my-1 justify-self-center text-[10px] font-semibold not-italic leading-none text-text-muted" aria-hidden="true">&amp;</em>
@@ -8298,9 +8991,9 @@ function CourtLineDivider({ label }: { label?: string }) {
     <span className="relative grid min-h-[72px] place-items-center self-stretch" aria-hidden={!label}>
       <span className="absolute inset-y-0 left-1/2 border-l-2 border-dashed border-[#cfd9cf]" aria-hidden="true" />
       {courtNumber && (
-        <span className="relative z-[1] grid min-h-[44px] min-w-[40px] place-items-center content-center rounded-[9px] bg-[#123f34] px-1.5 py-1 text-white shadow-[0_8px_18px_rgba(12,59,32,0.16)] sm:min-h-[48px] sm:min-w-[44px]">
-          <small className="font-mono text-[8px] font-medium uppercase leading-none tracking-[0.08em] text-white/75 sm:text-[9px]">court</small>
-          <b className="font-mono text-[20px] font-semibold leading-none text-[#dfff4f] sm:text-[23px]">{courtNumber}</b>
+        <span className="relative z-[1] grid min-h-14 min-w-12 place-items-center content-center rounded-[10px] bg-[#123f34] px-1.5 py-1.5 text-white shadow-[0_8px_18px_rgba(12,59,32,0.16)] sm:min-h-16 sm:min-w-[52px]">
+          <small className="font-mono text-[8px] font-semibold uppercase leading-none tracking-[0.08em] text-[#dfff4f] sm:text-[9px]">court</small>
+          <b className="font-mono text-[20px] font-semibold leading-none text-white sm:text-[23px]">{courtNumber}</b>
         </span>
       )}
     </span>
@@ -8512,21 +9205,25 @@ function ScheduleCompactEventRow({ item }: { item: ScheduleItem }) {
 }
 
 function ScheduleTimelineEventCard({ item }: { item: ScheduleItem }) {
+  const isMeal = /breakfast|lunch|meal|snack/i.test(`${item.matchLabel} ${item.detail}`);
   return (
-    <article className="grid min-h-12 grid-cols-[minmax(92px,auto)_minmax(0,1fr)] items-center gap-4 rounded-[16px] border-hairline border-[#d8e1d9] bg-[#f8faf4] px-4 py-2 shadow-[0_8px_20px_rgba(12,59,32,0.05)] xl:col-span-3">
-      <time className="whitespace-nowrap text-[14px] font-medium text-brand">{item.timeLabel}</time>
-      <strong className="truncate text-left text-[14px] font-medium text-text-primary">{getScheduleMilestoneLabel(item)}</strong>
+    <article className="grid min-h-[78px] grid-cols-[minmax(0,1fr)_32px] items-center gap-x-3 gap-y-1 rounded-[18px] border border-dashed border-[#b9c2ba] bg-[#e7ebe7] py-3 pl-8 pr-3.5 text-text-secondary shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+      <span className="grid min-w-0 gap-1">
+        <time className="whitespace-nowrap text-[12px] font-semibold leading-none text-[#5f6c64] sm:text-[13px]">{item.timeLabel}</time>
+        <strong className="min-w-0 text-left text-[13px] font-semibold leading-snug text-[#405148] sm:text-[14px]">{getScheduleMilestoneLabel(item)}</strong>
+      </span>
+      <span className="grid h-8 w-8 place-items-center rounded-full border border-white/80 bg-white/70 text-brand shadow-[0_5px_12px_rgba(12,59,32,0.06)]" aria-hidden="true">{isClosingScheduleItem(item) ? <CheckCircle2 size={15} /> : isMeal ? <Calendar size={15} /> : <Clock size={15} />}</span>
     </article>
   );
 }
 
 function ScheduleDayEventRail({ day, items }: { day: 1 | 2; items: ScheduleItem[] }) {
   return (
-    <section className="overflow-hidden rounded-[16px] border-hairline border-[#d8e1d9] bg-white/90 shadow-[0_10px_26px_rgba(12,59,32,0.06)]" aria-label={`Day ${day} timeline`}>
+    <section className="overflow-hidden rounded-[18px] border border-[#cdd5cd] bg-[#dfe5df] shadow-[0_10px_26px_rgba(12,59,32,0.07)]" aria-label={`Day ${day} timeline`}>
       <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto p-2 sm:grid sm:grid-cols-3 sm:overflow-visible">
         {items.map((item) => (
-          <article className="grid min-h-[58px] min-w-[220px] snap-start grid-cols-[32px_minmax(0,1fr)] items-center gap-2.5 rounded-[13px] border-hairline border-[#e0e6dc] bg-[#f8faf4] px-3 py-2 sm:min-w-0" key={item.id}>
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-brand text-[#d8f36b]" aria-hidden="true">
+          <article className="grid min-h-[62px] min-w-[220px] snap-start grid-cols-[32px_minmax(0,1fr)] items-center gap-2.5 rounded-[14px] border border-dashed border-[#b8c2b9] bg-[#eef1ee] px-3 py-2 sm:min-w-0" key={item.id}>
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-white/90 text-brand shadow-[0_4px_10px_rgba(12,59,32,0.06)]" aria-hidden="true">
               {isClosingScheduleItem(item) ? <CheckCircle2 size={15} /> : isLunchScheduleItem(item) ? <Calendar size={15} /> : <UsersRound size={15} />}
             </span>
             <span className="grid min-w-0 gap-0.5">
@@ -8606,7 +9303,7 @@ function DayScheduleTeamBlock({ block, teams, isOpen, showMatchCount, onToggle, 
   );
 }
 
-function TeamCourtScheduleGame({ match, teamName, onOpenMatch, grouped = false }: { match: TeamCourtScheduleMatch; teamName: string; onOpenMatch: (match: TeamCourtScheduleMatch) => void; grouped?: boolean }) {
+function TeamCourtScheduleGame({ match, teamName, tournament, onOpenMatch, grouped = false }: { match: TeamCourtScheduleMatch; teamName: string; tournament?: Tournament | null; onOpenMatch: (match: TeamCourtScheduleMatch) => void; grouped?: boolean }) {
   const teamIsA = match.teamAName === teamName;
   const primaryPlayers = teamIsA ? match.playersA : match.playersB;
   const opponentPlayers = teamIsA ? match.playersB : match.playersA;
@@ -8616,10 +9313,37 @@ function TeamCourtScheduleGame({ match, teamName, onOpenMatch, grouped = false }
   const displayOpponentPlayers = opponentPlayers.length ? opponentPlayers : ["Opponent TBD"];
   const courtNumber = formatCourtNumber(match.courtLabel || "");
   const isSingles = displayPrimaryPlayers.length === 1 && displayOpponentPlayers.length === 1;
-  const opponentColor = teamIsA ? match.teamBColor : match.teamAColor;
   const primarySide: "A" | "B" = teamIsA ? "A" : "B";
   const primarySideWon = Boolean(match.score?.winnerSide && match.score.winnerSide === primarySide);
   const opponentSideWon = Boolean(match.score?.winnerSide && match.score.winnerSide !== primarySide);
+  const matchState = getScheduleMatchState(match, tournament || null);
+
+  if (tournament !== undefined) {
+    const leftPlayers = match.playersA.length ? match.playersA : [match.teamAName || "Team A"];
+    const rightPlayers = match.playersB.length ? match.playersB : [match.teamBName || "Team B"];
+    const leftWon = match.score?.winnerSide === "A";
+    const rightWon = match.score?.winnerSide === "B";
+    return (
+      <div className="tap-card group grid w-full cursor-pointer gap-2.5 rounded-[18px] border-hairline border-[#d9dfd7] bg-[#f5f6f2]/90 p-3 text-left transition hover:border-brand/25 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30" role="button" tabIndex={0} onClick={() => onOpenMatch(match)} onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        onOpenMatch(match);
+      }} aria-label={`View ${match.format} match: ${leftPlayers.join(" and ")} versus ${rightPlayers.join(" and ")}`}>
+        <span className="flex min-w-0 items-center justify-between gap-3">
+          <strong className="text-[12px] font-semibold text-text-secondary sm:text-[13px]">{match.format}</strong>
+          <ScheduleMatchStateBadge state={matchState} score={match.score} />
+        </span>
+        <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_42px_minmax(0,1fr)_16px] items-center gap-1.5">
+          <TeamSchedulePlayerStack names={leftPlayers} profiles={match.playerProfilesA} isWinner={leftWon} />
+          <TeamScheduleCourtDivider courtNumber={courtNumber} />
+          <TeamSchedulePlayerStack names={rightPlayers} profiles={match.playerProfilesB} isWinner={rightWon} />
+          <span className="justify-self-end"><MatchCardSideCue /></span>
+        </span>
+        {matchState === "completed" && match.score && <CompletedMatchScore score={match.score} />}
+        {matchState === "ongoing" && match.score && <LiveMatchScore score={match.score} />}
+      </div>
+    );
+  }
 
   return (
     <div className={grouped ? "tap-card group relative grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_30px] items-center gap-2 bg-white p-2.5 text-left transition hover:bg-[#fbfcf8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/30 sm:p-3" : "tap-card group relative grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_30px] items-center gap-2 rounded-[17px] border-hairline border-[#dce4dc] bg-white p-2.5 text-left transition hover:border-brand/30 hover:shadow-[0_12px_28px_rgba(12,59,32,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 sm:p-3"} role="button" tabIndex={0} onClick={() => onOpenMatch(match)} onKeyDown={(event) => {
@@ -8628,16 +9352,48 @@ function TeamCourtScheduleGame({ match, teamName, onOpenMatch, grouped = false }
       onOpenMatch(match);
     }} aria-label={`View match details: ${displayPrimaryPlayers.join(" and ")} versus ${displayOpponentPlayers.join(" and ")}`}>
       <span className="grid gap-2">
+        {tournament !== undefined && <span className="flex justify-end"><ScheduleMatchStateBadge state={matchState} /></span>}
         <span className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_46px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] sm:gap-3">
           <PlayerNameStack label="" names={displayPrimaryPlayers} profiles={primaryProfiles} tone="primary" centerOnWideScreens={isSingles} isWinner={primarySideWon} />
           <CourtLineDivider label={courtNumber} />
-          <PlayerNameStack label="" names={displayOpponentPlayers} profiles={opponentProfiles} tone="opponent" color={opponentColor} centerOnWideScreens={isSingles} isWinner={opponentSideWon} />
+          <PlayerNameStack label="" names={displayOpponentPlayers} profiles={opponentProfiles} tone="opponent" centerOnWideScreens={isSingles} isWinner={opponentSideWon} />
         </span>
+        {tournament !== undefined && matchState === "completed" && match.score && <CompletedMatchScore score={match.score} />}
       </span>
       <span className="justify-self-center">
         <MatchCardSideCue />
       </span>
     </div>
+  );
+}
+
+function TeamSchedulePlayerStack({ names, profiles, isWinner }: { names: string[]; profiles: MatchPlayerProfile[]; isWinner: boolean }) {
+  return (
+    <span className={isWinner ? "relative flex min-h-14 min-w-0 flex-wrap items-center justify-center gap-x-1 rounded-[12px] border-hairline border-[#c8e46d] bg-[#f1fad7] px-2 py-2 text-center text-[12px] font-semibold leading-tight text-[#35570f] sm:min-h-16 sm:text-[14px]" : "relative flex min-h-14 min-w-0 flex-wrap items-center justify-center gap-x-1 rounded-[12px] border-hairline border-[#e1e5df] bg-white px-2 py-2 text-center text-[12px] font-semibold leading-tight text-text-primary sm:min-h-16 sm:text-[14px]"}>
+      {isWinner && <span className="absolute -right-1.5 -top-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-[#d8f36b] text-[#183a2b] shadow-[0_5px_12px_rgba(12,59,32,0.18)]" title="Winner" aria-label="Winner"><Trophy size={12} strokeWidth={2.4} /></span>}
+      {names.map((name, index) => {
+        const profile = profiles[index] || profiles.find((candidate) => normalizeName(candidate.name) === normalizeName(name));
+        return (
+          <Fragment key={`${name}:${index}`}>
+            {index > 0 && <em className="not-italic text-text-muted">&amp;</em>}
+            {profile?.id ? (
+              <Link className="tap-card min-w-0 break-words underline decoration-current/20 underline-offset-2 hover:decoration-current" href={`/tournaments/players/${profile.id}?from=schedule`} onClick={(event) => event.stopPropagation()}>{name}</Link>
+            ) : (
+              <span className="min-w-0 break-words">{name}</span>
+            )}
+          </Fragment>
+        );
+      })}
+    </span>
+  );
+}
+
+function TeamScheduleCourtDivider({ courtNumber }: { courtNumber: string }) {
+  return (
+    <span className="grid min-w-0 content-center justify-items-center gap-1 text-center">
+      <em className="text-[9px] font-semibold not-italic leading-none text-text-muted">vs</em>
+      <strong className="whitespace-nowrap rounded-[7px] bg-[#e7eae5] px-1.5 py-1 font-mono text-[10px] font-semibold leading-none text-text-primary">CT {courtNumber || "–"}</strong>
+    </span>
   );
 }
 
