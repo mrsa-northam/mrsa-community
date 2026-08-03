@@ -9808,8 +9808,11 @@ function TeamSchedulePlayerStack({ names, profiles, isWinner }: { names: string[
 function TeamScheduleCourtDivider({ courtNumber }: { courtNumber: string }) {
   return (
     <span className="grid min-w-0 content-center justify-items-center gap-1 text-center">
-      <em className="text-[9px] font-semibold not-italic leading-none text-text-muted">vs</em>
-      <strong className="whitespace-nowrap rounded-[7px] bg-[#e7eae5] px-1.5 py-1 font-mono text-[10px] font-semibold leading-none text-text-primary">CT {courtNumber || "–"}</strong>
+      <em className="text-[8px] font-semibold not-italic leading-none text-text-muted">vs</em>
+      <strong className="grid min-h-10 min-w-9 place-items-center content-center rounded-[8px] bg-[#123f34] px-1 py-1 text-white shadow-[0_6px_14px_rgba(12,59,32,0.14)]">
+        <small className="font-mono text-[6px] font-semibold uppercase leading-none tracking-[0.07em] text-[#dfff4f]">court</small>
+        <b className="font-mono text-[15px] font-semibold leading-none text-white">{courtNumber || "–"}</b>
+      </strong>
     </span>
   );
 }
