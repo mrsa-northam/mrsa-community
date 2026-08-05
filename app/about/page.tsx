@@ -232,16 +232,16 @@ const TEAM: Team = {
 };
 
 const CATEGORY_BADGES: Record<TestimonialCategory, { label: string; className: string }> = {
-  founders: { label: "Founders", className: "bg-[#EAF3DE] text-[#27500A]" },
-  organizer: { label: "Organizer", className: "bg-[#E1F5EE] text-[#0F6E56]" },
-  mumenaat: { label: "Mumenaat lead", className: "bg-[#FBEAF0] text-[#993556]" },
-  youth: { label: "Young player", className: "bg-[#E6F1FB] text-[#185FA5]" },
-  participant: { label: "Participant", className: "bg-[#E6F1FB] text-[#185FA5]" },
-  volunteer: { label: "Volunteer", className: "bg-[#FAEEDA] text-[#854F0B]" },
-  senior: { label: "Senior player", className: "bg-[#E6F1FB] text-[#185FA5]" },
-  partner: { label: "Partner", className: "bg-[#FAECE7] text-[#993C1D]" },
-  sponsor: { label: "Sponsor", className: "bg-[#FAEEDA] text-[#854F0B]" },
-  advisor: { label: "Advisor", className: "bg-[#EEEDFE] text-[#3C3489]" }
+  founders: { label: "Founders", className: "bg-[var(--brand-primary-tint)] text-[var(--accent-ink)]" },
+  organizer: { label: "Organizer", className: "bg-[var(--brand-primary-tint)] text-[var(--brand-mid)]" },
+  mumenaat: { label: "Mumenaat lead", className: "bg-[var(--category-rose-tint)] text-[var(--category-rose-ink)]" },
+  youth: { label: "Young player", className: "bg-[var(--brand-primary-tint)] text-[var(--brand-primary-text)]" },
+  participant: { label: "Participant", className: "bg-[var(--brand-primary-tint)] text-[var(--brand-primary-text)]" },
+  volunteer: { label: "Volunteer", className: "bg-[var(--partner-gold-tint)] text-[var(--partner-gold-ink)]" },
+  senior: { label: "Senior player", className: "bg-[var(--brand-primary-tint)] text-[var(--brand-primary-text)]" },
+  partner: { label: "Partner", className: "bg-[var(--urgent-tint)] text-[var(--urgent-ink)]" },
+  sponsor: { label: "Sponsor", className: "bg-[var(--partner-gold-tint)] text-[var(--partner-gold-ink)]" },
+  advisor: { label: "Advisor", className: "bg-[var(--avatar-purple)] text-[var(--avatar-purple-ink)]" }
 };
 
 const TEAM_GROUPS: { key: TeamGroupKey; label: string }[] = [
@@ -252,11 +252,11 @@ const TEAM_GROUPS: { key: TeamGroupKey; label: string }[] = [
 ];
 
 const TEAM_AVATAR_COLORS = [
-  "bg-[#E6F1FB] text-[#185FA5]",
-  "bg-[#EEEDFE] text-[#3C3489]",
-  "bg-[#E1F5EE] text-[#0F6E56]",
-  "bg-[#FAEEDA] text-[#854F0B]",
-  "bg-[#FAECE7] text-[#993C1D]"
+  "bg-[var(--brand-primary-tint)] text-[var(--brand-primary-text)]",
+  "bg-[var(--avatar-purple)] text-[var(--avatar-purple-ink)]",
+  "bg-[var(--brand-primary-tint)] text-[var(--brand-mid)]",
+  "bg-[var(--partner-gold-tint)] text-[var(--partner-gold-ink)]",
+  "bg-[var(--urgent-tint)] text-[var(--urgent-ink)]"
 ];
 
 export default function AboutPage() {
@@ -310,7 +310,7 @@ function AboutTopNav() {
 
 function HeroSection() {
   return (
-    <section className="relative grid min-h-[190px] overflow-hidden rounded-hero bg-brand p-[14px] text-white">
+    <section className="relative grid min-h-[190px] overflow-hidden rounded-hero bg-brand-deep p-[14px] text-white">
       <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
         <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -374,7 +374,7 @@ function FeaturedVideoSection({
         <span className="text-[10px] font-medium uppercase tracking-[0.4px] text-text-secondary">Featured highlight</span>
         <h3 className="text-[14px] font-medium leading-snug text-text-primary">{FEATURED_VIDEO.title}</h3>
       </div>
-      <div ref={cardRef} className="relative aspect-video w-full overflow-hidden rounded-lg bg-[linear-gradient(135deg,#0c3b20_0%,#1f5e34_62%,#12372F_100%)] text-white shadow-[0_18px_44px_rgba(12,59,32,0.18)]">
+      <div ref={cardRef} className="relative aspect-video w-full overflow-hidden rounded-lg bg-[linear-gradient(135deg,var(--brand-deep)_0%,var(--brand-mid)_62%,var(--brand-deep)_100%)] text-white shadow-[0_18px_44px_rgba(var(--brand-deep-rgb), 0.18)]">
         {playing ? (
           <>
             <iframe
@@ -399,7 +399,7 @@ function FeaturedVideoSection({
             <span className="absolute left-3 top-3 rounded-full bg-black/30 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.4px] text-white/90">Tap to play</span>
             <span className="absolute left-1/2 top-1/2 grid h-11 w-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white shadow-[0_14px_34px_rgba(0,0,0,0.24)] transition group-active:scale-95" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 19 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M18 11L1.5 20.5263L1.5 1.47372L18 11Z" fill="#1d6e3a" />
+                <path d="M18 11L1.5 20.5263L1.5 1.47372L18 11Z" fill="var(--brand-mid)" />
               </svg>
             </span>
             <span className="absolute bottom-3 left-3 grid gap-0.5">
@@ -434,7 +434,7 @@ function TournamentStrip({ tournament }: { tournament: TournamentHighlight }) {
           <h3 className="truncate text-[12px] font-medium text-text-primary">{tournament.title}</h3>
           <p className="text-[12px] text-text-secondary">{tournament.date}</p>
         </div>
-        <a className="whitespace-nowrap text-[11px] font-medium text-[#1d6e3a]" href={tournament.albumUrl} target="_blank" rel="noopener noreferrer">View album ↗</a>
+        <a className="whitespace-nowrap text-[11px] font-medium text-[var(--brand-mid)]" href={tournament.albumUrl} target="_blank" rel="noopener noreferrer">View album ↗</a>
       </div>
       <div className="-mx-3 flex snap-x snap-mandatory gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {(tournament.thumbs.length > 0 ? tournament.thumbs : Array.from({ length: 3 }, () => "")).map((thumb, thumbnailIndex) => (
@@ -454,7 +454,7 @@ function TournamentThumbnail({ src, alt }: { src: string; alt: string }) {
 
   if (!src || failed) {
     return (
-      <div className="grid h-[68px] w-[92px] shrink-0 snap-start place-items-center rounded-md bg-[linear-gradient(135deg,#eaf3de_0%,#e6f1fb_55%,#faeeda_100%)] text-[10px] font-medium text-text-secondary">
+      <div className="grid h-[68px] w-[92px] shrink-0 snap-start place-items-center rounded-md bg-[linear-gradient(135deg,var(--brand-primary-tint)_0%,var(--brand-primary-tint)_55%,var(--partner-gold-tint)_100%)] text-[10px] font-medium text-text-secondary">
         MRSA
       </div>
     );
@@ -494,7 +494,7 @@ function TestimonialsSection() {
       <button
         type="button"
         onClick={() => setOpenItem(FEATURED_TESTIMONIAL)}
-        className="relative grid w-full overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,#0c3b20_0%,#1f5e34_100%)] p-4 text-left text-white shadow-[0_18px_44px_rgba(12,59,32,0.20)]"
+        className="relative grid w-full overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,var(--brand-deep)_0%,var(--brand-mid)_100%)] p-4 text-left text-white shadow-[0_18px_44px_rgba(var(--brand-deep-rgb), 0.20)]"
       >
         <svg className="absolute right-4 top-3 h-20 w-20 text-white opacity-10" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <path d="M24 16C15 21 10 28 10 38C10 44 14 48 20 48C25 48 29 44 29 39C29 34 26 31 22 31C20 31 18 31 17 32C18 27 22 23 28 20L24 16ZM48 16C39 21 34 28 34 38C34 44 38 48 44 48C49 48 53 44 53 39C53 34 50 31 46 31C44 31 42 31 41 32C42 27 46 23 52 20L48 16Z" fill="currentColor" />
@@ -506,7 +506,7 @@ function TestimonialsSection() {
             <strong className="text-[13px] font-medium text-white">{FEATURED_TESTIMONIAL.name}</strong>
             <em className="text-[12px] not-italic text-white/65">{FEATURED_TESTIMONIAL.role}</em>
           </span>
-          <span className="text-[13px] font-medium text-[#C8F0D6]">Read full story ↗</span>
+          <span className="text-[13px] font-medium text-[var(--brand-primary-tint)]">Read full story ↗</span>
         </div>
       </button>
       <div className="-mx-3 flex snap-x snap-mandatory gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -520,11 +520,11 @@ function TestimonialsSection() {
           rel="noopener noreferrer"
         >
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path d="M6 18.5H5.5C4.11929 18.5 3 17.3807 3 16V7.5C3 6.11929 4.11929 5 5.5 5H22.5C23.8807 5 25 6.11929 25 7.5V16C25 17.3807 23.8807 18.5 22.5 18.5H13L7 23V18.5H6Z" stroke="#1d6e3a" strokeWidth="1.4" strokeLinejoin="round" />
+            <path d="M6 18.5H5.5C4.11929 18.5 3 17.3807 3 16V7.5C3 6.11929 4.11929 5 5.5 5H22.5C23.8807 5 25 6.11929 25 7.5V16C25 17.3807 23.8807 18.5 22.5 18.5H13L7 23V18.5H6Z" stroke="var(--brand-mid)" strokeWidth="1.4" strokeLinejoin="round" />
           </svg>
           <span className="grid gap-1">
             <strong className="text-[14px] font-medium">Read all stories</strong>
-            <em className="text-[12px] not-italic text-[#1d6e3a]">Open the full doc ↗</em>
+            <em className="text-[12px] not-italic text-[var(--brand-mid)]">Open the full doc ↗</em>
           </span>
         </a>
       </div>
@@ -557,7 +557,7 @@ function TestimonialCard({ testimonial, onOpen }: { testimonial: Testimonial; on
         <strong className="text-[12px] font-medium text-text-primary">{testimonial.name}</strong>
         <em className="text-[11px] not-italic text-text-secondary">{testimonial.role}</em>
       </span>
-      <span className="text-[12px] font-medium text-[#1d6e3a]">Read more →</span>
+      <span className="text-[12px] font-medium text-[var(--brand-mid)]">Read more →</span>
     </button>
   );
 }
@@ -812,7 +812,7 @@ function TestimonialSheet({
             type="button"
             onClick={onNext}
             aria-label={`Next testimonial: ${nextItem.name}`}
-            className="grid min-h-11 place-items-center rounded-[14px] bg-[#1d6e3a] text-[12px] font-medium text-white"
+            className="grid min-h-11 place-items-center rounded-[14px] bg-[var(--brand-mid)] text-[12px] font-medium text-white"
           >
             Next story →
           </button>
@@ -859,7 +859,7 @@ function ReadyToPlayCta() {
     <section className="grid gap-3 rounded-[22px] border-hairline border-line bg-white p-4 shadow-[0_8px_24px_rgba(24,24,26,0.05)]">
       <p className="text-[12px] leading-relaxed text-text-secondary">To stay up to date with MRSA events and announcements</p>
       <a
-        className="inline-flex min-h-11 items-center justify-center rounded-[14px] bg-[#1d6e3a] px-4 text-center text-[13px] font-medium leading-tight text-white"
+        className="inline-flex min-h-11 items-center justify-center rounded-[14px] bg-[var(--brand-mid)] px-4 text-center text-[13px] font-medium leading-tight text-white"
         href="https://chat.whatsapp.com/Lcl6BM01bu86LW00MVtf1V"
         target="_blank"
         rel="noopener noreferrer"
@@ -884,10 +884,10 @@ function StandardAboutBottomNav() {
       aria-label="Primary mobile navigation"
     >
       {tabs.map(({ id, href, label, icon: Icon }) => (
-        <Link className={id === "home" ? "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] bg-[#E6F3EA] text-[#1d6e3a]" : "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[#b6b1a8]"} href={href} key={id}>
+        <Link className={id === "home" ? "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] bg-[var(--brand-primary-tint)] text-[var(--brand-mid)]" : "grid min-h-12 place-items-center content-center gap-1 rounded-[16px] text-[var(--text-muted-token)]"} href={href} key={id}>
           <Icon size={20} strokeWidth={id === "home" ? 2.2 : 1.7} />
           <span className={id === "home" ? "text-[12px] font-medium leading-none" : "text-[12px] font-normal leading-none"}>{label}</span>
-          <span className={id === "home" ? "h-1 w-1 rounded-full bg-[#1d6e3a]" : "h-1 w-1 rounded-full bg-transparent"} />
+          <span className={id === "home" ? "h-1 w-1 rounded-full bg-[var(--brand-mid)]" : "h-1 w-1 rounded-full bg-transparent"} />
         </Link>
       ))}
     </nav>

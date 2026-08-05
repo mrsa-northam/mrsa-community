@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "check:contrast": "node scripts/check-color-contrast.mjs",
     "start": "next start",
     "lint": "next lint"
   },

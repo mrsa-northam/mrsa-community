@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppSessionProvider } from "./tennis-app";
+import { MRSA_COLORS } from "./design-tokens";
 
 export const metadata: Metadata = {
   title: "MRSA Tennis",
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0c3b20"
+  themeColor: MRSA_COLORS.brandDeep
 };
 
 export default function RootLayout({

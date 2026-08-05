@@ -5,10 +5,10 @@ alter table public.tournament_teams
   add column if not exists jersey_color text;
 
 alter table public.tournament_teams
-  alter column jersey_color set default '#1a6e3c';
+  alter column jersey_color set default '#1D4F7C';
 
 update public.tournament_teams
-set jersey_color = '#1a6e3c'
+set jersey_color = '#1D4F7C'
 where jersey_color is null;
 
 alter table public.tournament_teams

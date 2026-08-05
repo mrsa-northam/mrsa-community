@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import { getSupabaseClient } from "../lib/supabase";
+import { MRSA_COLORS } from "../design-tokens";
 
 type AdminTab = "overview" | "tournaments" | "players" | "payments" | "claims";
 type AdminTournamentWorkspaceSection = "setup" | "content" | "teams" | "players" | "waitlist";
@@ -229,7 +230,7 @@ const adminJamaatCityOptions = [
 const adminJerseySizes = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
 const adminDominantHands = ["Right", "Left", "Both"];
 const TEAM_LOGO_BUCKET = "team-logos";
-const DEFAULT_TEAM_COLOR = "#1a6e3c";
+const DEFAULT_TEAM_COLOR = MRSA_COLORS.brandMid;
 const TEAM_LOGO_MAX_BYTES = 1024 * 1024;
 const TEAM_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
 const TEAM_LOGO_EXTENSIONS: Record<string, string> = {
@@ -305,8 +306,8 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
   if (allowed === null) {
     return (
       <main className="grid min-h-dvh place-items-center bg-page px-4 py-8 font-sans text-text-primary">
-        <section className="grid w-full max-w-[520px] gap-4 rounded-[24px] border-hairline border-line bg-white p-5 shadow-[0_24px_80px_rgba(12,59,32,0.10)]">
-          <div className="relative overflow-hidden rounded-[20px] bg-brand p-5 text-white">
+        <section className="grid w-full max-w-[520px] gap-4 rounded-[24px] border-hairline border-line bg-white p-5 shadow-[0_24px_80px_rgba(var(--brand-deep-rgb), 0.10)]">
+          <div className="relative overflow-hidden rounded-[20px] bg-brand-deep p-5 text-white">
             <div className="pointer-events-none absolute inset-0 -right-12 -top-8 text-white opacity-[0.06]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -329,8 +330,8 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
   if (!allowed) {
     return (
       <main className="grid min-h-dvh place-items-center bg-page px-4 py-8 font-sans text-text-primary">
-        <section className="grid w-full max-w-[760px] overflow-hidden rounded-[24px] border-hairline border-line bg-white shadow-[0_24px_80px_rgba(12,59,32,0.10)] md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div className="relative min-h-[220px] overflow-hidden bg-brand p-5 text-white md:min-h-[420px] md:p-6">
+        <section className="grid w-full max-w-[760px] overflow-hidden rounded-[24px] border-hairline border-line bg-white shadow-[0_24px_80px_rgba(var(--brand-deep-rgb), 0.10)] md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div className="relative min-h-[220px] overflow-hidden bg-brand-deep p-5 text-white md:min-h-[420px] md:p-6">
             <div className="pointer-events-none absolute inset-0 -right-16 -top-8 text-white opacity-[0.07]" aria-hidden="true">
               <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -351,7 +352,7 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
 
           <div className="grid content-center gap-5 p-5 md:p-8">
             <div className="grid gap-2">
-              <span className="inline-flex w-max rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">Protected area</span>
+              <span className="inline-flex w-max rounded-full bg-accent-tint px-3 py-1 text-[13px] font-medium text-[var(--accent-ink)]">Protected area</span>
               <h2 className="text-[26px] font-medium leading-tight tracking-[-0.4px] text-text-primary">You do not have admin permission.</h2>
               <p className="text-[15px] leading-relaxed text-text-secondary">Your account is signed in, but it is not marked as an MRSA admin. If this seems wrong, ask an existing admin to update your role.</p>
             </div>
@@ -361,7 +362,7 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
               <p className="text-[15px] leading-relaxed text-text-primary">Return to the player app and continue viewing tournaments, profile details, and registered players.</p>
             </div>
 
-            <Link className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white md:w-max" href="/dashboard">Back to app →</Link>
+            <Link className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand-deep px-5 text-sm font-medium text-white md:w-max" href="/dashboard">Back to app →</Link>
           </div>
         </section>
       </main>
@@ -370,7 +371,7 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
 
   return (
     <main className="min-h-dvh bg-page font-sans text-text-primary lg:grid lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside className="relative z-40 grid gap-2 border-b-hairline border-line bg-brand px-3 py-3 text-white lg:sticky lg:top-0 lg:h-dvh lg:content-start lg:gap-4 lg:border-b-0 lg:border-r-hairline lg:px-5 lg:py-5">
+      <aside className="relative z-40 grid gap-2 border-b-hairline border-line bg-brand-deep px-3 py-3 text-white lg:sticky lg:top-0 lg:h-dvh lg:content-start lg:gap-4 lg:border-b-0 lg:border-r-hairline lg:px-5 lg:py-5">
         <div className="flex items-center justify-between gap-3">
           <Link className="tap-card !w-auto shrink-0" href="/admin"><AdminBrandMark light /></Link>
           <div className="flex shrink-0 items-center gap-2 lg:hidden">
@@ -462,14 +463,14 @@ export function AdminOverviewScreen() {
     <AdminFrame active="overview">
       {currentTournament && (
         <Link
-          className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-brand px-5 text-sm font-medium text-white shadow-[0_14px_28px_rgba(12,59,32,0.14)] md:w-max"
+          className="tap-card inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-brand-deep px-5 text-sm font-medium text-white shadow-[0_14px_28px_rgba(var(--brand-deep-rgb), 0.14)] md:w-max"
           href={`/admin/tournaments/${currentTournament.id}`}
         >
           Manage active tournament
           <ArrowRight size={15} />
         </Link>
       )}
-      <section className="relative grid min-h-[230px] overflow-hidden rounded-[22px] bg-brand p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] md:items-center md:gap-8 lg:p-6">
+      <section className="relative grid min-h-[230px] overflow-hidden rounded-[22px] bg-brand-deep p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] md:items-center md:gap-8 lg:p-6">
         <div className="pointer-events-none absolute inset-0 -right-16 -top-6 text-white opacity-[0.06]" aria-hidden="true">
           <svg className="h-full w-full scale-125" viewBox="0 0 340 190" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="22" y="20" width="296" height="150" stroke="currentColor" strokeWidth="1.2" />
@@ -687,12 +688,12 @@ export function AdminPlayersScreen() {
           <input className="min-h-11 rounded-[14px] border-hairline border-line bg-white px-3 text-[16px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" placeholder="Search player name" value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
       </div>
-      {playerNotice && <p className={playerNotice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[15px] text-[#a32d2d]" : "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[15px] text-[#3b6d11]"}>{playerNotice.type === "success" && <CheckCircle2 size={16} />}{playerNotice.text}</p>}
+      {playerNotice && <p className={playerNotice.type === "error" ? "rounded-[14px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] p-4 text-[15px] text-[var(--error)]" : "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-accent-tint p-4 text-[15px] text-[var(--accent-ink)]"}>{playerNotice.type === "success" && <CheckCircle2 size={16} />}{playerNotice.text}</p>}
       <div className="grid gap-3">
         {players.map((player) => (
           <article className="grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" key={player.id}>
             <div className="grid gap-3 sm:grid-cols-[48px_minmax(0,1fr)] lg:grid-cols-[48px_minmax(0,1fr)_auto] lg:items-center">
-              <span className="relative grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[14px] font-medium text-[#3b6d11]" style={player.profile_photo_url ? { backgroundImage: `url(${player.profile_photo_url})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+              <span className="relative grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-[var(--brand-primary-tint)] text-[14px] font-medium text-[var(--accent-ink)]" style={player.profile_photo_url ? { backgroundImage: `url(${player.profile_photo_url})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
                 {!player.profile_photo_url && getAdminInitials(player.full_name)}
               </span>
               <div className="grid min-w-0 gap-3">
@@ -708,12 +709,12 @@ export function AdminPlayersScreen() {
                 </div>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[260px] lg:grid-cols-1">
-                <button className={expandedPlayerId === player.id ? "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-text-secondary" : "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-xs font-medium text-white"} type="button" onClick={() => setExpandedPlayerId(expandedPlayerId === player.id ? null : player.id)}>
+                <button className={expandedPlayerId === player.id ? "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-text-secondary" : "tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] bg-brand-deep px-4 text-xs font-medium text-white"} type="button" onClick={() => setExpandedPlayerId(expandedPlayerId === player.id ? null : player.id)}>
                   {expandedPlayerId === player.id ? <X size={15} /> : <ChevronDown size={15} />}
                   {expandedPlayerId === player.id ? "Close details" : "View details"}
                 </button>
                 <button
-                  className={player.is_admin ? "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d] disabled:opacity-50" : "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-brand disabled:opacity-50"}
+                  className={player.is_admin ? "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] px-4 text-xs font-medium text-[var(--error)] disabled:opacity-50" : "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-line bg-white px-4 text-xs font-medium text-brand disabled:opacity-50"}
                   type="button"
                   onClick={() => updatePlayerAdminRole(player, !player.is_admin)}
                   disabled={savingPlayerId === player.id || !player.auth_user_id}
@@ -723,7 +724,7 @@ export function AdminPlayersScreen() {
                 </button>
                 {player.claim_status === "claimed" && player.auth_user_id && (
                   <button
-                    className={unclaimConfirmId === player.id ? "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] bg-[#a32d2d] px-4 text-xs font-medium text-white disabled:opacity-50" : "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d] disabled:opacity-50"}
+                    className={unclaimConfirmId === player.id ? "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] bg-[var(--error)] px-4 text-xs font-medium text-white disabled:opacity-50" : "tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] px-4 text-xs font-medium text-[var(--error)] disabled:opacity-50"}
                     type="button"
                     onClick={() => unclaimPlayerProfile(player)}
                     disabled={savingPlayerId === player.id}
@@ -793,13 +794,13 @@ export function AdminPlayersScreen() {
                   <AdminReadonlyField label="Video status" value={player.tennis_video_url ? formatAdminVideoStatus(player.tennis_video_status || null) : "No video"} />
                 </div>
                 {player.tennis_video_url && (
-                  <a className="inline-flex min-h-9 w-max items-center justify-center gap-2 rounded-full bg-[#e5f1ff] px-3 text-[13px] font-medium text-[#185fa5]" href={player.tennis_video_url} target="_blank" rel="noreferrer">
+                  <a className="inline-flex min-h-9 w-max items-center justify-center gap-2 rounded-full bg-[var(--brand-primary-tint)] px-3 text-[13px] font-medium text-[var(--brand-primary-text)]" href={player.tennis_video_url} target="_blank" rel="noreferrer">
                     View playing video
                     <ArrowRight size={13} />
                   </a>
                 )}
                 <div className="grid gap-2 border-t-hairline border-line pt-3 sm:flex sm:items-center sm:justify-end">
-                  <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[12px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={savingPlayerId === player.id}>
+                  <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[12px] bg-brand-deep px-5 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={savingPlayerId === player.id}>
                     <CheckCircle2 size={16} />
                     {savingPlayerId === player.id ? "Saving..." : "Save changes"}
                   </button>
@@ -968,10 +969,10 @@ export function AdminTournamentsScreen() {
           <h1 className="text-3xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Tournament management</h1>
           <p className="max-w-[720px] text-[15px] leading-relaxed text-text-secondary">Create tournaments here, then open a tournament workspace to manage details, registrations, tiers, matches, drafts, and captains.</p>
         </div>
-        <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white" type="button" onClick={startCreatingTournament}>Create new tournament</button>
+        <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand-deep px-5 text-sm font-medium text-white" type="button" onClick={startCreatingTournament}>Create new tournament</button>
       </div>
 
-      {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[15px] text-[#a32d2d]" : "rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[15px] text-[#3b6d11]"}>{notice.text}</p>}
+      {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] p-4 text-[15px] text-[var(--error)]" : "rounded-[14px] border-hairline border-line bg-accent-tint p-4 text-[15px] text-[var(--accent-ink)]"}>{notice.text}</p>}
 
       {formOpen && (
         <form className="grid gap-4 rounded-[22px] border-hairline border-line bg-card p-4 md:p-5" onSubmit={createTournament} key="new-tournament-form">
@@ -1023,7 +1024,7 @@ export function AdminTournamentsScreen() {
             />
           </label>
           <div className="grid gap-2 sm:grid-cols-[auto_auto]">
-            <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={creating}>{creating ? "Saving..." : "Create tournament"}</button>
+            <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] bg-brand-deep px-5 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={creating}>{creating ? "Saving..." : "Create tournament"}</button>
             <button className="tap-card inline-flex min-h-11 items-center justify-center rounded-[14px] border-hairline border-line bg-white px-5 text-sm font-medium text-brand" type="button" onClick={cancelTournamentForm} disabled={creating}>Cancel</button>
           </div>
         </form>
@@ -1034,7 +1035,7 @@ export function AdminTournamentsScreen() {
           <article className="grid gap-4 rounded-[18px] border-hairline border-line bg-card p-4 md:p-5" key={tournament.id}>
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="grid gap-2">
-                <span className="inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]">{formatAdminTournamentStatus(getAdminTournamentLifecycleStatus(tournament))}</span>
+                <span className="inline-flex w-max rounded-full bg-accent-tint px-2.5 py-1 text-[12px] font-medium text-[var(--accent-ink)]">{formatAdminTournamentStatus(getAdminTournamentLifecycleStatus(tournament))}</span>
                 <strong className="text-xl font-medium leading-tight tracking-[-0.4px] text-text-primary">{tournament.name}</strong>
                 <em className="text-[14px] not-italic leading-relaxed text-text-secondary">{tournament.venue_name || "Venue TBD"} · {formatAdminDate(tournament.starts_on)} - {formatAdminDate(tournament.ends_on)} · closes {formatAdminDateTime(tournament.registration_closes_at)}</em>
               </div>
@@ -1042,8 +1043,8 @@ export function AdminTournamentsScreen() {
                 <strong className="text-[20px] font-medium text-brand">{formatAdminCurrency(tournament.registration_fee_cents)}</strong>
                 <em className="text-[13px] not-italic text-text-secondary">No player cap</em>
                 <div className="flex flex-wrap gap-2">
-                  <Link className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white" href={`/admin/tournaments/${tournament.id}`}>Manage</Link>
-                  <button className="tap-card min-h-9 rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d]" type="button" onClick={() => deleteTournament(tournament)}>Delete</button>
+                  <Link className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand-deep px-4 text-xs font-medium text-white" href={`/admin/tournaments/${tournament.id}`}>Manage</Link>
+                  <button className="tap-card min-h-9 rounded-[12px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] px-4 text-xs font-medium text-[var(--error)]" type="button" onClick={() => deleteTournament(tournament)}>Delete</button>
                 </div>
               </div>
             </div>
@@ -2070,7 +2071,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         </div>
         <div className="grid gap-2 md:justify-items-end">
           <div className="flex flex-wrap gap-2 md:justify-end">
-            <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{registeredPlayers.length} registered</span>
+            <span className="rounded-full bg-accent-tint px-3 py-1 text-[13px] font-medium text-[var(--accent-ink)]">{registeredPlayers.length} registered</span>
             {tournament && <span className="rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-text-secondary">{formatAdminTournamentStatus(tournament.status)}</span>}
           </div>
           {tournament && (
@@ -2096,7 +2097,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                 <span className="sm:hidden">Teams CSV</span>
               </button>
               <button
-                className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-3 text-center text-xs font-medium text-[#8a4a22] disabled:opacity-50 sm:px-4"
+                className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] border-hairline border-[var(--warning-line)] bg-[var(--warning-tint)] px-3 text-center text-xs font-medium text-[var(--warning-ink)] disabled:opacity-50 sm:px-4"
                 type="button"
                 onClick={() => updateTournamentRegistrationStatus("registration_closed")}
                 disabled={saving || tournament.status === "registration_closed"}
@@ -2104,7 +2105,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                 Stop registration
               </button>
               <button
-                className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] bg-brand px-3 text-center text-xs font-medium text-white disabled:opacity-50 sm:px-4"
+                className="tap-card inline-flex min-h-10 items-center justify-center rounded-[14px] bg-brand-deep px-3 text-center text-xs font-medium text-white disabled:opacity-50 sm:px-4"
                 type="button"
                 onClick={() => updateTournamentRegistrationStatus("registration_open")}
                 disabled={saving || tournament.status === "registration_open"}
@@ -2116,7 +2117,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         </div>
       </div>
 
-      {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[15px] text-[#a32d2d]" : "rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[15px] text-[#3b6d11]"}>{notice.text}</p>}
+      {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] p-4 text-[15px] text-[var(--error)]" : "rounded-[14px] border-hairline border-line bg-accent-tint p-4 text-[15px] text-[var(--accent-ink)]"}>{notice.text}</p>}
 
       {tournament ? (
         <>
@@ -2146,7 +2147,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
               <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
                 {workspaceSections.map((section) => (
                   <button
-                    className={activeWorkspaceSection === section.id ? "tap-card grid min-w-0 gap-2 rounded-[14px] bg-brand px-3 py-2.5 text-left text-white xl:py-3" : "tap-card grid min-w-0 gap-2 rounded-[14px] bg-surface px-3 py-2.5 text-left text-text-secondary transition hover:bg-white xl:py-3"}
+                    className={activeWorkspaceSection === section.id ? "tap-card grid min-w-0 gap-2 rounded-[14px] bg-brand-deep px-3 py-2.5 text-left text-white xl:py-3" : "tap-card grid min-w-0 gap-2 rounded-[14px] bg-surface px-3 py-2.5 text-left text-text-secondary transition hover:bg-white xl:py-3"}
                     type="button"
                     key={section.id}
                     onClick={() => setActiveWorkspaceSection(section.id)}
@@ -2216,7 +2217,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                         />
                       </label>
                     </div>
-                    <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save setup"}</button>
+                    <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand-deep px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save setup"}</button>
                   </div>
                 </section>
 
@@ -2229,7 +2230,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                     <div className="grid grid-cols-2 gap-1 rounded-[14px] bg-surface p-1" aria-label="Content sections">
                       {contentSections.map((section) => (
                         <button
-                          className={activeContentSection === section.id ? "tap-card inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-[12px] bg-brand px-2 text-center text-xs font-medium text-white sm:px-3" : "tap-card inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-[12px] bg-white px-2 text-center text-xs font-medium text-text-secondary sm:px-3"}
+                          className={activeContentSection === section.id ? "tap-card inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-[12px] bg-brand-deep px-2 text-center text-xs font-medium text-white sm:px-3" : "tap-card inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-[12px] bg-white px-2 text-center text-xs font-medium text-text-secondary sm:px-3"}
                           type="button"
                           key={section.id}
                           onClick={() => setActiveContentSection(section.id)}
@@ -2251,7 +2252,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                     </div>
                     <AdminScheduleNoteFields notes={scheduleNotes} />
                   </div>
-                  <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save content"}</button>
+                  <button className="tap-card inline-flex min-h-11 w-full items-center justify-center rounded-[14px] bg-brand-deep px-5 text-sm font-medium text-white disabled:opacity-60 md:w-max" type="submit" disabled={saving}>{saving ? "Saving..." : "Save content"}</button>
                 </section>
               </form>
 
@@ -2285,7 +2286,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
                   <div className="grid grid-cols-3 gap-1 rounded-[14px] bg-surface p-1" aria-label="Player sections">
                     {playerSections.map((section) => (
                       <button
-                        className={activePlayerSection === section.id ? "tap-card grid min-h-12 min-w-0 place-items-center gap-1 rounded-[12px] bg-brand px-1.5 py-2 text-center text-[11px] font-medium text-white sm:inline-flex sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs" : "tap-card grid min-h-12 min-w-0 place-items-center gap-1 rounded-[12px] bg-white px-1.5 py-2 text-center text-[11px] font-medium text-text-secondary sm:inline-flex sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs"}
+                        className={activePlayerSection === section.id ? "tap-card grid min-h-12 min-w-0 place-items-center gap-1 rounded-[12px] bg-brand-deep px-1.5 py-2 text-center text-[11px] font-medium text-white sm:inline-flex sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs" : "tap-card grid min-h-12 min-w-0 place-items-center gap-1 rounded-[12px] bg-white px-1.5 py-2 text-center text-[11px] font-medium text-text-secondary sm:inline-flex sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs"}
                         type="button"
                         key={section.id}
                         onClick={() => setActivePlayerSection(section.id)}
@@ -2394,7 +2395,7 @@ function AdminTeamBuilder({
           <p className="max-w-[720px] text-[13px] leading-relaxed text-text-secondary">Create tournament teams, assign registered players, mark captains, and keep shirt names ready for export.</p>
         </span>
         <span className="grid grid-cols-2 gap-2 text-center md:min-w-[220px]">
-          <b className="rounded-[14px] bg-brand-light px-3 py-2 text-[13px] font-medium text-[#3b6d11]">{assignedCount} assigned</b>
+          <b className="rounded-[14px] bg-accent-tint px-3 py-2 text-[13px] font-medium text-[var(--accent-ink)]">{assignedCount} assigned</b>
           <b className="rounded-[14px] bg-surface px-3 py-2 text-[13px] font-medium text-text-secondary">{unassignedPlayers.length} unassigned</b>
         </span>
       </div>
@@ -2414,10 +2415,10 @@ function AdminTeamBuilder({
         <label className="grid gap-2 text-[13px] text-text-secondary">
           Logo
           <span className="grid min-h-11 items-center rounded-[14px] border-hairline border-line bg-white px-3 text-[13px] text-text-secondary">
-            <input className="w-full text-[13px] file:mr-3 file:rounded-[10px] file:border-0 file:bg-brand-light file:px-3 file:py-1.5 file:text-[12px] file:font-medium file:text-[#3b6d11]" name="teamLogo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" />
+            <input className="w-full text-[13px] file:mr-3 file:rounded-[10px] file:border-0 file:bg-accent-tint file:px-3 file:py-1.5 file:text-[12px] file:font-medium file:text-[var(--accent-ink)]" name="teamLogo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" />
           </span>
         </label>
-        <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-brand px-4 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={actionKey === "create-team"}>
+        <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-brand-deep px-4 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={actionKey === "create-team"}>
           <Plus size={16} />
           {actionKey === "create-team" ? "Creating..." : "Create team"}
         </button>
@@ -2444,7 +2445,7 @@ function AdminTeamBuilder({
                 <span className="grid min-w-0 gap-1">
                   <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <strong className="truncate text-[15px] font-medium text-text-primary">{team.name}</strong>
-                    <em className={team.isPublished ? "rounded-full bg-brand-light px-2 py-0.5 text-[9px] font-medium not-italic text-[#3b6d11]" : "rounded-full bg-[#fff4d8] px-2 py-0.5 text-[9px] font-medium not-italic text-[#8a5a00]"}>{team.isPublished ? "Published" : "Draft"}</em>
+                    <em className={team.isPublished ? "rounded-full bg-accent-tint px-2 py-0.5 text-[9px] font-medium not-italic text-[var(--accent-ink)]" : "rounded-full bg-[var(--warning-tint)] px-2 py-0.5 text-[9px] font-medium not-italic text-[var(--warning)]"}>{team.isPublished ? "Published" : "Draft"}</em>
                   </span>
                   <em className="truncate text-[11px] not-italic text-text-secondary">{team.members.length} players · {team.sponsors.length} {team.sponsors.length === 1 ? "sponsor" : "sponsors"} · Captain: {captainPlayer?.fullName || "Not assigned"}</em>
                 </span>
@@ -2474,10 +2475,10 @@ function AdminTeamBuilder({
                       <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand disabled:opacity-50" type="button" onClick={() => onRenameTeam(team, renameValue)} disabled={actionKey === `rename:${team.id}` || !renameValue.trim() || renameValue.trim() === team.name}>
                         {actionKey === `rename:${team.id}` ? "Saving..." : "Save name"}
                       </button>
-                      <button className={team.isPublished ? "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[#f2dccb] bg-[#fff8f1] px-3 text-xs font-medium text-[#8a4a22] disabled:opacity-50" : "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand px-3 text-xs font-medium text-white disabled:opacity-50"} type="button" onClick={() => onTogglePublished(team)} disabled={actionKey === `publish:${team.id}`}>
+                      <button className={team.isPublished ? "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[var(--warning-line)] bg-[var(--warning-tint)] px-3 text-xs font-medium text-[var(--warning-ink)] disabled:opacity-50" : "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand-deep px-3 text-xs font-medium text-white disabled:opacity-50"} type="button" onClick={() => onTogglePublished(team)} disabled={actionKey === `publish:${team.id}`}>
                         {team.isPublished ? "Unpublish" : "Publish"}
                       </button>
-                      <button className="tap-card inline-flex min-h-9 items-center justify-center gap-1 rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-3 text-xs font-medium text-[#a32d2d] disabled:opacity-50" type="button" onClick={() => onDeleteTeam(team)} disabled={actionKey === `delete:${team.id}`}>
+                      <button className="tap-card inline-flex min-h-9 items-center justify-center gap-1 rounded-[12px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] px-3 text-xs font-medium text-[var(--error)] disabled:opacity-50" type="button" onClick={() => onDeleteTeam(team)} disabled={actionKey === `delete:${team.id}`}>
                         <Trash2 size={14} />
                         Delete
                       </button>
@@ -2509,7 +2510,7 @@ function AdminTeamBuilder({
                           <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand disabled:opacity-50" type="button" onClick={() => onUpdateTeamColor(team, teamColor)} disabled={actionKey === `color:${team.id}` || normalizeTeamColor(teamColor) === team.jerseyColor}>
                             {actionKey === `color:${team.id}` ? "Saving..." : "Save color"}
                           </button>
-                          <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-3 text-xs font-medium text-[#a32d2d] disabled:opacity-50" type="button" onClick={() => onRemoveTeamLogo(team)} disabled={!team.logoUrl || actionKey === `remove-logo:${team.id}`}>
+                          <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] border-hairline border-[var(--error-line)] bg-white px-3 text-xs font-medium text-[var(--error)] disabled:opacity-50" type="button" onClick={() => onRemoveTeamLogo(team)} disabled={!team.logoUrl || actionKey === `remove-logo:${team.id}`}>
                             Remove logo
                           </button>
                         </span>
@@ -2518,11 +2519,11 @@ function AdminTeamBuilder({
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <span className={team.isPublished ? "inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]" : "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]"}>
+                    <span className={team.isPublished ? "inline-flex w-max rounded-full bg-accent-tint px-2.5 py-1 text-[12px] font-medium text-[var(--accent-ink)]" : "inline-flex w-max rounded-full bg-[var(--warning-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--warning)]"}>
                       {team.isPublished ? "Published" : "Draft"}
                     </span>
                     <span className="inline-flex w-max rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-text-secondary">{team.members.length} players</span>
-                    <span className={captainPlayer ? "inline-flex w-max rounded-full bg-[#e5f1ff] px-2.5 py-1 text-[12px] font-medium text-[#185fa5]" : "inline-flex w-max rounded-full bg-[#f1efe8] px-2.5 py-1 text-[12px] font-medium text-text-secondary"}>
+                    <span className={captainPlayer ? "inline-flex w-max rounded-full bg-[var(--brand-primary-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--brand-primary-text)]" : "inline-flex w-max rounded-full bg-[var(--surface)] px-2.5 py-1 text-[12px] font-medium text-text-secondary"}>
                       Captain: {captainPlayer?.fullName || "Not assigned"}
                     </span>
                   </div>
@@ -2542,7 +2543,7 @@ function AdminTeamBuilder({
                       return (
                         <li className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 xl:grid-cols-[minmax(180px,1fr)_minmax(140px,0.8fr)_minmax(180px,0.9fr)_auto] xl:items-center" key={member.id}>
                           <div className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-3">
-                            <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+                            <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[var(--brand-primary-tint)] text-[13px] font-medium text-[var(--accent-ink)]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
                               {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
                             </span>
                             <span className="grid min-w-0 gap-1">
@@ -2553,7 +2554,7 @@ function AdminTeamBuilder({
                           <div className="flex flex-wrap gap-2">
                             <span className={`inline-flex w-max rounded-full px-2.5 py-1 text-[12px] font-medium ${getAdminTierBadgeClass(member.tierAtDraft || player.tier)}`}>Tier {member.tierAtDraft || player.tier}</span>
                             <span className="inline-flex w-max rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-text-secondary">{player.jerseySize || "No shirt size"}</span>
-                            {member.isCaptain && <span className="inline-flex w-max items-center gap-1 rounded-full bg-[#e5f1ff] px-2.5 py-1 text-[12px] font-medium text-[#185fa5]"><Crown size={13} /> Captain</span>}
+                            {member.isCaptain && <span className="inline-flex w-max items-center gap-1 rounded-full bg-[var(--brand-primary-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--brand-primary-text)]"><Crown size={13} /> Captain</span>}
                           </div>
                           <div className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                             <label className="grid gap-1 text-[12px] text-text-secondary">
@@ -2569,11 +2570,11 @@ function AdminTeamBuilder({
                             </button>
                           </div>
                           <div className="flex flex-wrap gap-2 xl:justify-end">
-                            <button className={member.isCaptain ? "tap-card inline-flex min-h-9 items-center justify-center gap-1 rounded-[12px] bg-[#e5f1ff] px-3 text-xs font-medium text-[#185fa5] disabled:opacity-50" : "tap-card inline-flex min-h-9 items-center justify-center gap-1 rounded-[12px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand disabled:opacity-50"} type="button" onClick={() => onSetCaptain(team, member)} disabled={member.isCaptain || actionKey === `captain:${member.id}`}>
+                            <button className={member.isCaptain ? "tap-card inline-flex min-h-9 items-center justify-center gap-1 rounded-[12px] bg-[var(--brand-primary-tint)] px-3 text-xs font-medium text-[var(--brand-primary-text)] disabled:opacity-50" : "tap-card inline-flex min-h-9 items-center justify-center gap-1 rounded-[12px] border-hairline border-line bg-white px-3 text-xs font-medium text-brand disabled:opacity-50"} type="button" onClick={() => onSetCaptain(team, member)} disabled={member.isCaptain || actionKey === `captain:${member.id}`}>
                               <Crown size={14} />
                               {member.isCaptain ? "Captain" : "Make captain"}
                             </button>
-                            <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-3 text-xs font-medium text-[#a32d2d] disabled:opacity-50" type="button" onClick={() => onRemovePlayer(member)} disabled={actionKey === `remove:${member.id}`}>
+                            <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[var(--error-line)] bg-white px-3 text-xs font-medium text-[var(--error)] disabled:opacity-50" type="button" onClick={() => onRemovePlayer(member)} disabled={actionKey === `remove:${member.id}`}>
                               Remove
                             </button>
                           </div>
@@ -2620,7 +2621,7 @@ function AdminTeamBuilder({
                         <option value={team.id} key={team.id}>{team.name}</option>
                       ))}
                     </select>
-                    <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-brand px-3 text-xs font-medium text-white disabled:opacity-50" type="button" onClick={() => onAssignPlayer(player, selectedTeamId)} disabled={!selectedTeamId || actionKey === `assign:${player.registrationId}`}>
+                    <button className="tap-card inline-flex min-h-10 items-center justify-center rounded-[12px] bg-brand-deep px-3 text-xs font-medium text-white disabled:opacity-50" type="button" onClick={() => onAssignPlayer(player, selectedTeamId)} disabled={!selectedTeamId || actionKey === `assign:${player.registrationId}`}>
                       {actionKey === `assign:${player.registrationId}` ? "Assigning..." : "Assign"}
                     </button>
                   </span>
@@ -2671,13 +2672,13 @@ function AdminTeamSponsorEditor({ team, actionKey, onSave, onReplaceLogo }: {
   };
 
   return (
-    <section className="grid gap-2 rounded-[14px] border-hairline border-[#dbe8cd] bg-[#f7fbf3] p-2" aria-label={`${team.name} sponsors`}>
+    <section className="grid gap-2 rounded-[14px] border-hairline border-[var(--accent-line)] bg-[var(--surface)] p-2" aria-label={`${team.name} sponsors`}>
       <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <span className="grid gap-0.5">
           <strong className="text-[13px] font-medium text-text-primary">Team sponsors</strong>
           <em className="text-[10px] not-italic text-text-secondary">Add each sponsor name and logo separately.</em>
         </span>
-        <button className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-[11px] bg-brand px-3 text-xs font-medium text-white shadow-[0_7px_16px_rgba(12,59,32,0.14)] disabled:opacity-50 sm:w-auto" type="button" onClick={() => {
+        <button className="tap-card inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-[11px] bg-brand-deep px-3 text-xs font-medium text-white shadow-[0_7px_16px_rgba(var(--brand-deep-rgb), 0.14)] disabled:opacity-50 sm:w-auto" type="button" onClick={() => {
           setSaveStatus("idle");
           setSponsors((current) => [...current, emptySponsor()]);
         }} disabled={sponsors.length >= 12}>
@@ -2715,7 +2716,7 @@ function AdminTeamSponsorEditor({ team, actionKey, onSave, onReplaceLogo }: {
                   <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" onChange={onLogoChange} disabled={actionKey === uploadKey} />
                 </label>
               </span>
-              <button className="tap-card inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[11px] border-hairline border-[#f2c8c8] bg-white px-3 text-xs font-medium text-[#a32d2d] disabled:opacity-50" type="button" onClick={() => void removeSponsor(index)} disabled={actionKey === `sponsors:${team.id}`}>
+              <button className="tap-card inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[11px] border-hairline border-[var(--error-line)] bg-white px-3 text-xs font-medium text-[var(--error)] disabled:opacity-50" type="button" onClick={() => void removeSponsor(index)} disabled={actionKey === `sponsors:${team.id}`}>
                 <Trash2 size={13} /> Remove
               </button>
             </article>
@@ -2724,10 +2725,10 @@ function AdminTeamSponsorEditor({ team, actionKey, onSave, onReplaceLogo }: {
       </div>
       <button
         className={saveStatus === "saved"
-          ? "tap-card inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[12px] border-hairline border-[#cfe1bd] bg-brand-light px-4 text-xs font-medium text-[#3b6d11] sm:w-max"
+          ? "tap-card inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[12px] border-hairline border-[var(--brand-primary-tint)] bg-accent-tint px-4 text-xs font-medium text-[var(--accent-ink)] sm:w-max"
           : saveStatus === "error"
-            ? "tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d] sm:w-max"
-            : "tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white disabled:cursor-wait disabled:bg-brand/55 disabled:opacity-100 sm:w-max"}
+            ? "tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[12px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] px-4 text-xs font-medium text-[var(--error)] sm:w-max"
+            : "tap-card inline-flex min-h-10 w-full items-center justify-center rounded-[12px] bg-brand-deep px-4 text-xs font-medium text-white disabled:cursor-wait disabled:bg-brand-primary/55 disabled:opacity-100 sm:w-max"}
         type="button"
         onClick={() => void saveSponsors()}
         disabled={saveStatus === "saving" || saveStatus === "saved" || actionKey === `sponsors:${team.id}`}
@@ -2821,7 +2822,7 @@ function AdminFaqFields({ faqs = [] }: { faqs?: AdminFaq[] }) {
         <div className="grid gap-2 rounded-[14px] border-hairline border-line bg-white p-3" key={`faq-${index}`}>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <span className="text-[13px] font-medium text-text-primary">FAQ {index + 1}</span>
-            <button className="tap-card rounded-full bg-[#fcebeb] px-3 py-1 text-[12px] font-medium text-[#a32d2d]" type="button" onClick={() => removeRow(index)}>Remove</button>
+            <button className="tap-card rounded-full bg-[var(--error-tint)] px-3 py-1 text-[12px] font-medium text-[var(--error)]" type="button" onClick={() => removeRow(index)}>Remove</button>
           </div>
           <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="faqQuestion" placeholder={`Question ${index + 1}`} value={faq.question} onChange={(event) => updateRow(index, "question", event.target.value)} />
           <textarea className="min-h-20 rounded-[12px] border-hairline border-line bg-white px-3 py-2 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="faqAnswer" placeholder="Answer" value={faq.answer} onChange={(event) => updateRow(index, "answer", event.target.value)} />
@@ -2857,7 +2858,7 @@ function AdminScheduleNoteFields({ notes = [] }: { notes?: AdminScheduleNote[] }
         <div className="grid gap-2 rounded-[14px] border-hairline border-line bg-white p-3" key={`schedule-note-${index}`}>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <span className="text-[13px] font-medium text-text-primary">Note {index + 1}</span>
-            <button className="tap-card rounded-full bg-[#fcebeb] px-3 py-1 text-[12px] font-medium text-[#a32d2d]" type="button" onClick={() => removeRow(index)}>Remove</button>
+            <button className="tap-card rounded-full bg-[var(--error-tint)] px-3 py-1 text-[12px] font-medium text-[var(--error)]" type="button" onClick={() => removeRow(index)}>Remove</button>
           </div>
           <input className="min-h-10 rounded-[12px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="scheduleNoteTitle" placeholder={`Title ${index + 1}`} value={note.title} onChange={(event) => updateRow(index, "title", event.target.value)} />
           <textarea className="min-h-24 rounded-[12px] border-hairline border-line bg-white px-3 py-2 text-[15px] text-text-primary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand-light" name="scheduleNoteBody" placeholder="Details shown to players" value={note.body} onChange={(event) => updateRow(index, "body", event.target.value)} />
@@ -2878,14 +2879,14 @@ function InterestedPlayersList({ players }: { players: AdminInterestedPlayer[] }
           <h3 className="text-[15px] font-medium text-text-primary">Interested players</h3>
           <p className="max-w-[680px] text-[13px] leading-relaxed text-text-secondary">Went until checkout page but did not register. These players may have closed checkout, left before paying, or had a card declined.</p>
         </span>
-        <span className="rounded-full bg-[#fff4d8] px-3 py-1 text-[13px] font-medium text-[#8a5a00]">{players.length} players</span>
+        <span className="rounded-full bg-[var(--warning-tint)] px-3 py-1 text-[13px] font-medium text-[var(--warning)]">{players.length} players</span>
       </div>
 
       {players.length ? (
         <ul className="grid gap-2">
           {players.map((player) => (
-            <li className="grid gap-3 rounded-[14px] border-hairline border-[#f0e2bd] bg-[#fffdf7] p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center" key={player.id}>
-              <span className="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-full bg-[#fff4d8] text-[13px] font-medium text-[#8a5a00]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+            <li className="grid gap-3 rounded-[14px] border-hairline border-[var(--warning-line)] bg-[var(--warning-surface)] p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center" key={player.id}>
+              <span className="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-full bg-[var(--warning-tint)] text-[13px] font-medium text-[var(--warning)]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
                 {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
               </span>
               <span className="grid min-w-0 gap-2">
@@ -2897,10 +2898,10 @@ function InterestedPlayersList({ players }: { players: AdminInterestedPlayer[] }
                   <a className="truncate font-medium text-brand" href={`tel:${player.checkoutPhone}`}>{player.checkoutPhone}</a>
                   <a className="truncate font-medium text-brand" href={`mailto:${player.checkoutEmail}`}>{player.checkoutEmail}</a>
                 </span>
-                {player.failureMessage && <em className="text-[12px] not-italic leading-relaxed text-[#a32d2d]">{player.failureMessage}</em>}
+                {player.failureMessage && <em className="text-[12px] not-italic leading-relaxed text-[var(--error)]">{player.failureMessage}</em>}
               </span>
               <span className="grid gap-1 md:justify-items-end">
-                <b className={player.status === "failed" ? "rounded-full bg-[#fcebeb] px-2.5 py-1 text-[12px] font-medium text-[#a32d2d]" : "rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]"}>{formatAdminPaymentStatus(player.status)}</b>
+                <b className={player.status === "failed" ? "rounded-full bg-[var(--error-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--error)]" : "rounded-full bg-[var(--warning-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--warning)]"}>{formatAdminPaymentStatus(player.status)}</b>
                 <em className="text-[12px] not-italic text-text-secondary">Latest: {formatAdminDateTime(player.occurredAt)}</em>
               </span>
             </li>
@@ -2921,14 +2922,14 @@ function WaitlistedPlayersList({ players, onReview, saving }: { players: AdminWa
           <h3 className="text-[15px] font-medium text-text-primary">Waitlist</h3>
           <p className="max-w-[680px] text-[13px] leading-relaxed text-text-secondary">Accept a player to unlock their payment button. Reject keeps registration closed for them.</p>
         </span>
-        <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{players.length} players</span>
+        <span className="rounded-full bg-accent-tint px-3 py-1 text-[13px] font-medium text-[var(--accent-ink)]">{players.length} players</span>
       </div>
 
       {players.length ? (
         <ul className="grid gap-2">
           {players.map((player) => (
             <li className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center" key={player.registrationId}>
-              <span className="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-full bg-brand-light text-[13px] font-medium text-[#3b6d11]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+              <span className="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-full bg-accent-tint text-[13px] font-medium text-[var(--accent-ink)]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
                 {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
               </span>
               <span className="grid min-w-0 gap-1">
@@ -2937,10 +2938,10 @@ function WaitlistedPlayersList({ players, onReview, saving }: { players: AdminWa
                 <em className="text-[12px] not-italic text-text-secondary">Joined {formatAdminDateTime(player.joinedAt)}</em>
               </span>
               <span className="grid gap-2 md:justify-items-end">
-                <b className={player.waitlistStatus === "accepted" ? "rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]" : player.waitlistStatus === "rejected" ? "rounded-full bg-[#fcebeb] px-2.5 py-1 text-[12px] font-medium text-[#a32d2d]" : "rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]"}>{player.waitlistStatus}</b>
+                <b className={player.waitlistStatus === "accepted" ? "rounded-full bg-accent-tint px-2.5 py-1 text-[12px] font-medium text-[var(--accent-ink)]" : player.waitlistStatus === "rejected" ? "rounded-full bg-[var(--error-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--error)]" : "rounded-full bg-[var(--warning-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--warning)]"}>{player.waitlistStatus}</b>
                 <span className="flex flex-wrap gap-2">
-                  <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand px-3 text-xs font-medium text-white disabled:opacity-50" type="button" onClick={() => onReview(player, "accepted")} disabled={saving || player.waitlistStatus === "accepted"}>Accept</button>
-                  <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-3 text-xs font-medium text-[#a32d2d] disabled:opacity-50" type="button" onClick={() => onReview(player, "rejected")} disabled={saving || player.waitlistStatus === "rejected"}>Reject</button>
+                  <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand-deep px-3 text-xs font-medium text-white disabled:opacity-50" type="button" onClick={() => onReview(player, "accepted")} disabled={saving || player.waitlistStatus === "accepted"}>Accept</button>
+                  <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] px-3 text-xs font-medium text-[var(--error)] disabled:opacity-50" type="button" onClick={() => onReview(player, "rejected")} disabled={saving || player.waitlistStatus === "rejected"}>Reject</button>
                 </span>
               </span>
             </li>
@@ -2977,9 +2978,9 @@ function UndraftedPlayersList({
           <em className="text-[13px] not-italic leading-relaxed text-text-secondary">Players who registered but were not assigned to a published draft team.</em>
         </span>
         <span className="flex flex-wrap gap-2 md:justify-end">
-          <b className="rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]">{players.length} undrafted</b>
-          <b className="rounded-full bg-[#fcebeb] px-2.5 py-1 text-[12px] font-medium text-[#a32d2d]">{refundedCount} refunded</b>
-          {!!needsRefundCount && <b className="rounded-full bg-white px-2.5 py-1 text-[12px] font-medium text-[#a32d2d] ring-1 ring-[#f2c8c8]">{needsRefundCount} needs refund</b>}
+          <b className="rounded-full bg-[var(--warning-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--warning)]">{players.length} undrafted</b>
+          <b className="rounded-full bg-[var(--error-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--error)]">{refundedCount} refunded</b>
+          {!!needsRefundCount && <b className="rounded-full bg-white px-2.5 py-1 text-[12px] font-medium text-[var(--error)] ring-1 ring-[var(--error-line)]">{needsRefundCount} needs refund</b>}
         </span>
       </div>
       {players.length ? (
@@ -2994,25 +2995,25 @@ function UndraftedPlayersList({
               return (
                 <li className="grid gap-3 rounded-[14px] border-hairline border-line bg-white px-3 py-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" key={player.registrationId}>
                   <div className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-3">
-                    <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#fff4d8] text-[13px] font-medium text-[#8a5a00]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+                    <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[var(--warning-tint)] text-[13px] font-medium text-[var(--warning)]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
                       {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
                     </span>
                     <span className="grid min-w-0 gap-1">
                       <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
                       <em className="truncate text-[13px] not-italic text-text-secondary">{player.jamaatCity} · {player.email || "No email"} · {player.phone || "No phone"}</em>
                       <span className="flex flex-wrap gap-1.5">
-                        <b className="rounded-full bg-[#fff4d8] px-2 py-0.5 text-[11px] font-medium text-[#8a5a00]">Not drafted</b>
-                        <b className={player.refundStatus === "Refunded" ? "rounded-full bg-[#fcebeb] px-2 py-0.5 text-[11px] font-medium text-[#a32d2d]" : "rounded-full bg-brand-light px-2 py-0.5 text-[11px] font-medium text-[#3b6d11]"}>{player.refundStatus}</b>
+                        <b className="rounded-full bg-[var(--warning-tint)] px-2 py-0.5 text-[11px] font-medium text-[var(--warning)]">Not drafted</b>
+                        <b className={player.refundStatus === "Refunded" ? "rounded-full bg-[var(--error-tint)] px-2 py-0.5 text-[11px] font-medium text-[var(--error)]" : "rounded-full bg-accent-tint px-2 py-0.5 text-[11px] font-medium text-[var(--accent-ink)]"}>{player.refundStatus}</b>
                         <b className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-text-secondary">{player.paymentAmountCents ? formatAdminCurrency(player.paymentAmountCents, player.paymentCurrency) : "No amount"}</b>
                       </span>
                     </span>
                   </div>
                   <div className="grid gap-2 md:justify-items-end">
-                    {confirmingRemove && <em className="max-w-[190px] text-[12px] not-italic leading-snug text-[#a32d2d] md:text-right">Do you wanna remove them and refund them?</em>}
+                    {confirmingRemove && <em className="max-w-[190px] text-[12px] not-italic leading-snug text-[var(--error)] md:text-right">Do you wanna remove them and refund them?</em>}
                     <span className="flex flex-wrap gap-2 md:justify-end">
                       {player.refundStatus !== "Refunded" && (
                         <button
-                          className={confirmingRemove ? "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] bg-[#a32d2d] px-3 text-[12px] font-medium text-white disabled:opacity-60" : "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-3 text-[12px] font-medium text-[#a32d2d] disabled:opacity-60"}
+                          className={confirmingRemove ? "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] bg-[var(--error)] px-3 text-[12px] font-medium text-white disabled:opacity-60" : "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] border-hairline border-[var(--error-line)] bg-white px-3 text-[12px] font-medium text-[var(--error)] disabled:opacity-60"}
                           type="button"
                           onClick={() => onRemoveAndRefund(player)}
                           disabled={removing || !player.paymentId}
@@ -3174,7 +3175,7 @@ function TieredRegisteredPlayerRow({
   return (
     <li className="grid min-h-[64px] gap-3 rounded-[14px] border-hairline border-line bg-card px-3 py-3 xl:grid-cols-[minmax(180px,1.15fr)_minmax(130px,0.8fr)_minmax(150px,0.85fr)_80px_minmax(150px,0.85fr)_minmax(190px,1fr)_minmax(150px,0.75fr)] xl:items-center" key={player.id}>
       <div className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-3">
-        <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+        <span className="relative grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[var(--brand-primary-tint)] text-[13px] font-medium text-[var(--accent-ink)]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
           {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
         </span>
         <span className="grid min-w-0 gap-1">
@@ -3203,7 +3204,7 @@ function TieredRegisteredPlayerRow({
           </select>
         </label>
         <button
-          className={hasTierChange ? "inline-flex h-9 w-auto items-center justify-center rounded-[10px] bg-brand px-3 text-[13px] font-medium text-white disabled:opacity-60" : "inline-flex h-9 w-auto items-center justify-center rounded-[10px] border-hairline border-line bg-white px-3 text-[13px] font-medium text-text-muted disabled:opacity-50"}
+          className={hasTierChange ? "inline-flex h-9 w-auto items-center justify-center rounded-[10px] bg-brand-deep px-3 text-[13px] font-medium text-white disabled:opacity-60" : "inline-flex h-9 w-auto items-center justify-center rounded-[10px] border-hairline border-line bg-white px-3 text-[13px] font-medium text-text-muted disabled:opacity-50"}
           type="button"
           onClick={onSaveTier}
           disabled={!hasTierChange || saving}
@@ -3217,42 +3218,42 @@ function TieredRegisteredPlayerRow({
       </div>
       <div className="grid gap-1 xl:justify-items-start">
         <span className="text-[12px] font-medium text-text-secondary xl:hidden">Draft / refund</span>
-        <span className={player.draftStatus === "drafted" ? "inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]" : "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]"}>
+        <span className={player.draftStatus === "drafted" ? "inline-flex w-max rounded-full bg-accent-tint px-2.5 py-1 text-[12px] font-medium text-[var(--accent-ink)]" : "inline-flex w-max rounded-full bg-[var(--warning-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--warning)]"}>
           {player.draftStatus === "drafted" ? `Drafted${player.draftedTeamName ? ` · ${player.draftedTeamName}` : ""}` : "Not drafted"}
         </span>
-        <em className={player.refundStatus === "Refunded" ? "text-[12px] not-italic text-[#a32d2d]" : "text-[12px] not-italic text-text-secondary"}>{player.refundStatus}</em>
+        <em className={player.refundStatus === "Refunded" ? "text-[12px] not-italic text-[var(--error)]" : "text-[12px] not-italic text-text-secondary"}>{player.refundStatus}</em>
       </div>
       <div className="grid gap-1 xl:justify-items-start">
         <span className="text-[12px] font-medium text-text-secondary xl:hidden">Video</span>
         {player.tennisVideoUrl ? (
           <span className="grid gap-1">
             <span className="flex flex-wrap items-center gap-1.5">
-              <a className="inline-flex h-7 w-auto items-center justify-center rounded-full bg-[#e5f1ff] px-2.5 text-[12px] font-medium text-[#185fa5]" href={player.tennisVideoUrl} target="_blank" rel="noreferrer">
+              <a className="inline-flex h-7 w-auto items-center justify-center rounded-full bg-[var(--brand-primary-tint)] px-2.5 text-[12px] font-medium text-[var(--brand-primary-text)]" href={player.tennisVideoUrl} target="_blank" rel="noreferrer">
                 View video
               </a>
               <span className={getAdminVideoStatusClass(player.tennisVideoStatus)}>{formatAdminVideoStatus(player.tennisVideoStatus)}</span>
             </span>
             {player.tennisVideoStatus !== "approved" && (
               <span className="flex flex-wrap items-center gap-1.5">
-                <button className="inline-flex h-7 w-auto items-center rounded-full bg-brand-light px-2.5 text-[12px] font-medium text-[#3b6d11] disabled:opacity-60" type="button" onClick={() => onVideoReview(player, "approved")} disabled={reviewingVideo}>
+                <button className="inline-flex h-7 w-auto items-center rounded-full bg-accent-tint px-2.5 text-[12px] font-medium text-[var(--accent-ink)] disabled:opacity-60" type="button" onClick={() => onVideoReview(player, "approved")} disabled={reviewingVideo}>
                   Approve
                 </button>
-                <button className="inline-flex h-7 w-auto items-center rounded-full bg-[#fcebeb] px-2.5 text-[12px] font-medium text-[#a32d2d] disabled:opacity-60" type="button" onClick={() => onVideoReview(player, "rejected")} disabled={reviewingVideo}>
+                <button className="inline-flex h-7 w-auto items-center rounded-full bg-[var(--error-tint)] px-2.5 text-[12px] font-medium text-[var(--error)] disabled:opacity-60" type="button" onClick={() => onVideoReview(player, "rejected")} disabled={reviewingVideo}>
                   Reject
                 </button>
               </span>
             )}
           </span>
         ) : (
-          <span className="inline-flex h-7 w-max items-center justify-center rounded-full bg-[#f1efe8] px-2.5 text-[12px] font-medium text-text-secondary">No video</span>
+          <span className="inline-flex h-7 w-max items-center justify-center rounded-full bg-[var(--surface)] px-2.5 text-[12px] font-medium text-text-secondary">No video</span>
         )}
       </div>
       <div className="grid gap-2 xl:justify-items-start">
         <span className="text-[12px] font-medium text-text-secondary xl:hidden">Action</span>
-        {confirmingRemove && <em className="max-w-[170px] text-[12px] not-italic leading-snug text-[#a32d2d]">Do you wanna remove them and refund them?</em>}
+        {confirmingRemove && <em className="max-w-[170px] text-[12px] not-italic leading-snug text-[var(--error)]">Do you wanna remove them and refund them?</em>}
         <div className="flex flex-wrap gap-2">
           <button
-            className={confirmingRemove ? "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] bg-[#a32d2d] px-3 text-[12px] font-medium text-white disabled:opacity-60" : "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-3 text-[12px] font-medium text-[#a32d2d] disabled:opacity-60"}
+            className={confirmingRemove ? "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] bg-[var(--error)] px-3 text-[12px] font-medium text-white disabled:opacity-60" : "tap-card inline-flex h-9 w-max items-center justify-center rounded-[12px] border-hairline border-[var(--error-line)] bg-white px-3 text-[12px] font-medium text-[var(--error)] disabled:opacity-60"}
             type="button"
             onClick={onRemoveAndRefund}
             disabled={removing || !player.paymentId}
@@ -3272,24 +3273,24 @@ function TieredRegisteredPlayerRow({
 }
 
 function getAdminTierSectionClass(tier: number) {
-  if (tier === 1) return "border-[#f0dcaa] bg-[#fffaf0]";
-  if (tier === 2) return "border-[#d6e6f5] bg-[#f4f9fd]";
-  if (tier === 3) return "border-[#dbe8cd] bg-[#f6fbf1]";
-  return "border-[#ead6e1] bg-[#fff6fa]";
+  if (tier === 1) return "border-[var(--warning-line)] bg-[var(--warning-surface)]";
+  if (tier === 2) return "border-[var(--brand-primary-line)] bg-[var(--brand-primary-tint)]";
+  if (tier === 3) return "border-[var(--accent-line)] bg-[var(--surface)]";
+  return "border-[var(--category-rose-tint)] bg-[var(--category-rose-tint)]";
 }
 
 function getAdminTierTextClass(tier: number) {
-  if (tier === 1) return "text-[#8a5a00]";
-  if (tier === 2) return "text-[#185fa5]";
-  if (tier === 3) return "text-[#3b6d11]";
-  return "text-[#aa3f6b]";
+  if (tier === 1) return "text-[var(--warning)]";
+  if (tier === 2) return "text-[var(--brand-primary-text)]";
+  if (tier === 3) return "text-[var(--accent-ink)]";
+  return "text-[var(--avatar-pink-ink)]";
 }
 
 function getAdminTierBadgeClass(tier: number) {
-  if (tier === 1) return "bg-[#f6e7bf] text-[#8a5a00]";
-  if (tier === 2) return "bg-[#e5f1ff] text-[#185fa5]";
-  if (tier === 3) return "bg-brand-light text-[#3b6d11]";
-  return "bg-[#fbe7ef] text-[#aa3f6b]";
+  if (tier === 1) return "bg-[var(--warning-tint)] text-[var(--warning)]";
+  if (tier === 2) return "bg-[var(--brand-primary-tint)] text-[var(--brand-primary-text)]";
+  if (tier === 3) return "bg-accent-tint text-[var(--accent-ink)]";
+  return "bg-[var(--avatar-pink)] text-[var(--avatar-pink-ink)]";
 }
 
 function formatAdminVideoStatus(status: string | null) {
@@ -3299,9 +3300,9 @@ function formatAdminVideoStatus(status: string | null) {
 }
 
 function getAdminVideoStatusClass(status: string | null) {
-  if (status === "approved") return "inline-flex h-7 w-max items-center rounded-full bg-brand-light px-2.5 text-[12px] font-medium text-[#3b6d11]";
-  if (status === "rejected") return "inline-flex h-7 w-max items-center rounded-full bg-[#fcebeb] px-2.5 text-[12px] font-medium text-[#a32d2d]";
-  return "inline-flex h-7 w-max items-center rounded-full bg-[#fff4d8] px-2.5 text-[12px] font-medium text-[#8a5a00]";
+  if (status === "approved") return "inline-flex h-7 w-max items-center rounded-full bg-accent-tint px-2.5 text-[12px] font-medium text-[var(--accent-ink)]";
+  if (status === "rejected") return "inline-flex h-7 w-max items-center rounded-full bg-[var(--error-tint)] px-2.5 text-[12px] font-medium text-[var(--error)]";
+  return "inline-flex h-7 w-max items-center rounded-full bg-[var(--warning-tint)] px-2.5 text-[12px] font-medium text-[var(--warning)]";
 }
 
 function isAdminDraftSchemaMissing(message: string) {
@@ -3412,12 +3413,12 @@ export function AdminPaymentsScreen() {
           <h1 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Payment ledger</h1>
           <p className="max-w-[720px] text-[15px] leading-relaxed text-text-secondary">Who paid, why, Jamaat / city, amount, status, and paid date.</p>
         </div>
-        <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{visiblePayments.length} entries</span>
+        <span className="rounded-full bg-accent-tint px-3 py-1 text-[13px] font-medium text-[var(--accent-ink)]">{visiblePayments.length} entries</span>
       </div>
-      {paymentNotice && <p className={paymentNotice.type === "error" ? "rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[15px] text-[#a32d2d]" : "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-brand-light p-4 text-[15px] text-[#3b6d11]"}>{paymentNotice.type === "success" && <CheckCircle2 size={16} />}{paymentNotice.text}</p>}
+      {paymentNotice && <p className={paymentNotice.type === "error" ? "rounded-[14px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] p-4 text-[15px] text-[var(--error)]" : "inline-flex items-center gap-2 rounded-[14px] border-hairline border-line bg-accent-tint p-4 text-[15px] text-[var(--accent-ink)]"}>{paymentNotice.type === "success" && <CheckCircle2 size={16} />}{paymentNotice.text}</p>}
       <div className="flex gap-2 overflow-x-auto rounded-[14px] border-hairline border-line bg-card p-2" aria-label="Payment filters">
         {paymentFilters.map((filter) => (
-          <button className={paymentFilter === filter.id ? "tap-card inline-flex min-h-9 !w-auto shrink-0 items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white" : "tap-card inline-flex min-h-9 !w-auto shrink-0 items-center justify-center rounded-[12px] bg-surface px-4 text-xs font-medium text-text-secondary"} type="button" key={filter.id} onClick={() => setPaymentFilter(filter.id)}>
+          <button className={paymentFilter === filter.id ? "tap-card inline-flex min-h-9 !w-auto shrink-0 items-center justify-center rounded-[12px] bg-brand-deep px-4 text-xs font-medium text-white" : "tap-card inline-flex min-h-9 !w-auto shrink-0 items-center justify-center rounded-[12px] bg-surface px-4 text-xs font-medium text-text-secondary"} type="button" key={filter.id} onClick={() => setPaymentFilter(filter.id)}>
             {filter.label}
           </button>
         ))}
@@ -3428,7 +3429,7 @@ export function AdminPaymentsScreen() {
           const tournament = Array.isArray(payment.tournaments) ? payment.tournaments[0] : payment.tournaments;
           return (
             <article className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center md:p-4" key={payment.id}>
-              <span className={payment.status === "paid" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]" : payment.status === "refunded" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fcebeb] text-[13px] font-medium text-[#a32d2d]" : payment.status === "pending" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fff4d8] text-[13px] font-medium text-[#8a5a00]" : "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#f1efe8] text-[13px] font-medium text-[#5f5e5a]"}>
+              <span className={payment.status === "paid" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[var(--brand-primary-tint)] text-[13px] font-medium text-[var(--accent-ink)]" : payment.status === "refunded" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[var(--error-tint)] text-[13px] font-medium text-[var(--error)]" : payment.status === "pending" ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[var(--warning-tint)] text-[13px] font-medium text-[var(--warning)]" : "grid h-[42px] w-[42px] place-items-center rounded-full bg-[var(--surface)] text-[13px] font-medium text-[var(--mist)]"}>
                 {getAdminInitials(player?.full_name || "Player")}
               </span>
 
@@ -3438,7 +3439,7 @@ export function AdminPaymentsScreen() {
                     <strong className="truncate text-[17px] font-medium leading-tight text-text-primary">{player?.full_name || "Unknown player"}</strong>
                     <em className="truncate text-[13px] not-italic leading-tight text-text-secondary">{player?.jamaat_city || "City missing"} · {tournament?.name || payment.notes || "General payment"}</em>
                   </span>
-                  <span className={payment.status === "paid" ? "inline-flex w-max rounded-full bg-brand-light px-2.5 py-1 text-[12px] font-medium text-[#3b6d11]" : payment.status === "refunded" ? "inline-flex w-max rounded-full bg-[#fcebeb] px-2.5 py-1 text-[12px] font-medium text-[#a32d2d]" : payment.status === "pending" ? "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]" : "inline-flex w-max rounded-full bg-[#f1efe8] px-2.5 py-1 text-[12px] font-medium text-[#5f5e5a]"}>
+                  <span className={payment.status === "paid" ? "inline-flex w-max rounded-full bg-accent-tint px-2.5 py-1 text-[12px] font-medium text-[var(--accent-ink)]" : payment.status === "refunded" ? "inline-flex w-max rounded-full bg-[var(--error-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--error)]" : payment.status === "pending" ? "inline-flex w-max rounded-full bg-[var(--warning-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--warning)]" : "inline-flex w-max rounded-full bg-[var(--surface)] px-2.5 py-1 text-[12px] font-medium text-[var(--mist)]"}>
                     {formatAdminPaymentStatus(payment.status)}
                   </span>
                 </div>
@@ -3452,20 +3453,20 @@ export function AdminPaymentsScreen() {
                 {payment.notes && <p className="truncate text-[13px] font-medium text-text-secondary">{payment.notes}</p>}
               </div>
 
-              <div className={payment.status === "refunded" ? "grid gap-2 rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff7f7] p-3 md:min-w-[150px] md:justify-items-end" : "grid gap-2 rounded-[14px] border-hairline border-[#dbe8cd] bg-[#f8fbf4] p-3 md:min-w-[150px] md:justify-items-end"}>
+              <div className={payment.status === "refunded" ? "grid gap-2 rounded-[14px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] p-3 md:min-w-[150px] md:justify-items-end" : "grid gap-2 rounded-[14px] border-hairline border-[var(--accent-line)] bg-[var(--surface)] p-3 md:min-w-[150px] md:justify-items-end"}>
                 <span className="grid gap-1 md:justify-items-end">
                   <em className="text-[12px] not-italic leading-none text-text-secondary">{payment.status === "refunded" ? "Refunded amount" : "Payment amount"}</em>
-                  <strong className={payment.status === "refunded" ? "text-[22px] font-medium leading-none text-[#a32d2d]" : "text-[22px] font-medium leading-none text-brand"}>{formatAdminCurrency(payment.amount_cents, payment.currency)}</strong>
+                  <strong className={payment.status === "refunded" ? "text-[22px] font-medium leading-none text-[var(--error)]" : "text-[22px] font-medium leading-none text-brand"}>{formatAdminCurrency(payment.amount_cents, payment.currency)}</strong>
                 </span>
                 <div className="grid gap-2 md:justify-items-end">
                   {payment.status === "pending" && (
-                    <button className="tap-card min-h-9 rounded-[12px] bg-brand px-4 text-xs font-medium text-white disabled:opacity-60" type="button" onClick={() => markPaid(payment)} disabled={updatingPaymentId === payment.id}>
+                    <button className="tap-card min-h-9 rounded-[12px] bg-brand-deep px-4 text-xs font-medium text-white disabled:opacity-60" type="button" onClick={() => markPaid(payment)} disabled={updatingPaymentId === payment.id}>
                       {updatingPaymentId === payment.id ? "Saving..." : "Mark paid"}
                     </button>
                   )}
                   {payment.status === "paid" && (
                     <>
-                      <button className={confirmRefundId === payment.id ? "tap-card min-h-9 rounded-[12px] bg-[#a32d2d] px-4 text-xs font-medium text-white disabled:opacity-60" : "tap-card min-h-9 rounded-[12px] border-hairline border-[#f2c8c8] bg-white px-4 text-xs font-medium text-[#a32d2d] disabled:opacity-60"} type="button" onClick={() => refundPayment(payment)} disabled={updatingPaymentId === payment.id}>
+                      <button className={confirmRefundId === payment.id ? "tap-card min-h-9 rounded-[12px] bg-[var(--error)] px-4 text-xs font-medium text-white disabled:opacity-60" : "tap-card min-h-9 rounded-[12px] border-hairline border-[var(--error-line)] bg-white px-4 text-xs font-medium text-[var(--error)] disabled:opacity-60"} type="button" onClick={() => refundPayment(payment)} disabled={updatingPaymentId === payment.id}>
                         {updatingPaymentId === payment.id ? "Saving..." : confirmRefundId === payment.id ? "Confirm refund" : "Refund"}
                       </button>
                       {confirmRefundId === payment.id && (
@@ -3603,16 +3604,16 @@ export function AdminClaimsScreen() {
           <h1 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary">Profile claims</h1>
           <p className="max-w-[720px] text-[15px] leading-relaxed text-text-secondary">Approve true profile matches or reject incorrect claims before they link to a player record.</p>
         </div>
-        <span className="rounded-full bg-brand-light px-3 py-1 text-[13px] font-medium text-[#3b6d11]">{claims.length} pending</span>
+        <span className="rounded-full bg-accent-tint px-3 py-1 text-[13px] font-medium text-[var(--accent-ink)]">{claims.length} pending</span>
       </div>
-      {claimsNotice && <p className="rounded-[14px] border-hairline border-[#f2c8c8] bg-[#fff5f5] p-4 text-[15px] text-[#a32d2d]">{claimsNotice}</p>}
+      {claimsNotice && <p className="rounded-[14px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] p-4 text-[15px] text-[var(--error)]">{claimsNotice}</p>}
       <div className="grid gap-2">
         {claims.map((claim) => {
           const isConfirmingReject = rejectConfirmId === claim.id;
           const isReviewing = reviewingClaimId === claim.id;
           return (
             <article className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center md:p-4" key={claim.id}>
-              <span className={isConfirmingReject ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#fcebeb] text-[13px] font-medium text-[#a32d2d]" : "grid h-[42px] w-[42px] place-items-center rounded-full bg-[#eaf3de] text-[13px] font-medium text-[#3b6d11]"}>
+              <span className={isConfirmingReject ? "grid h-[42px] w-[42px] place-items-center rounded-full bg-[var(--error-tint)] text-[13px] font-medium text-[var(--error)]" : "grid h-[42px] w-[42px] place-items-center rounded-full bg-[var(--brand-primary-tint)] text-[13px] font-medium text-[var(--accent-ink)]"}>
                 {getAdminInitials(claim.player_full_name || "Player")}
               </span>
 
@@ -3622,7 +3623,7 @@ export function AdminClaimsScreen() {
                     <strong className="truncate text-[17px] font-medium leading-tight text-text-primary">{claim.player_full_name || "Unknown player"}</strong>
                     <em className="truncate text-[13px] not-italic leading-tight text-text-secondary">{claim.player_jamaat_city || "City missing"} · {formatAdminDateTime(claim.created_at)}</em>
                   </span>
-                  <span className={isConfirmingReject ? "inline-flex w-max rounded-full bg-[#fcebeb] px-2.5 py-1 text-[12px] font-medium text-[#a32d2d]" : "inline-flex w-max rounded-full bg-[#fff4d8] px-2.5 py-1 text-[12px] font-medium text-[#8a5a00]"}>
+                  <span className={isConfirmingReject ? "inline-flex w-max rounded-full bg-[var(--error-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--error)]" : "inline-flex w-max rounded-full bg-[var(--warning-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--warning)]"}>
                     {isConfirmingReject ? "Confirm rejection" : "Pending review"}
                   </span>
                 </div>
@@ -3642,10 +3643,10 @@ export function AdminClaimsScreen() {
               </div>
 
               <div className="grid gap-2 md:min-w-[150px]">
-                <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand px-4 text-xs font-medium text-white disabled:opacity-60" type="button" onClick={() => reviewClaim(claim, true)} disabled={isReviewing}>
+                <button className="tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-brand-deep px-4 text-xs font-medium text-white disabled:opacity-60" type="button" onClick={() => reviewClaim(claim, true)} disabled={isReviewing}>
                   {isReviewing ? "Working..." : "Approve"}
                 </button>
-                <button className={isConfirmingReject ? "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-[#a32d2d] px-4 text-xs font-medium text-white disabled:opacity-60" : "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[#f2c8c8] bg-[#fff5f5] px-4 text-xs font-medium text-[#a32d2d] disabled:opacity-60"} type="button" onClick={() => rejectClaim(claim)} disabled={isReviewing}>
+                <button className={isConfirmingReject ? "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] bg-[var(--error)] px-4 text-xs font-medium text-white disabled:opacity-60" : "tap-card inline-flex min-h-9 items-center justify-center rounded-[12px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] px-4 text-xs font-medium text-[var(--error)] disabled:opacity-60"} type="button" onClick={() => rejectClaim(claim)} disabled={isReviewing}>
                   {isReviewing ? "Working..." : isConfirmingReject ? "Confirm reject" : "Reject"}
                 </button>
                 {isConfirmingReject && (
@@ -3751,11 +3752,11 @@ function slugifyAdminFileName(value: string) {
 
 function PaymentMeta({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "green" | "blue" | "clay" | "neutral" }) {
   const toneClass = tone === "green"
-    ? "border-[#dbe8cd] bg-[#f5faef]"
+    ? "border-[var(--accent-line)] bg-[var(--surface)]"
     : tone === "blue"
-      ? "border-[#d6e6f5] bg-[#f4f9fd]"
+      ? "border-[var(--brand-primary-line)] bg-[var(--brand-primary-tint)]"
       : tone === "clay"
-        ? "border-[#f2dccb] bg-[#fff8f1]"
+        ? "border-[var(--warning-line)] bg-[var(--warning-tint)]"
         : "border-line bg-white";
 
   return (
