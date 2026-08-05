@@ -5333,7 +5333,6 @@ export function TournamentScheduleMatchScreen({ matchId }: { matchId: string }) 
               entryLabel={appSession.isAdmin ? "Admin scoring" : isOwnMatch ? entryWindow.label : "Read only"}
               canAccessScoreEntry={canAccessScoreEntry}
               match={match}
-              seasonYear={tournament?.seasonYear}
               ballTeamName={ballTeam?.name || ""}
               message={message}
               onChangeDraft={setDraft}
@@ -7057,7 +7056,7 @@ function HomePrimaryMatchCard({ match, tournament }: { match: PlayerScheduleMatc
               {timing.dayLabel}
             </span>
             <span className="ml-auto inline-flex min-w-0 items-center gap-2">
-              <MatchIdPill inverse match={match} seasonYear={tournament.seasonYear} />
+              <MatchIdPill inverse match={match} />
               <span className="text-right text-[12px] font-semibold text-white/70 sm:text-[14px]">{timing.countdownLabel}</span>
             </span>
           </div>
@@ -7622,9 +7621,8 @@ function PlayerScheduleTimeCard({ label, matches, tournament, teams, onOpenMatch
   );
 }
 
-function MatchIdPill({ match, seasonYear, compact = false, inverse = false, showLabel = false }: { match: Pick<PlayerScheduleMatch, "id" | "dayNumber" | "matchId">; seasonYear?: number | null; compact?: boolean; inverse?: boolean; showLabel?: boolean }) {
-  const publicMatchId = formatPublicMatchId(match, seasonYear);
-  const displayedMatchId = compact ? publicMatchId.replace(/^M\d*-/, "") : publicMatchId;
+function MatchIdPill({ match, inverse = false, showLabel = false }: { match: Pick<PlayerScheduleMatch, "id" | "dayNumber" | "matchId">; inverse?: boolean; showLabel?: boolean }) {
+  const publicMatchId = formatPublicMatchId(match);
   return (
     <span className={inverse
       ? "inline-flex min-h-6 shrink-0 items-center rounded-full border border-white/15 bg-white/10 px-2.5 text-[9px] font-semibold uppercase tracking-[0.055em] tabular-nums text-white/82 backdrop-blur sm:text-[10px]"
@@ -7632,7 +7630,7 @@ function MatchIdPill({ match, seasonYear, compact = false, inverse = false, show
       title={`Match ID ${publicMatchId}`}
       aria-label={`Match ID ${publicMatchId}`}
     >
-      {showLabel ? `Match ID · ${displayedMatchId}` : displayedMatchId}
+      {showLabel ? `Match ID · ${publicMatchId}` : publicMatchId}
     </span>
   );
 }
@@ -8149,7 +8147,7 @@ function ScheduleHeaderTeamName({ name, showBallIcon = false }: { name: string; 
   );
 }
 
-function MatchDetailPageCard({ match, seasonYear, ballTeamName, draft, canSubmit, canAccessScoreEntry, ownSide, entryLabel, message, saving, backHref, backLabel, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; seasonYear?: number | null; ballTeamName: string; draft: ScoreDraft; canSubmit: boolean; canAccessScoreEntry: boolean; ownSide: "A" | "B" | null; entryLabel: string; message: string; saving: boolean; backHref: string; backLabel: string; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
+function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessScoreEntry, ownSide, entryLabel, message, saving, backHref, backLabel, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; ballTeamName: string; draft: ScoreDraft; canSubmit: boolean; canAccessScoreEntry: boolean; ownSide: "A" | "B" | null; entryLabel: string; message: string; saving: boolean; backHref: string; backLabel: string; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
   const showSideBOnLeft = ownSide === "B";
   const fallbackProfilesA = match.playersA.length
     ? match.playersA.map((name, index) => ({ id: `a-${index}`, name, profilePhotoUrl: "" }))
@@ -8186,7 +8184,7 @@ function MatchDetailPageCard({ match, seasonYear, ballTeamName, draft, canSubmit
           <CourtBackdrop />
           <div className="relative grid gap-4">
             <div className="flex min-w-0 flex-wrap items-center justify-center gap-1.5 pl-10 text-[10px] font-medium uppercase tracking-[0.06em] text-white/68 sm:pl-0">
-              <MatchIdPill inverse match={match} seasonYear={seasonYear} showLabel />
+              <MatchIdPill inverse match={match} showLabel />
               <span className="rounded-full bg-white/10 px-2.5 py-1">{match.format}</span>
               <span className="rounded-full bg-white/10 px-2.5 py-1">{match.timeLabel || "Time TBD"}</span>
               <span className="rounded-full bg-white/10 px-2.5 py-1">{match.courtLabel || "Court TBD"}</span>
@@ -9473,7 +9471,7 @@ function PlayerScheduleMatchCard({ match, tournament, teams, isFeatured, onOpenM
       <div className="relative z-[1] flex min-w-0 items-center justify-between gap-4">
         <ScheduleTimeDisplay label={match.timeLabel} />
         <span className="inline-flex min-w-0 items-center justify-end gap-1.5">
-          <MatchIdPill compact match={match} seasonYear={tournament?.seasonYear} />
+          <MatchIdPill match={match} />
           <ScheduleMatchStateBadge state={matchState} score={match.score} dayNumber={match.dayNumber} matchType={match.matchType} />
         </span>
       </div>
@@ -9896,7 +9894,7 @@ function TeamCourtScheduleGame({ match, teamName, tournament, onOpenMatch, group
         onOpenMatch(match);
       }} aria-label={`View ${match.format} match: ${leftPlayers.join(" and ")} versus ${rightPlayers.join(" and ")}`}>
         <span className="flex min-w-0 items-center justify-between gap-3">
-          <span className="inline-flex min-w-0 items-center gap-1.5"><strong className="text-[12px] font-semibold text-text-secondary sm:text-[13px]">{match.format}</strong><MatchIdPill compact match={match} seasonYear={tournament?.seasonYear} /></span>
+          <span className="inline-flex min-w-0 items-center gap-1.5"><strong className="text-[12px] font-semibold text-text-secondary sm:text-[13px]">{match.format}</strong><MatchIdPill match={match} /></span>
           <ScheduleMatchStateBadge state={matchState} score={match.score} dayNumber={match.dayNumber} matchType={match.matchType} />
         </span>
         <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_42px_minmax(0,1fr)_16px] items-center gap-1.5">
@@ -10476,11 +10474,9 @@ function normalizeScheduleTime(value: string) {
   return value.replace(/[–—]/g, "-").replace(/\s+/g, "").trim().toLowerCase();
 }
 
-function formatPublicMatchId(match: Pick<PlayerScheduleMatch, "id" | "dayNumber" | "matchId">, seasonYear?: number | null) {
-  const yearCode = seasonYear ? String(seasonYear).slice(-2) : "";
-  const prefix = `M${yearCode}`;
+function formatPublicMatchId(match: Pick<PlayerScheduleMatch, "id" | "dayNumber" | "matchId">) {
   const externalId = match.matchId.trim();
-  if (/^\d+$/.test(externalId)) return `${prefix}-D${match.dayNumber}-${externalId.padStart(3, "0")}`;
+  if (/^\d+$/.test(externalId)) return `D${match.dayNumber}-${externalId.padStart(3, "0")}`;
 
   const dayTwoMatch = externalId.match(/^day2:([a-z0-9]+):(\d+)$/i);
   if (dayTwoMatch) {
@@ -10494,12 +10490,12 @@ function formatPublicMatchId(match: Pick<PlayerScheduleMatch, "id" | "dayNumber"
       final: "F"
     };
     const phaseCode = phaseCodes[dayTwoMatch[1].toLowerCase()] || dayTwoMatch[1].slice(0, 4).toUpperCase();
-    return `${prefix}-D2-${phaseCode}-${dayTwoMatch[2].padStart(2, "0")}`;
+    return `D2-${phaseCode}-${dayTwoMatch[2].padStart(2, "0")}`;
   }
 
   const externalCode = externalId.replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 12);
   const stableCode = externalCode || match.id.replace(/[^a-z0-9]/gi, "").slice(0, 8).toUpperCase() || "MATCH";
-  return `${prefix}-D${match.dayNumber}-${stableCode}`;
+  return `D${match.dayNumber}-${stableCode}`;
 }
 
 function isScheduleItemForTeam(item: ScheduleItem, team: PublishedTeam) {
