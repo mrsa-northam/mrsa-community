@@ -5,91 +5,100 @@
 @tailwind utilities;
 
 :root {
-  /* MRSA brand system: canonical tokens */
-  --brand-deep: #0E2A47;
-  --brand-deep-rgb: 14, 42, 71;
-  --brand-mid: #1D4F7C;
+  /* MRSA monochrome system: canonical tokens */
+  --blue-50: #EAF2FB;
+  --blue-100: #D3E4F6;
+  --blue-300: #A8C7EA;
+  --blue-500: #5390D6;
+  --blue-700: #35699F;
+  --blue-900: #0C1826;
+  --brand-deep: var(--blue-900);
+  --brand-deep-rgb: 12, 24, 38;
+  --brand-mid: var(--blue-700);
   --brand-primary: #5390D6;
   --brand-primary-rgb: 83, 144, 214;
-  --brand-primary-text: #2F6FAB;
-  --brand-primary-tint: #E9F2FC;
-  --brand-primary-tint-rgb: 233, 242, 252;
-  --brand-primary-line: #B9D2EE;
-  --brand-line: rgba(255, 255, 255, 0.07);
-  --surface: #F4F7FB;
-  --surface-rgb: 244, 247, 251;
-  --surface-subtle: #EAF1F8;
+  --brand-primary-text: var(--blue-700);
+  --brand-primary-tint: var(--blue-50);
+  --brand-primary-tint-rgb: 234, 242, 251;
+  --brand-primary-line: var(--blue-300);
+  --brand-line: rgba(255, 255, 255, 0.10);
+  --surface: #F5F6F8;
+  --surface-rgb: 245, 246, 248;
+  --surface-subtle: var(--blue-50);
   --card: #FFFFFF;
-  --accent: #F2A93B;
-  --accent-rgb: 242, 169, 59;
-  --accent-tint: #FDEED2;
-  --accent-ink: #4A2E00;
-  --accent-line: #E9C77D;
-  --urgent: #E15A4B;
-  --urgent-rgb: 225, 90, 75;
-  --urgent-tint: #FDEAE7;
-  --urgent-ink: #3D0F0B;
-  --ink: #16212E;
-  --mist: #64748B;
-  --text-muted-token: #94A3B8;
-  --hairline: rgba(22, 33, 46, 0.09);
-  --hairline-strong: #CBD5E1;
-  --rank-gold: #B8860B;
-  --rank-silver: #7A8898;
-  --rank-bronze: #9E6030;
-  --error: #A32D2D;
-  --error-strong: #9F2F25;
-  --error-tint: #FCEBEB;
-  --error-surface: #FFF5F5;
-  --error-line: #F2C8C8;
-  --warning: #8A5A00;
-  --warning-ink: #8A4A22;
-  --warning-tint: #FFF4D8;
-  --warning-line: #F2DCCB;
-  --warning-surface: #FFFAF0;
-  --warning-ink-soft: #755B1D;
-  --loss-tint: #F3ECE8;
-  --loss-ink: #7A4937;
-  --avatar-peach: #FDE9DC;
-  --avatar-peach-ink: #A94D24;
-  --avatar-pink: #FBE7EF;
-  --avatar-pink-ink: #AA3F6B;
-  --avatar-purple: #EEEDFE;
-  --avatar-purple-ink: #3C3489;
-  --partner-gold-tint: #FAEEDA;
-  --partner-gold-ink: #854F0B;
-  --category-rose-tint: #FBEAF0;
-  --category-rose-ink: #993556;
-  --medal-gold: #E2AA22;
-  --medal-gold-line: #DFA91F;
-  --medal-gold-ink: #503A00;
-  --medal-silver: #B5BBC0;
-  --medal-silver-line: #AEB7BC;
-  --medal-bronze: #C98249;
-  --medal-bronze-line: #C57B42;
-  --medal-bronze-ink: #43240E;
-  --celebration-pink: #FF3D71;
-  --celebration-cyan: #00C2FF;
-  --celebration-gold: #FFB000;
-  --celebration-purple: #8B5CF6;
-  --celebration-orange: #FF6B35;
-  --celebration-red: #F43F5E;
-  --celebration-yellow: #FDE047;
-  --brand-shadow-04: rgba(14, 42, 71, 0.04);
-  --brand-shadow-05: rgba(14, 42, 71, 0.05);
-  --brand-shadow-06: rgba(14, 42, 71, 0.06);
-  --brand-shadow-07: rgba(14, 42, 71, 0.07);
-  --brand-shadow-08: rgba(14, 42, 71, 0.08);
-  --brand-shadow-10: rgba(14, 42, 71, 0.10);
-  --brand-shadow-11: rgba(14, 42, 71, 0.11);
-  --brand-shadow-12: rgba(14, 42, 71, 0.12);
-  --brand-shadow-13: rgba(14, 42, 71, 0.13);
-  --brand-shadow-14: rgba(14, 42, 71, 0.14);
-  --brand-shadow-16: rgba(14, 42, 71, 0.16);
-  --brand-shadow-18: rgba(14, 42, 71, 0.18);
-  --brand-shadow-20: rgba(14, 42, 71, 0.20);
-  --brand-shadow-22: rgba(14, 42, 71, 0.22);
-  --brand-shadow-24: rgba(14, 42, 71, 0.24);
+  --border: #E4E8F0;
+  --on-navy: #FFFFFF;
+  --on-navy-muted: rgba(255, 255, 255, 0.72);
+  --accent: var(--blue-500);
+  --accent-rgb: 83, 144, 214;
+  --accent-tint: var(--blue-50);
+  --accent-ink: var(--blue-700);
+  --accent-line: var(--blue-300);
+  --urgent: var(--blue-500);
+  --urgent-rgb: 83, 144, 214;
+  --urgent-tint: var(--blue-50);
+  --urgent-ink: var(--blue-900);
+  --ink: #1A2233;
+  --mist: #8A93A6;
+  --text-muted-token: #8A93A6;
+  --hairline: var(--border);
+  --hairline-strong: var(--blue-300);
+  --rank-gold: var(--blue-700);
+  --rank-silver: var(--blue-500);
+  --rank-bronze: var(--blue-300);
+  --error: var(--blue-900);
+  --error-strong: var(--blue-900);
+  --error-tint: var(--blue-50);
+  --error-surface: var(--blue-50);
+  --error-line: var(--blue-300);
+  --warning: var(--blue-700);
+  --warning-ink: var(--blue-900);
+  --warning-tint: var(--blue-50);
+  --warning-line: var(--blue-300);
+  --warning-surface: var(--blue-50);
+  --warning-ink-soft: var(--blue-700);
+  --loss-tint: var(--blue-50);
+  --loss-ink: var(--blue-700);
+  --avatar-peach: var(--blue-50);
+  --avatar-peach-ink: var(--blue-700);
+  --avatar-pink: var(--blue-100);
+  --avatar-pink-ink: var(--blue-700);
+  --avatar-purple: var(--blue-50);
+  --avatar-purple-ink: var(--blue-700);
+  --partner-gold-tint: var(--blue-50);
+  --partner-gold-ink: var(--blue-700);
+  --category-rose-tint: var(--blue-100);
+  --category-rose-ink: var(--blue-700);
+  --medal-gold: var(--blue-500);
+  --medal-gold-line: var(--blue-700);
+  --medal-gold-ink: var(--blue-900);
+  --medal-silver: var(--blue-300);
+  --medal-silver-line: var(--blue-500);
+  --medal-bronze: var(--blue-100);
+  --medal-bronze-line: var(--blue-300);
+  --medal-bronze-ink: var(--blue-900);
+  --celebration-pink: var(--blue-50);
+  --celebration-cyan: var(--blue-100);
+  --celebration-gold: var(--blue-300);
+  --celebration-purple: var(--blue-500);
+  --celebration-orange: var(--blue-700);
+  --celebration-red: var(--blue-900);
+  --celebration-yellow: var(--card);
+  --brand-shadow-04: rgba(12, 24, 38, 0.04);
+  --brand-shadow-05: rgba(12, 24, 38, 0.05);
+  --brand-shadow-06: rgba(12, 24, 38, 0.06);
+  --brand-shadow-07: rgba(12, 24, 38, 0.07);
+  --brand-shadow-08: rgba(12, 24, 38, 0.08);
+  --brand-shadow-10: rgba(12, 24, 38, 0.10);
+  --brand-shadow-11: rgba(12, 24, 38, 0.11);
+  --brand-shadow-12: rgba(12, 24, 38, 0.12);
+  --brand-shadow-13: rgba(12, 24, 38, 0.13);
+  --brand-shadow-14: rgba(12, 24, 38, 0.14);
+  --brand-shadow-16: rgba(12, 24, 38, 0.16);
+  --brand-shadow-18: rgba(12, 24, 38, 0.18);
+  --brand-shadow-20: rgba(12, 24, 38, 0.20);
+  --brand-shadow-22: rgba(12, 24, 38, 0.22);
+  --brand-shadow-24: rgba(12, 24, 38, 0.24);
   --brand-primary-10: rgba(83, 144, 214, 0.10);
   --brand-primary-14: rgba(83, 144, 214, 0.14);
   --brand-primary-16: rgba(83, 144, 214, 0.16);
@@ -107,7 +116,7 @@
   --color-brand-mid: var(--brand-mid);
   --color-brand-light: var(--brand-primary-tint);
   --color-accent-green: var(--accent);
-  --color-accent-clay: var(--urgent);
+  --color-accent-clay: var(--blue-500);
   --color-accent-hard: var(--brand-primary-text);
   --color-text-primary: var(--ink);
   --color-text-secondary: var(--mist);
@@ -134,7 +143,7 @@
   --court-light: var(--brand-primary-tint);
   --clay: var(--urgent);
   --sky: var(--brand-primary-tint);
-  --shadow: 0 18px 42px var(--brand-shadow-11);
+  --shadow: none;
   --font-sans: "Manrope", system-ui, sans-serif;
   --font-display: var(--font-sans);
   --font-serif: var(--font-sans);
@@ -154,10 +163,7 @@ body {
   margin: 0;
   min-height: 100vh;
   min-height: 100dvh;
-  background:
-    linear-gradient(90deg, transparent calc(50% - 1px), rgba(255, 255, 255, 0.72) calc(50% - 1px), rgba(255, 255, 255, 0.72) calc(50% + 1px), transparent calc(50% + 1px)),
-    linear-gradient(0deg, transparent 23%, rgba(255, 255, 255, 0.55) 23%, rgba(255, 255, 255, 0.55) calc(23% + 1px), transparent calc(23% + 1px)),
-    linear-gradient(135deg, var(--surface) 0%, var(--surface) 48%, var(--brand-primary-tint) 100%);
+  background: var(--surface);
   color: var(--dark);
   font-family: "Manrope", system-ui, sans-serif;
   font-weight: 400;
@@ -691,7 +697,7 @@ a {
   max-width: 56px;
   height: 56px;
   min-height: 56px;
-  border: 2px solid rgba(255, 254, 248, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.9);
   box-shadow: 0 10px 24px rgba(var(--brand-deep-rgb), 0.14);
 }
 
@@ -990,7 +996,7 @@ h1 {
 
 .secondary-action {
   background: var(--hairline-strong);
-  color: #777;
+  color: var(--mist);
 }
 
 .primary-action:active,
@@ -1029,8 +1035,8 @@ h1 {
 }
 
 .admin-notice.error {
-  border-color: rgba(176, 58, 46, 0.28);
-  background: rgba(176, 58, 46, 0.08);
+  border-color: rgba(var(--brand-primary-rgb), 0.28);
+  background: rgba(var(--brand-primary-rgb), 0.08);
   color: var(--error-strong);
 }
 
@@ -1199,7 +1205,7 @@ a:focus-visible {
 }
 
 .player-name small {
-  color: #555;
+  color: var(--mist);
   font-size: 14px;
 }
 
@@ -1416,7 +1422,7 @@ a:focus-visible {
 .claim-confirm-card {
   display: grid;
   gap: 10px;
-  border: 0.5px solid rgba(219, 112, 71, 0.7);
+  border: 0.5px solid rgba(var(--brand-primary-rgb), 0.7);
   border-radius: 24px;
   background: var(--brand-deep);
   color: var(--white);
@@ -1845,7 +1851,7 @@ a:focus-visible {
 }
 
 .payment-history-card.failed b {
-  background: rgba(208, 109, 61, 0.12);
+  background: rgba(var(--brand-primary-rgb), 0.12);
   color: var(--clay);
 }
 
@@ -1939,7 +1945,7 @@ a:focus-visible {
   z-index: 80;
   display: grid;
   place-items: end center;
-  background: rgba(0, 0, 0, 0.48);
+  background: rgba(var(--brand-deep-rgb), 0.48);
   padding: 18px;
 }
 
@@ -2154,7 +2160,7 @@ a:focus-visible {
   min-height: 76px;
   border-top: 0.5px solid var(--line);
   border-radius: 999px;
-  background: rgba(255, 254, 248, 0.72);
+  background: rgba(255, 255, 255, 0.72);
   box-shadow: 0 18px 44px rgba(var(--brand-deep-rgb), 0.16);
   transform: translateX(-50%);
   -webkit-backdrop-filter: blur(16px);
@@ -2211,7 +2217,7 @@ a:focus-visible {
   width: 26px;
   height: 26px;
   background: url("/images/tennis-countdown-ball.png") center / contain no-repeat;
-  filter: drop-shadow(0 7px 8px rgba(0, 0, 0, 0.28));
+  filter: drop-shadow(0 7px 8px rgba(var(--brand-deep-rgb), 0.28));
   animation: tennisBallCountdownBounce 0.72s cubic-bezier(0.2, 0.74, 0.28, 1) both;
 }
 
@@ -2549,9 +2555,7 @@ a:focus-visible {
 .screen,
 .content-panel,
 .light-section {
-  background:
-    linear-gradient(90deg, transparent calc(50% - 0.5px), rgba(var(--brand-primary-rgb), 0.1) calc(50% - 0.5px), rgba(var(--brand-primary-rgb), 0.1) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-    var(--page);
+  background: var(--page);
 }
 
 .phone-frame {
@@ -2570,10 +2574,7 @@ a:focus-visible {
   position: relative;
   overflow: hidden;
   border-bottom: 1px solid rgba(var(--brand-primary-rgb), 0.14);
-  background:
-    linear-gradient(90deg, transparent 49%, rgba(255, 255, 255, 0.7) 49%, rgba(255, 255, 255, 0.7) 50%, transparent 50%),
-    linear-gradient(0deg, transparent 62%, rgba(255, 255, 255, 0.58) 62%, rgba(255, 255, 255, 0.58) calc(62% + 1px), transparent calc(62% + 1px)),
-    linear-gradient(135deg, var(--surface) 0%, var(--court-light) 58%, var(--sky) 100%);
+  background: var(--surface);
   color: var(--dark);
 }
 
@@ -2618,10 +2619,7 @@ a:focus-visible {
 
 .admin-sidebar {
   border-bottom-color: rgba(var(--brand-primary-rgb), 0.2);
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.44) 1px, transparent 1px),
-    var(--court-light);
-  background-size: 56px 100%, auto;
+  background: var(--court-light);
   color: var(--dark);
 }
 
@@ -2694,9 +2692,7 @@ a:focus-visible {
 .claim-confirm-card,
 .flip-clock strong,
 .size-guide-modal .primary-action {
-  background:
-    linear-gradient(90deg, transparent calc(50% - 0.5px), rgba(255, 255, 255, 0.24) calc(50% - 0.5px), rgba(255, 255, 255, 0.24) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-    var(--court);
+  background: var(--court);
   color: var(--white);
 }
 
@@ -2741,7 +2737,7 @@ a:focus-visible {
 .admin-row,
 .admin-empty {
   border-color: rgba(var(--brand-primary-rgb), 0.16);
-  background: rgba(255, 254, 248, 0.94);
+  background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 10px 24px rgba(var(--brand-deep-rgb), 0.07);
 }
 
@@ -2783,10 +2779,7 @@ a:focus-visible {
 }
 
 .countdown-card {
-  background:
-    linear-gradient(90deg, rgba(var(--accent-rgb), 0.2) 0, rgba(var(--accent-rgb), 0.2) 1px, transparent 1px, transparent 100%),
-    var(--white);
-  background-size: 40px 100%, auto;
+  background: var(--white);
 }
 
 .flip-clock strong {
@@ -2814,7 +2807,7 @@ a:focus-visible {
 .tournament-register {
   background: var(--clay);
   color: var(--white);
-  box-shadow: 0 14px 28px rgba(201, 111, 61, 0.24);
+  box-shadow: 0 14px 28px rgba(var(--brand-deep-rgb), 0.24);
 }
 
 .tournament-register.confirmed {
@@ -2825,7 +2818,7 @@ a:focus-visible {
 
 .bottom-nav {
   border-top-color: rgba(var(--brand-primary-rgb), 0.16);
-  background: rgba(255, 254, 248, 0.96);
+  background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 -10px 28px rgba(var(--brand-deep-rgb), 0.08);
 }
 
@@ -2850,12 +2843,7 @@ a:focus-visible {
 
 @media (min-width: 900px) {
   body {
-    background:
-      radial-gradient(circle at 18% 8%, rgba(var(--accent-rgb), 0.32) 0 120px, transparent 121px),
-      radial-gradient(circle at 88% 16%, rgba(237, 248, 255, 0.92) 0 190px, transparent 191px),
-      linear-gradient(90deg, transparent calc(50% - 1px), rgba(255, 255, 255, 0.62) calc(50% - 1px), rgba(255, 255, 255, 0.62) calc(50% + 1px), transparent calc(50% + 1px)),
-      linear-gradient(0deg, transparent 26%, rgba(255, 255, 255, 0.48) 26%, rgba(255, 255, 255, 0.48) calc(26% + 1px), transparent calc(26% + 1px)),
-      linear-gradient(135deg, var(--surface) 0%, var(--brand-primary-tint) 45%, var(--surface) 100%);
+    background: var(--surface);
   }
 
   .app-stage {
@@ -2870,7 +2858,7 @@ a:focus-visible {
     min-height: calc(100vh - clamp(44px, 6vw, 88px));
     border: 1px solid rgba(var(--brand-primary-rgb), 0.18);
     border-radius: 38px;
-    background: rgba(255, 254, 248, 0.55);
+    background: rgba(255, 255, 255, 0.55);
     box-shadow: 0 28px 80px rgba(var(--brand-deep-rgb), 0.13);
     padding: clamp(16px, 2vw, 28px);
     overflow: visible;
@@ -2978,9 +2966,7 @@ a:focus-visible {
     min-width: 0;
     border: 1px solid rgba(var(--brand-primary-rgb), 0.12);
     border-radius: 34px;
-    background:
-      linear-gradient(90deg, transparent calc(50% - 0.5px), rgba(var(--brand-primary-rgb), 0.07) calc(50% - 0.5px), rgba(var(--brand-primary-rgb), 0.07) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-      rgba(255, 254, 248, 0.72);
+    background: var(--card);
     box-shadow: 0 18px 46px rgba(var(--brand-deep-rgb), 0.08);
     padding: clamp(26px, 3vw, 44px);
   }
@@ -3056,7 +3042,7 @@ a:focus-visible {
     max-width: calc(100vw - 80px);
     transform: translateX(50%);
     border: 1px solid rgba(var(--brand-primary-rgb), 0.14);
-    background: rgba(255, 254, 248, 0.62);
+    background: rgba(255, 255, 255, 0.62);
     box-shadow: 0 18px 45px rgba(var(--brand-deep-rgb), 0.14);
     -webkit-backdrop-filter: blur(16px);
     backdrop-filter: blur(16px);
@@ -3214,7 +3200,7 @@ body {
   border-top: 0.5px solid var(--color-border);
   border-radius: 0;
   background: var(--color-bg-card);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 -4px 20px rgba(var(--brand-deep-rgb), 0.03);
   transform: none;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
 }
@@ -3523,7 +3509,7 @@ body,
   border-top: 0.5px solid var(--color-border);
   border-radius: 0;
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 -8px 24px rgba(24, 24, 26, 0.06);
+  box-shadow: 0 -8px 24px rgba(var(--brand-deep-rgb), 0.06);
   transform: none;
 }
 
@@ -3775,7 +3761,7 @@ body,
     max-width: calc(100vw - 56px);
     transform: translateX(50%);
     border: 1px solid rgba(var(--brand-primary-rgb), 0.14);
-    background: rgba(255, 254, 248, 0.62);
+    background: rgba(255, 255, 255, 0.62);
     box-shadow: 0 18px 45px rgba(var(--brand-deep-rgb), 0.14);
     -webkit-backdrop-filter: blur(16px);
     backdrop-filter: blur(16px);
@@ -4559,9 +4545,9 @@ h1,
     left: 24px;
     width: auto;
     max-width: none;
-    border: 0.5px solid rgba(229, 225, 217, 0.86);
+    border: 0.5px solid var(--border);
     border-radius: 20px;
-    box-shadow: 0 12px 30px rgba(24, 24, 26, 0.06);
+    box-shadow: 0 12px 30px rgba(var(--brand-deep-rgb), 0.06);
   }
 }
 
@@ -6021,14 +6007,10 @@ body,
   line-height: 1;
   color: var(--color-brand);
   text-align: center;
-  background:
-    linear-gradient(90deg, transparent calc(50% - 0.5px), rgba(var(--brand-deep-rgb), 0.16) calc(50% - 0.5px), rgba(var(--brand-deep-rgb), 0.16) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-    linear-gradient(0deg, transparent calc(50% - 0.5px), rgba(var(--brand-deep-rgb), 0.14) calc(50% - 0.5px), rgba(var(--brand-deep-rgb), 0.14) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-    linear-gradient(90deg, transparent 23%, rgba(var(--brand-deep-rgb), 0.1) 23%, rgba(var(--brand-deep-rgb), 0.1) calc(23% + 1px), transparent calc(23% + 1px), transparent 77%, rgba(var(--brand-deep-rgb), 0.1) 77%, rgba(var(--brand-deep-rgb), 0.1) calc(77% + 1px), transparent calc(77% + 1px)),
-    var(--card);
+  background: var(--card);
   border: 0.5px solid var(--color-border);
   border-radius: 6px;
-  box-shadow: 0 6px 14px rgba(24, 24, 26, 0.06);
+  box-shadow: 0 6px 14px rgba(var(--brand-deep-rgb), 0.06);
 }
 
 .schedule-court-label small,
@@ -6432,7 +6414,7 @@ textarea {
 
 .home-dashboard-tournament-card {
   padding: clamp(20px, 4.75vw, 28px);
-  border-color: rgba(var(--brand-deep-rgb), 0.10);
+  border-color: var(--border);
   box-shadow: none;
 }
 
@@ -6465,7 +6447,7 @@ textarea {
 .home-dashboard-meta-action {
   font-size: clamp(11px, 2.8vw, 15px);
   font-weight: 800;
-  color: var(--brand-deep);
+  color: var(--brand-primary-text);
 }
 
 .home-dashboard-venue-button {
@@ -6480,24 +6462,24 @@ textarea {
 
 .home-dashboard-queued {
   min-height: 48px;
-  border-color: rgba(var(--brand-deep-rgb), 0.10);
+  border-color: var(--border);
   border-radius: 16px;
   background: var(--card);
   box-shadow: none;
 }
 
 .home-dashboard-view-all {
-  background: rgba(var(--brand-deep-rgb), 0.08);
+  background: var(--blue-50);
 }
 
 .home-dashboard-performer-card {
-  border-color: rgba(var(--brand-deep-rgb), 0.10);
+  border-color: var(--border);
   box-shadow: none;
 }
 
 .mrsa-bottom-nav {
   min-height: 84px;
-  border-color: rgba(var(--brand-deep-rgb), 0.12);
+  border-color: var(--border);
   box-shadow: none;
 }
 
@@ -6658,14 +6640,9 @@ body :is(h1, h2, h3, h4, h5, h6) {
 
 .schedule-player-match-card {
   isolation: isolate;
-  border-color: var(--brand-primary-line);
-  background:
-    linear-gradient(90deg, transparent calc(50% - 0.5px), rgba(var(--brand-primary-rgb), 0.055) calc(50% - 0.5px), rgba(var(--brand-primary-rgb), 0.055) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-    linear-gradient(0deg, transparent 63%, rgba(var(--brand-primary-rgb), 0.045) 63%, rgba(var(--brand-primary-rgb), 0.045) calc(63% + 1px), transparent calc(63% + 1px)),
-    linear-gradient(145deg, rgba(var(--brand-primary-tint-rgb), 0.72), rgba(255, 255, 255, 0.98) 46%, rgba(255, 255, 255, 0.94));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 16px 38px rgba(var(--brand-deep-rgb), 0.10);
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: none !important;
 }
 
 .schedule-player-match-card::before {
@@ -6676,7 +6653,7 @@ body :is(h1, h2, h3, h4, h5, h6) {
   z-index: 2;
   height: 4px;
   border-radius: 0 0 999px 999px;
-  background: linear-gradient(90deg, var(--brand-primary), var(--brand-mid) 58%, var(--accent));
+  background: var(--blue-500);
   content: "";
 }
 
@@ -6693,27 +6670,27 @@ body :is(h1, h2, h3, h4, h5, h6) {
 }
 
 .schedule-player-match-card .schedule-player-stack > :is(a, strong) {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 8px 18px rgba(var(--brand-deep-rgb), 0.055);
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: none;
 }
 
 .schedule-player-match-card .schedule-player-stack--primary > :is(a, strong) {
-  border-color: var(--brand-primary-line);
-  background: linear-gradient(145deg, #fff, rgba(var(--brand-primary-tint-rgb), 0.55));
+  border-color: var(--border);
+  background: var(--card);
 }
 
 .schedule-player-match-card .schedule-player-stack--opponent > :is(a, strong) {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), var(--surface));
+  background: var(--card);
 }
 
 .schedule-player-match-card .schedule-match-team-row {
   width: 100%;
-  border: 1px solid rgba(var(--brand-primary-rgb), 0.10);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--card);
   padding: 6px 9px;
-  box-shadow: inset 3px 0 0 var(--brand-primary);
+  box-shadow: none;
 }
 
 .schedule-player-match-card .schedule-match-team-row em {
@@ -7153,4 +7130,82 @@ body :is(h1, h2, h3, h4, h5, h6) {
     border-radius: 15px;
     font-size: 15px;
   }
+}
+
+/* Monochrome surface contract: flat cards, flat navy heroes, blue-only elevation. */
+:where([class*="bg-white"], [class*="bg-card"])[class*="shadow-"] {
+  box-shadow: none !important;
+}
+
+.tournament-hub-card {
+  border-color: transparent !important;
+  background: var(--blue-900) !important;
+  box-shadow: none !important;
+}
+
+.tournament-hub-card--people {
+  border-color: var(--border) !important;
+  background: var(--card) !important;
+}
+
+.match-detail-hero,
+.match-detail-entry,
+.match-detail-back-bottom,
+.schedule-team-match-card {
+  box-shadow: none !important;
+}
+
+.match-detail-hero {
+  border-color: transparent !important;
+  background: var(--blue-900) !important;
+}
+
+.match-detail-entry,
+.match-detail-back-bottom {
+  border-color: var(--border) !important;
+  background: var(--card) !important;
+}
+
+.admin-sidebar {
+  border-color: transparent;
+  background: var(--blue-900);
+  color: var(--on-navy);
+}
+
+.admin-nav-item,
+.admin-back {
+  color: var(--on-navy-muted);
+}
+
+.admin-nav-item.active,
+.primary-action,
+.primary-action.confirmed,
+.admin-row button {
+  background: var(--blue-500);
+  color: var(--on-navy);
+  box-shadow: none;
+}
+
+.admin-row button.danger {
+  background: var(--blue-900);
+  color: var(--on-navy);
+}
+
+.secondary-action {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--blue-700);
+  box-shadow: none;
+}
+
+.admin-search:focus,
+.admin-form input:focus,
+.admin-form select:focus,
+.auth-form input:focus,
+.profile-create-form input:focus,
+.profile-create-form select:focus,
+.city-combobox-trigger:focus,
+.profile-input:focus {
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 4px rgba(var(--brand-primary-rgb), 0.10);
 }

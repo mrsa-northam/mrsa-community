@@ -64,8 +64,8 @@ const config: Config = {
         hero: "24px"
       },
       boxShadow: {
-        nav: "0 -8px 24px rgba(24, 24, 26, 0.06)",
-        card: "0 8px 20px rgba(24, 24, 26, 0.04)",
+        nav: "0 -8px 24px rgba(var(--brand-deep-rgb), 0.06)",
+        card: "0 8px 20px rgba(var(--brand-deep-rgb), 0.04)",
         hero: "0 24px 70px var(--brand-shadow-22)"
       },
       maxWidth: {

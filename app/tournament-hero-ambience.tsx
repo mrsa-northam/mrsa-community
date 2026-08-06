@@ -47,8 +47,8 @@ export function TournamentHeroAmbience() {
 
     const courtGeometry = new THREE.PlaneGeometry(6.6, 3.9, 1, 1);
     const courtMaterial = new THREE.MeshBasicMaterial({
-      color: 0x2ac06d,
-      opacity: 0.14,
+      color: 0x5390d6,
+      opacity: 0.04,
       transparent: true,
       side: THREE.DoubleSide
     });
@@ -58,8 +58,8 @@ export function TournamentHeroAmbience() {
 
     const lineGeometry = createCourtLines();
     const lineMaterial = new THREE.LineBasicMaterial({
-      color: 0xdfffd8,
-      opacity: 0.28,
+      color: 0x5390d6,
+      opacity: 0.05,
       transparent: true
     });
     const lines = new THREE.LineSegments(lineGeometry, lineMaterial);
@@ -81,7 +81,7 @@ export function TournamentHeroAmbience() {
     const render = (time = 0) => {
       const seconds = time / 1000;
       courtGroup.rotation.y = -0.1 + Math.sin(seconds * 0.16) * 0.06;
-      lineMaterial.opacity = 0.2 + Math.sin(seconds * 0.9) * 0.05;
+      lineMaterial.opacity = 0.04 + Math.sin(seconds * 0.9) * 0.01;
       renderer.render(scene, camera);
       if (!prefersReducedMotion && !document.hidden) {
         animationFrame = window.requestAnimationFrame(render);
@@ -112,5 +112,5 @@ export function TournamentHeroAmbience() {
     };
   }, []);
 
-  return <div className="pointer-events-none absolute inset-0 z-0 opacity-75 mix-blend-screen" ref={hostRef} aria-hidden="true" />;
+  return <div className="pointer-events-none absolute inset-0 z-0 mix-blend-screen" ref={hostRef} aria-hidden="true" />;
 }

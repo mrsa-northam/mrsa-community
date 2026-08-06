@@ -319,7 +319,7 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
                 <Shield size={18} />
               </span>
               <h1 className="text-[26px] font-medium leading-tight tracking-[-0.4px] text-white">Checking admin access.</h1>
-              <p className="text-[15px] leading-relaxed text-white/65">Verifying whether this MRSA account has permission to open the admin console.</p>
+              <p className="text-[15px] leading-relaxed text-white/72">Verifying whether this MRSA account has permission to open the admin console.</p>
             </div>
           </div>
         </section>
@@ -345,7 +345,7 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
                   <Shield size={20} />
                 </span>
                 <h1 className="text-[32px] font-medium leading-[1.05] tracking-[-0.4px] text-white">Admin access required.</h1>
-                <p className="max-w-[320px] text-[15px] leading-relaxed text-white/65">The admin console is limited to approved MRSA administrators.</p>
+                <p className="max-w-[320px] text-[15px] leading-relaxed text-white/72">The admin console is limited to approved MRSA administrators.</p>
               </div>
             </div>
           </div>
@@ -410,7 +410,7 @@ function AdminNavItem({
   label: string;
 }) {
   return (
-    <Link className={active ? "tap-card grid min-h-9 shrink-0 grid-cols-[16px_auto] place-items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-center text-[12px] font-medium text-brand lg:min-h-11 lg:w-full lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:rounded-[14px] lg:py-2 lg:text-left lg:text-[13px]" : "tap-card grid min-h-9 shrink-0 grid-cols-[16px_auto] place-items-center gap-1.5 rounded-full px-3 py-1.5 text-center text-[12px] font-medium text-white/68 hover:bg-white/10 hover:text-white lg:min-h-11 lg:w-full lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:rounded-[14px] lg:py-2 lg:text-left lg:text-[13px]"} href={href}>
+    <Link className={active ? "tap-card grid min-h-9 shrink-0 grid-cols-[16px_auto] place-items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-center text-[12px] font-medium text-brand lg:min-h-11 lg:w-full lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:rounded-[14px] lg:py-2 lg:text-left lg:text-[13px]" : "tap-card grid min-h-9 shrink-0 grid-cols-[16px_auto] place-items-center gap-1.5 rounded-full px-3 py-1.5 text-center text-[12px] font-medium text-white/72 hover:bg-white/10 hover:text-white lg:min-h-11 lg:w-full lg:grid-cols-[18px_minmax(0,1fr)] lg:justify-items-start lg:rounded-[14px] lg:py-2 lg:text-left lg:text-[13px]"} href={href}>
       {icon}
       <span>{label}</span>
     </Link>
@@ -480,12 +480,12 @@ export function AdminOverviewScreen() {
         <div className="relative grid gap-3">
           <span className="inline-flex w-max items-center rounded-full bg-white/12 px-3 py-1 text-[13px] text-white/75">Admin</span>
           <h1 className="max-w-[680px] text-3xl font-medium leading-[1.08] tracking-[-0.4px] text-white md:text-[42px]">Control room</h1>
-          <p className="max-w-[620px] text-sm leading-relaxed text-white/68">Manage MRSA tournaments, players, claims, and payment ledger without loading this data for regular players.</p>
+          <p className="max-w-[620px] text-sm leading-relaxed text-white/72">Manage MRSA tournaments, players, claims, and payment ledger without loading this data for regular players.</p>
         </div>
         <div className="relative mt-5 grid gap-2 rounded-[18px] border-hairline border-white/10 bg-white/[0.08] p-4 md:mt-0">
-          <span className="text-[13px] text-white/55">Admin status</span>
+          <span className="text-[13px] text-white/72">Admin status</span>
           <strong className="text-[24px] font-medium text-white">Live dashboard</strong>
-          <em className="text-[14px] not-italic leading-relaxed text-white/62">Counts refresh when this tab becomes active.</em>
+          <em className="text-[14px] not-italic leading-relaxed text-white/72">Counts refresh when this tab becomes active.</em>
         </div>
       </section>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -2437,7 +2437,7 @@ function AdminTeamBuilder({
           };
 
           return (
-            <details className="group overflow-hidden rounded-[16px] border-hairline border-line bg-white shadow-[0_8px_20px_rgba(24,24,26,0.035)]" key={team.id}>
+            <details className="group overflow-hidden rounded-[16px] border-hairline border-line bg-white shadow-[0_8px_20px_rgba(var(--brand-deep-rgb),0.035)]" key={team.id}>
               <summary className="grid cursor-pointer list-none grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 p-3 transition hover:bg-surface/35 [&::-webkit-details-marker]:hidden">
                 <span className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-[13px] border-hairline border-line bg-surface text-[12px] font-medium text-brand" style={{ boxShadow: `inset 0 -14px 24px ${normalizeTeamColor(team.jerseyColor)}24` }}>
                   {team.logoUrl ? <img className="h-full w-full object-contain p-1" src={team.logoUrl} alt="" aria-hidden="true" /> : getAdminInitials(team.name)}

@@ -22,30 +22,37 @@ function contrast(foreground, background) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+function compositeHex(foreground, background, alpha) {
+  const foregroundChannels = foreground.slice(1).match(/.{2}/g).map((value) => parseInt(value, 16));
+  const backgroundChannels = background.slice(1).match(/.{2}/g).map((value) => parseInt(value, 16));
+  const channels = foregroundChannels.map((value, index) => Math.round(value * alpha + backgroundChannels[index] * (1 - alpha)));
+  return `#${channels.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
 const colors = {
   white: token("card"),
-  brandDeep: token("brand-deep"),
-  brandPrimary: token("brand-primary"),
-  brandPrimaryText: token("brand-primary-text"),
+  blue50: token("blue-50"),
+  blue300: token("blue-300"),
+  blue500: token("blue-500"),
+  blue700: token("blue-700"),
+  blue900: token("blue-900"),
   surface: token("surface"),
   card: token("card"),
-  accent: token("accent"),
-  accentInk: token("accent-ink"),
-  urgent: token("urgent"),
-  urgentInk: token("urgent-ink"),
   ink: token("ink")
 };
 
 const checks = [
-  ["white / brand-deep text", colors.white, colors.brandDeep, 4.5],
+  ["white / blue-900 text", colors.white, colors.blue900, 4.5],
   ["ink / surface text", colors.ink, colors.surface, 4.5],
   ["ink / card text", colors.ink, colors.card, 4.5],
-  ["accent-ink / accent text", colors.accentInk, colors.accent, 4.5],
-  ["urgent-ink / urgent text", colors.urgentInk, colors.urgent, 4.5],
-  ["brand-primary-text / card text", colors.brandPrimaryText, colors.card, 4.5],
-  ["brand-primary-text / surface text", colors.brandPrimaryText, colors.surface, 4.5],
-  ["brand-primary / card UI", colors.brandPrimary, colors.card, 3]
+  ["blue-700 / card link text", colors.blue700, colors.card, 4.5],
+  ["blue-700 / surface link text", colors.blue700, colors.surface, 4.5],
+  ["blue-500 / card UI", colors.blue500, colors.card, 3],
+  ["blue-300 / blue-900 UI", colors.blue300, colors.blue900, 3]
 ];
+
+const onNavyMuted = compositeHex(colors.white, colors.blue900, 0.72);
+checks.push(["72% white / blue-900 muted text", onNavyMuted, colors.blue900, 4.5]);
 
 let failed = false;
 for (const [label, foreground, background, minimum] of checks) {
