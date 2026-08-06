@@ -2279,8 +2279,8 @@ export function HomeScreen() {
               <section className="home-dashboard-upcoming mx-auto grid w-full max-w-[600px] gap-3 lg:max-w-none" aria-labelledby="home-upcoming-matches-title">
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-0.5">
                   <h2 className="text-[13px] font-bold uppercase tracking-[0.12em] text-text-secondary sm:text-[15px]" id="home-upcoming-matches-title">Up next</h2>
-                  <Link className="tap-card hidden min-h-8 items-center gap-1 text-[12px] font-semibold text-brand md:inline-flex" href="/tournaments/schedule">
-                    Full schedule <ArrowRight size={13} />
+                  <Link className="tap-card inline-flex min-h-8 items-center gap-1 text-[12px] font-semibold text-brand" href="/tournaments/schedule">
+                    View full schedule <ArrowRight size={13} />
                   </Link>
                 </div>
                 <div className={`grid gap-2 ${homeSecondMatch ? "lg:grid-cols-2" : ""}`}>
