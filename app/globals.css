@@ -6109,7 +6109,7 @@ body,
   color: var(--winner-pill-color);
   white-space: nowrap;
   background: var(--winner-pill-bg);
-  border: 1px solid rgba(255, 255, 255, 0.76);
+  border: 1px solid var(--winner-pill-border);
   border-radius: 999px;
   box-shadow: 0 12px 30px rgba(var(--brand-deep-rgb), 0.2);
   opacity: 0;

@@ -639,7 +639,7 @@ function TournamentWinnerCelebration({ tournamentId, team, autoPlay = false }: {
   const [burstId, setBurstId] = useState(0);
   const [celebrating, setCelebrating] = useState(false);
   const stopTimerRef = useRef<number | null>(null);
-  const winnerPillTone = getTeamCardTone(team.jerseyColor);
+  const winnerPillTone = getTeamBrandTone(team.jerseyColor);
   const celebrate = useCallback(() => {
     if (stopTimerRef.current) window.clearTimeout(stopTimerRef.current);
     setBurstId((current) => current + 1);
@@ -709,6 +709,7 @@ function TournamentWinnerCelebration({ tournamentId, team, autoPlay = false }: {
                 "--winner-pill-end-y": path.endY,
                 "--winner-pill-rotation": path.rotation,
                 "--winner-pill-bg": winnerPillTone.background,
+                "--winner-pill-border": winnerPillTone.borderColor,
                 "--winner-pill-color": winnerPillTone.textColor
               } as CSSProperties}
             >
@@ -720,7 +721,8 @@ function TournamentWinnerCelebration({ tournamentId, team, autoPlay = false }: {
       )}
       <span className="sr-only" role="status" aria-live="polite">{celebrating ? `Celebrating tournament champions ${team.name}` : ""}</span>
       <button
-        className="winner-celebration-button fixed bottom-[calc(88px+env(safe-area-inset-bottom))] left-1/2 z-[61] inline-flex min-h-11 max-w-[calc(100vw-32px)] -translate-x-1/2 items-center justify-center gap-2 rounded-full border border-white/70 bg-[var(--accent)]/90 px-4 py-2 text-[13px] font-semibold text-white shadow-[0_14px_38px_rgba(var(--brand-deep-rgb), 0.24)] backdrop-blur-xl transition hover:bg-brand-mid active:scale-[0.98] md:bottom-[116px]"
+        className="winner-celebration-button fixed bottom-[calc(88px+env(safe-area-inset-bottom))] left-1/2 z-[61] inline-flex min-h-11 max-w-[calc(100vw-32px)] -translate-x-1/2 items-center justify-center gap-2 rounded-full border px-4 py-2 text-[13px] font-semibold opacity-100 shadow-[0_14px_38px_rgba(var(--brand-deep-rgb), 0.24)] transition hover:brightness-95 active:scale-[0.98] md:bottom-[116px]"
+        style={{ background: winnerPillTone.background, borderColor: winnerPillTone.borderColor, color: winnerPillTone.textColor }}
         type="button"
         onClick={celebrate}
         aria-label={`Celebrate tournament champions ${team.name}`}
@@ -3609,6 +3611,24 @@ function getTvSceneDuration(scene: TvScene) {
   return 0;
 }
 
+function getTvTierLeaders(standings: PlayerStanding[]) {
+  const seenTiers = new Set<number>();
+  return standings
+    .filter((standing) => standing.tierRank === 1)
+    .sort((left, right) => left.tierNumber - right.tierNumber
+      || right.matchWins - left.matchWins
+      || left.matchLosses - right.matchLosses
+      || right.setWinPercentage - left.setWinPercentage
+      || right.gameWinPercentage - left.gameWinPercentage
+      || left.player.name.localeCompare(right.player.name))
+    .filter((standing) => {
+      if (seenTiers.has(standing.tierNumber)) return false;
+      seenTiers.add(standing.tierNumber);
+      return true;
+    })
+    .slice(0, 4);
+}
+
 export function TournamentTvDayScreen() {
   const appSession = useProtectedRoute("/tournaments/tv", true);
   const router = useRouter();
@@ -3850,7 +3870,7 @@ export function TournamentTvDayScreen() {
   const displayNode = currentTimelineNode || fallbackMatchNode;
   const teamStandings = getLiveTeamStandings(teams, selectedMatches);
   const tierRankedPlayerStandings = getLivePlayerStandings(teams, selectedMatches);
-  const tierLeaders = tierRankedPlayerStandings.filter((standing) => standing.tierRank === 1).sort((left, right) => left.tierNumber - right.tierNumber);
+  const tierLeaders = getTvTierLeaders(tierRankedPlayerStandings);
   const playerStandings = [...tierRankedPlayerStandings]
     .sort((left, right) => right.matchWins - left.matchWins
       || left.matchLosses - right.matchLosses
@@ -3858,9 +3878,7 @@ export function TournamentTvDayScreen() {
       || right.gameWinPercentage - left.gameWinPercentage
       || left.player.name.localeCompare(right.player.name));
   const tournamentChampion = getTournamentChampion(teams, matches);
-  const tournamentTierLeaders = getLivePlayerStandings(teams, matches)
-    .filter((standing) => standing.tierRank === 1)
-    .sort((left, right) => left.tierNumber - right.tierNumber);
+  const tournamentTierLeaders = getTvTierLeaders(getLivePlayerStandings(teams, matches));
   const automaticNextScene = tvScene === "team" || tvScene === "player" ? null : tvScene === "live" && !tvSponsors.length ? "live" : getNextTvScene(tvScene);
   const nextScene = automaticNextScene ? tvScenes.find((scene) => scene.id === automaticNextScene)?.label || "Live view" : "Manual view";
   const selectTvScene = (scene: TvScene) => {
@@ -4535,7 +4553,7 @@ function TvTournamentFinaleScene({ tournament, champion, tierLeaders, sponsors }
   const uniqueSponsors = Array.from(new Map(sponsors.map((sponsor) => [`${normalizeName(sponsor.name)}:${sponsor.logoUrl}`, sponsor])).values()).slice(0, 10);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setConfettiBurst((current) => current + 1), 60000);
+    const timer = window.setInterval(() => setConfettiBurst((current) => current + 1), 15000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -4543,7 +4561,7 @@ function TvTournamentFinaleScene({ tournament, champion, tierLeaders, sponsors }
     <main className="relative grid h-dvh min-h-[720px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-brand-deep px-[clamp(48px,5vw,112px)] py-[clamp(28px,3.4vh,62px)] font-sans text-white" aria-label={`${champion.name} tournament champions`}>
       <span className="pointer-events-none absolute inset-0 opacity-25 court-lines" aria-hidden="true" />
       <TvFinaleConfetti burstId={confettiBurst} team={champion} />
-      <Link className="tap-card absolute left-[clamp(24px,2.5vw,52px)] top-[clamp(24px,3vh,52px)] z-30 inline-flex min-h-12 items-center gap-2 rounded-full border border-white/22 bg-white/12 px-5 text-[clamp(13px,0.82vw,18px)] font-semibold text-white shadow-[0_14px_34px_rgba(var(--brand-deep-rgb),0.22)] backdrop-blur-xl transition hover:bg-white/20 active:scale-[0.98]" href="/tournaments">
+      <Link className="tap-card absolute left-[clamp(24px,2.5vw,52px)] top-[clamp(24px,3vh,52px)] z-30 inline-flex !w-max shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-white/22 bg-white/12 px-5 py-3 text-[clamp(13px,0.82vw,18px)] font-semibold text-white shadow-[0_14px_34px_rgba(var(--brand-deep-rgb),0.22)] backdrop-blur-xl transition hover:bg-white/20 active:scale-[0.98]" href="/tournaments">
         <ArrowLeft className="h-[1.05em] w-[1.05em]" />
         Tournament
       </Link>
@@ -4560,14 +4578,14 @@ function TvTournamentFinaleScene({ tournament, champion, tierLeaders, sponsors }
           </span>
           <span className="grid gap-2">
             <strong className="text-[clamp(58px,6vw,118px)] font-semibold leading-[0.9] tracking-[-0.065em] text-white">{champion.name}</strong>
-            <em className="text-[clamp(17px,1.2vw,27px)] font-medium not-italic uppercase tracking-[0.14em] text-[var(--accent)]">2026 tournament winners</em>
+            <em className="text-[clamp(17px,1.2vw,27px)] font-medium not-italic uppercase tracking-[0.14em] text-[var(--accent)]">{tournament.seasonYear || new Date().getFullYear()} tournament winners</em>
           </span>
           <div className="flex max-w-[920px] flex-wrap justify-center gap-2.5" aria-label={`${champion.name} winning roster`}>
             {champion.members.map((player) => <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/12 py-1.5 pl-1.5 pr-3 text-[clamp(12px,0.76vw,17px)] font-semibold backdrop-blur-xl" key={player.id}><Avatar className="relative grid h-[clamp(28px,2vw,40px)] w-[clamp(28px,2vw,40px)] place-items-center overflow-hidden rounded-full bg-white text-[10px] text-brand" name={player.name} photoUrl={player.profilePhotoUrl} sizes="40px" />{player.name}</span>)}
           </div>
         </article>
 
-        <section className="grid min-h-0 content-center gap-[clamp(10px,1vh,16px)] rounded-[clamp(24px,2vw,38px)] border border-white/18 bg-white/10 p-[clamp(20px,2vw,38px)] shadow-[0_28px_70px_rgba(var(--brand-deep-rgb),0.18)] backdrop-blur-xl" aria-labelledby="tv-tier-leaders-title">
+        <section className="grid min-h-0 content-center gap-[clamp(10px,1vh,16px)] overflow-hidden rounded-[clamp(24px,2vw,38px)] border border-white/18 bg-white/10 p-[clamp(20px,2vw,38px)] shadow-[0_28px_70px_rgba(var(--brand-deep-rgb),0.18)] backdrop-blur-xl" aria-labelledby="tv-tier-leaders-title">
           <span className="grid gap-1"><em className="text-[clamp(11px,0.68vw,15px)] font-semibold not-italic uppercase tracking-[0.14em] text-[var(--accent)]">Tournament honors</em><h2 className="text-[clamp(25px,2vw,42px)] font-semibold" id="tv-tier-leaders-title">Player leaders by tier</h2></span>
           <div className="grid grid-cols-2 gap-[clamp(9px,0.8vw,14px)]">
             {tierLeaders.map((standing) => <article className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-[clamp(14px,1vw,19px)] border border-white/15 bg-white/10 p-[clamp(10px,0.8vw,15px)]" key={`${standing.tier}:${standing.player.playerId || standing.player.id}`}><Avatar className="relative grid h-[clamp(44px,3.2vw,64px)] w-[clamp(44px,3.2vw,64px)] place-items-center overflow-hidden rounded-full bg-white text-[clamp(12px,0.8vw,18px)] font-semibold text-brand" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="64px" /><span className="grid min-w-0 gap-0.5"><em className="text-[clamp(10px,0.62vw,14px)] font-semibold not-italic uppercase tracking-[0.1em] text-[var(--accent)]">{standing.tier} leader</em><strong className="truncate text-[clamp(16px,1.05vw,23px)] font-semibold">{standing.player.name}</strong><span className="truncate text-[clamp(11px,0.7vw,16px)] text-white/72">{standing.team.name} · {standing.matchWins} wins · {standing.matchLosses} losses</span></span></article>)}
@@ -4586,12 +4604,12 @@ function TvTournamentFinaleScene({ tournament, champion, tierLeaders, sponsors }
 }
 
 function TvFinaleConfetti({ burstId, team }: { burstId: number; team: PublishedTeam }) {
-  const winnerPillTone = getTeamCardTone(team.jerseyColor);
+  const winnerPillTone = getTeamBrandTone(team.jerseyColor);
   return (
     <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden" key={burstId} aria-hidden="true">
       {winnerConfettiPieces.map((piece, index) => <span className="winner-confetti-piece" key={index} style={{ "--confetti-delay": piece.delay, "--confetti-duration": piece.duration, "--confetti-x": piece.x, "--confetti-y": piece.y, "--confetti-end-y": piece.endY, "--confetti-drift": piece.drift, "--confetti-rotation": piece.rotation, backgroundColor: piece.color, borderRadius: piece.rounded, clipPath: piece.clipPath, height: piece.height, width: piece.width } as CSSProperties} />)}
       {winnerFireworkBursts.map((burst) => <span className="winner-firework" key={`${burst.x}:${burst.y}`} style={{ "--firework-x": burst.x, "--firework-y": burst.y, "--firework-delay": burst.delay, "--firework-color": burst.color, "--firework-size": burst.size } as CSSProperties}>{Array.from({ length: 16 }).map((_, sparkIndex) => <span className="winner-firework-spark" style={{ "--firework-angle": `${sparkIndex * 22.5}deg` } as CSSProperties} key={sparkIndex} />)}</span>)}
-      {winnerPillPaths.map((path) => <span className="winner-team-pill" key={path.midX} style={{ "--winner-pill-delay": path.delay, "--winner-pill-mid-x": path.midX, "--winner-pill-mid-y": path.midY, "--winner-pill-end-x": path.endX, "--winner-pill-end-y": path.endY, "--winner-pill-rotation": path.rotation, "--winner-pill-bg": winnerPillTone.background, "--winner-pill-color": winnerPillTone.textColor } as CSSProperties}><Trophy size={20} fill="currentColor" /><strong>{team.name}</strong></span>)}
+      {winnerPillPaths.map((path) => <span className="winner-team-pill" key={path.midX} style={{ "--winner-pill-delay": path.delay, "--winner-pill-mid-x": path.midX, "--winner-pill-mid-y": path.midY, "--winner-pill-end-x": path.endX, "--winner-pill-end-y": path.endY, "--winner-pill-rotation": path.rotation, "--winner-pill-bg": winnerPillTone.background, "--winner-pill-border": winnerPillTone.borderColor, "--winner-pill-color": winnerPillTone.textColor } as CSSProperties}><Trophy size={20} fill="currentColor" /><strong>{team.name}</strong></span>)}
     </div>
   );
 }
@@ -6846,7 +6864,7 @@ function getTeamBrandTone(color: string) {
   const inkContrast = getLuminanceContrast(backgroundLuminance, getHexLuminance(MRSA_COLORS.ink));
   return {
     background,
-    borderColor: background,
+    borderColor: backgroundLuminance > 0.9 ? MRSA_COLORS.blue300 : background,
     textColor: whiteContrast >= inkContrast ? MRSA_COLORS.card : MRSA_COLORS.ink
   };
 }
