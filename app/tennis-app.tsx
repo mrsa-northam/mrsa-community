@@ -2540,7 +2540,7 @@ export function DrawScreen() {
         name: team.name || "Team",
         sortOrder: team.sort_order || 0,
         logoUrl: team.logo_url || "",
-        jerseyColor: normalizeTeamColor(team.jersey_color),
+        jerseyColor: getSourceTeamColor(team.jersey_color),
         sponsorName: team.sponsor_name || "",
         sponsorLogoUrl: team.sponsor_logo_url || "",
         sponsors: mapTeamSponsors(team.sponsors, team.sponsor_name || "", team.sponsor_logo_url || ""),
@@ -4433,7 +4433,7 @@ function TvTeamPodiumCard({ standing }: { standing: TeamStanding }) {
   const captain = standing.team.members.find((member) => member.isCaptain)?.name || "Captain TBD";
   const played = standing.matchWins + standing.matchLosses;
   const winPercentage = played ? (standing.matchWins / played) * 100 : 0;
-  const teamAccent = normalizeTeamColor(standing.team.jerseyColor);
+  const teamAccent = getSourceTeamColor(standing.team.jerseyColor);
   const rankTone = first
     ? "border-[var(--medal-gold-line)] bg-[var(--accent-tint)] text-[var(--medal-gold-ink)]"
     : third
@@ -4460,16 +4460,17 @@ function TvTeamPodiumCard({ standing }: { standing: TeamStanding }) {
 }
 
 function TvTeamMark({ team, large = false, compact = false }: { team: PublishedTeam; large?: boolean; compact?: boolean }) {
+  const teamTone = getTeamBrandTone(team.jerseyColor);
   const sizeClass = large
     ? "h-[clamp(58px,4.2vw,82px)] w-[clamp(58px,4.2vw,82px)]"
     : compact
       ? "h-[clamp(30px,3.6vh,46px)] w-[clamp(30px,3.6vh,46px)]"
       : "h-[clamp(40px,2.8vw,54px)] w-[clamp(40px,2.8vw,54px)]";
   return (
-    <span className={`${sizeClass} relative grid shrink-0 place-items-center overflow-hidden rounded-[28%] border border-[var(--brand-primary-line)] bg-white shadow-[0_9px_24px_rgba(var(--brand-deep-rgb),0.12)]`} role="img" aria-label={`${team.name} logo`}>
+    <span className={`${sizeClass} relative grid shrink-0 place-items-center overflow-hidden rounded-[28%] border shadow-[0_9px_24px_rgba(var(--brand-deep-rgb),0.12)]`} style={{ background: team.logoUrl ? "var(--card)" : teamTone.background, borderColor: teamTone.borderColor, color: teamTone.textColor }} role="img" aria-label={`${team.name} logo`}>
       {team.logoUrl
         ? <NextImage src={team.logoUrl} alt="" fill sizes={large ? "82px" : compact ? "46px" : "54px"} className="object-contain p-[10%]" />
-        : <strong className={`${large ? "text-[clamp(16px,1.15vw,24px)]" : compact ? "text-[clamp(9px,0.65vw,13px)]" : "text-[clamp(11px,0.78vw,16px)]"} text-brand`}>{getInitials(team.name)}</strong>}
+        : <strong className={`${large ? "text-[clamp(16px,1.15vw,24px)]" : compact ? "text-[clamp(9px,0.65vw,13px)]" : "text-[clamp(11px,0.78vw,16px)]"} text-current`}>{getInitials(team.name)}</strong>}
     </span>
   );
 }
@@ -4767,7 +4768,7 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
         name: team.name || "Team",
         sortOrder: team.sort_order || 0,
         logoUrl: team.logo_url || "",
-        jerseyColor: normalizeTeamColor(team.jersey_color),
+        jerseyColor: getSourceTeamColor(team.jersey_color),
         sponsorName: team.sponsor_name || "",
         sponsorLogoUrl: team.sponsor_logo_url || "",
         sponsors: mapTeamSponsors(team.sponsors, team.sponsor_name || "", team.sponsor_logo_url || ""),
@@ -5866,20 +5867,20 @@ export function TournamentTeamsScreen() {
           {!!teams.length && (
             <section className="grid gap-3 md:grid-cols-2" aria-label="Published team rosters">
               {teams.map((team) => {
-                const teamTone = getTeamCardTone(team.jerseyColor);
+                const teamTone = getTeamBrandTone(team.jerseyColor);
                 const captain = team.members.find((member) => member.isCaptain);
                 return (
-                  <article className="tap-card group relative grid gap-3 overflow-hidden rounded-[18px] border-hairline border-white/25 p-3 shadow-[0_14px_34px_rgba(var(--brand-deep-rgb), 0.12)]" key={team.id} style={{ background: teamTone.background, color: teamTone.textColor }}>
+                  <article className="tap-card group relative grid gap-3 overflow-hidden rounded-[18px] border-hairline p-3 shadow-[0_14px_34px_rgba(var(--brand-deep-rgb), 0.12)]" key={team.id} style={{ background: teamTone.background, borderColor: teamTone.borderColor, color: teamTone.textColor }}>
                     <Link className="absolute inset-0 z-0 rounded-[18px]" href={`/tournaments/schedule/teams/${team.id}?from=roster`} aria-label={`View ${team.name}`} />
                     <span className="pointer-events-none relative z-[1] grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3">
                       {team.logoUrl ? (
                         <img className="h-12 w-12 object-contain drop-shadow-[0_4px_10px_rgba(var(--brand-deep-rgb),0.16)]" src={team.logoUrl} alt={`${team.name} logo`} />
                       ) : (
-                        <span className="grid h-12 w-12 place-items-center rounded-full bg-white/18 text-[13px] font-medium text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)]">{getInitials(team.name)}</span>
+                        <span className="grid h-12 w-12 place-items-center rounded-full bg-white/18 text-[13px] font-medium text-current shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)]">{getInitials(team.name)}</span>
                       )}
                       <span className="grid min-w-0 gap-0.5">
                         <strong className="truncate text-[18px] font-medium text-current">{team.name}</strong>
-                        <em className="truncate text-[12px] not-italic text-current opacity-70">{captain ? `Captain: ${captain.name}` : "Captain TBD"}</em>
+                        <em className="truncate text-[12px] not-italic text-current opacity-80">{captain ? `Captain: ${captain.name}` : "Captain TBD"}</em>
                       </span>
                       <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-brand transition-transform group-hover:translate-x-0.5">
                         <ArrowRight size={15} />
@@ -6832,6 +6833,22 @@ function getHexLuminance(value: string) {
   const [red, green, blue] = [0, 2, 4].map((index) => parseInt(hex.slice(index, index + 2), 16) / 255);
   const channels = [red, green, blue].map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function getLuminanceContrast(left: number, right: number) {
+  return (Math.max(left, right) + 0.05) / (Math.min(left, right) + 0.05);
+}
+
+function getTeamBrandTone(color: string) {
+  const background = getSourceTeamColor(color);
+  const backgroundLuminance = getHexLuminance(background);
+  const whiteContrast = getLuminanceContrast(backgroundLuminance, 1);
+  const inkContrast = getLuminanceContrast(backgroundLuminance, getHexLuminance(MRSA_COLORS.ink));
+  return {
+    background,
+    borderColor: background,
+    textColor: whiteContrast >= inkContrast ? MRSA_COLORS.card : MRSA_COLORS.ink
+  };
 }
 
 function normalizeTeamColor(value: unknown) {
@@ -8462,14 +8479,14 @@ function LiveTeamLeaderboard({ standings, completedMatches, matches, seedingIsFi
           <span className="text-center">Game %</span>
         </div>
         {standings.map((standing) => (
-          <Link className="tap-card group grid grid-cols-[32px_minmax(0,1fr)] items-center gap-x-2 gap-y-2 rounded-[17px] border-hairline border-line bg-white p-2.5 shadow-[0_6px_18px_rgba(var(--brand-deep-rgb),0.045)] transition hover:border-brand/25 hover:bg-brand-light/45 hover:shadow-[0_8px_20px_rgba(var(--brand-deep-rgb), 0.07)] sm:grid-cols-[38px_minmax(180px,1fr)_58px_58px_70px_70px] sm:gap-2 sm:rounded-[15px] sm:bg-surface/38 sm:px-3 sm:shadow-none" href={`/tournaments/schedule/teams/${standing.team.id}?from=team-leaderboard`} aria-label={`View ${standing.team.name} team page`} key={standing.team.id}>
-            <strong className="grid h-8 w-8 place-items-center rounded-full border-hairline border-brand/12 bg-[var(--surface)] text-[13px] font-semibold text-brand sm:bg-white sm:shadow-[inset_0_0_0_1px_rgba(var(--brand-deep-rgb), 0.08)]">{standing.seed}</strong>
+          <Link className="tap-card group grid grid-cols-[32px_minmax(0,1fr)] items-center gap-x-2 gap-y-2 rounded-[17px] border-hairline border-line bg-white p-2.5 shadow-[0_6px_18px_rgba(var(--brand-deep-rgb),0.045)] transition hover:bg-brand-light/45 hover:shadow-[0_8px_20px_rgba(var(--brand-deep-rgb), 0.07)] sm:grid-cols-[38px_minmax(180px,1fr)_58px_58px_70px_70px] sm:gap-2 sm:rounded-[15px] sm:bg-surface/38 sm:px-3 sm:shadow-none" style={{ borderLeftColor: getSourceTeamColor(standing.team.jerseyColor), borderLeftWidth: 4 }} href={`/tournaments/schedule/teams/${standing.team.id}?from=team-leaderboard`} aria-label={`View ${standing.team.name} team page`} key={standing.team.id}>
+            <strong className="grid h-8 w-8 place-items-center rounded-full border-hairline text-[13px] font-semibold sm:shadow-[inset_0_0_0_1px_rgba(var(--brand-deep-rgb), 0.08)]" style={{ background: getSourceTeamColor(standing.team.jerseyColor), borderColor: getSourceTeamColor(standing.team.jerseyColor), color: getTeamBrandTone(standing.team.jerseyColor).textColor }}>{standing.seed}</strong>
             <span className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5 sm:grid-cols-[34px_minmax(0,1fr)]">
               <span className="grid h-10 w-10 place-items-center overflow-hidden rounded-[11px] border-hairline border-line bg-white p-1 shadow-[0_4px_12px_rgba(var(--brand-deep-rgb),0.05)] sm:h-[34px] sm:w-[34px] sm:rounded-[10px] sm:border-0 sm:shadow-[inset_0_0_0_1px_rgba(var(--brand-deep-rgb),0.05)]">
                 {standing.team.logoUrl ? <img className="h-full w-full object-contain" src={standing.team.logoUrl} alt="" aria-hidden="true" /> : <span className="text-[10px] font-medium text-brand">{getInitials(standing.team.name)}</span>}
               </span>
               <span className="grid min-w-0 gap-0.5">
-                <strong className="truncate text-[14px] font-semibold text-text-primary sm:text-[14px] sm:font-medium">{standing.team.name}</strong>
+                <strong className="flex min-w-0 items-center gap-1.5 text-[14px] font-semibold text-text-primary sm:text-[14px] sm:font-medium"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: getSourceTeamColor(standing.team.jerseyColor) }} aria-hidden="true" /><span className="truncate">{standing.team.name}</span></strong>
                 <em className="truncate text-[10px] not-italic text-text-secondary">{standing.completedMatches}/{standing.scheduledMatches} played{standing.tieBreakWins ? ` · ${standing.tieBreakWins} TB wins` : ""}</em>
                 {standing.requiresReview && <em className="w-max rounded-full bg-[var(--warning-tint)] px-1.5 py-0.5 text-[8px] font-medium not-italic uppercase tracking-[0.05em] text-[var(--warning)]">Organizer review</em>}
               </span>
@@ -10004,7 +10021,7 @@ function mapPublishedTeamsFromRows(rows: PublishedTeamRow[]): PublishedTeam[] {
       name: team.name || "Team",
       sortOrder: team.sort_order || 0,
       logoUrl: team.logo_url || "",
-      jerseyColor: normalizeTeamColor(team.jersey_color),
+      jerseyColor: getSourceTeamColor(team.jersey_color),
       sponsorName: team.sponsor_name || "",
       sponsorLogoUrl: team.sponsor_logo_url || "",
       sponsors: mapTeamSponsors(team.sponsors, team.sponsor_name || "", team.sponsor_logo_url || ""),
