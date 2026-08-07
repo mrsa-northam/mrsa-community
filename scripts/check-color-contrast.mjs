@@ -31,28 +31,32 @@ function compositeHex(foreground, background, alpha) {
 
 const colors = {
   white: token("card"),
-  blue50: token("blue-50"),
-  blue300: token("blue-300"),
-  blue500: token("blue-500"),
-  blue700: token("blue-700"),
-  blue900: token("blue-900"),
+  green50: token("green-50"),
+  green300: token("green-300"),
+  green500: token("green-500"),
+  green700: token("green-700"),
+  green900: token("green-900"),
+  accent: token("accent"),
+  accentOn: token("accent-on"),
   surface: token("surface"),
   card: token("card"),
   ink: token("ink")
 };
 
 const checks = [
-  ["white / blue-900 text", colors.white, colors.blue900, 4.5],
+  ["white / green-700 text", colors.white, colors.green700, 4.5],
   ["ink / surface text", colors.ink, colors.surface, 4.5],
   ["ink / card text", colors.ink, colors.card, 4.5],
-  ["blue-700 / card link text", colors.blue700, colors.card, 4.5],
-  ["blue-700 / surface link text", colors.blue700, colors.surface, 4.5],
-  ["blue-500 / card UI", colors.blue500, colors.card, 3],
-  ["blue-300 / blue-900 UI", colors.blue300, colors.blue900, 3]
+  ["green-700 / card link text", colors.green700, colors.card, 4.5],
+  ["green-700 / surface link text", colors.green700, colors.surface, 4.5],
+  ["green-500 / card UI", colors.green500, colors.card, 3],
+  ["green-300 / green-700 UI", colors.green300, colors.green700, 3],
+  ["green-700 / soft-green accent text", colors.accentOn, colors.accent, 4.5],
+  ["soft-green accent / green-700 text", colors.accent, colors.green700, 4.5]
 ];
 
-const onNavyMuted = compositeHex(colors.white, colors.blue900, 0.72);
-checks.push(["72% white / blue-900 muted text", onNavyMuted, colors.blue900, 4.5]);
+const onGreenMuted = compositeHex(colors.white, colors.green700, 0.72);
+checks.push(["72% white / green-700 muted text", onGreenMuted, colors.green700, 4.5]);
 
 let failed = false;
 for (const [label, foreground, background, minimum] of checks) {

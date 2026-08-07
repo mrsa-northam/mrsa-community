@@ -1120,7 +1120,7 @@ export function LoginScreen({ nextPath }: { nextPath?: string }) {
                 {message && <StatusMessage tone={message.includes("sent") ? "success" : "error"}>{message}</StatusMessage>}
               </form>
               <div className="border-t-hairline border-line pt-4">
-                <Link className="tap-card inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-card border-hairline border-brand/20 bg-[var(--surface)] px-4 text-sm font-medium text-brand shadow-[0_10px_24px_rgba(var(--brand-deep-rgb), 0.06)]" href="/tournaments/bracket">
+                <Link className="tap-card inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-card border-hairline border-brand/20 bg-[var(--surface)] px-4 text-sm font-medium text-brand shadow-[0_10px_24px_rgba(var(--brand-deep-rgb), 0.06)]" href="/">
                   Skip sign in
                   <ArrowRight size={15} />
                 </Link>
@@ -2259,6 +2259,7 @@ export function HomeScreen() {
   const homeRegistrationResolved = homeRegistrationResolutionKey === expectedHomeRegistrationResolutionKey;
 
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  if (homeRegistrationResolved && upcomingTournament && !homeCanViewSchedule) return <GuestHomeScreen allowSignedIn />;
 
   return (
     <AppFrame active="home">
@@ -2400,6 +2401,307 @@ export function HomeScreen() {
       </div>
     </AppFrame>
   );
+}
+
+export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boolean } = {}) {
+  const appSession = useAppSession();
+  const router = useRouter();
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [teams, setTeams] = useState<PublishedTeam[]>([]);
+  const [matches, setMatches] = useState<TeamCourtScheduleMatch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const loadGuestHome = useCallback(async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setMessage("Supabase env vars are missing.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    const { data: tournamentData, error: tournamentError } = await supabase
+      .from("tournaments")
+      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
+      .in("status", ["registration_open", "registration_closed", "live"])
+      .order("starts_on", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (tournamentError) {
+      setTournament(null);
+      setTeams([]);
+      setMatches([]);
+      setMessage(getFriendlyError(tournamentError));
+      setLoading(false);
+      return;
+    }
+
+    if (!tournamentData) {
+      setTournament(null);
+      setTeams([]);
+      setMatches([]);
+      setLoading(false);
+      return;
+    }
+
+    const mappedTournament = mapTournament(tournamentData);
+    setTournament(mappedTournament);
+    const [teamsResult, matchesResult, participantsResult, scoresResult] = await Promise.all([
+      supabase
+        .from("tournament_teams")
+        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
+        .eq("tournament_id", mappedTournament.id)
+        .eq("is_published", true)
+        .order("sort_order", { ascending: true })
+        .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
+        .limit(40),
+      supabase
+        .from("tournament_schedule_matches")
+        .select("id, tournament_id, day_number, day_label, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
+        .eq("tournament_id", mappedTournament.id)
+        .eq("is_published", true)
+        .order("day_number", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .limit(300),
+      supabase
+        .from("tournament_schedule_match_players")
+        .select("id, schedule_match_id, team_id, player_id, side, slot, source_player_name")
+        .eq("tournament_id", mappedTournament.id)
+        .limit(1200),
+      supabase
+        .from("tournament_match_scores")
+        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_by, submitted_at")
+        .eq("tournament_id", mappedTournament.id)
+        .limit(400)
+    ]);
+
+    const scheduleSchemaMissing = isScheduleSchemaMissing(matchesResult.error?.message || participantsResult.error?.message || "");
+    const scoreSchemaMissing = isScoreSchemaMissing(scoresResult.error?.message || "");
+    if (teamsResult.error || matchesResult.error || participantsResult.error || scheduleSchemaMissing) {
+      setTeams([]);
+      setMatches([]);
+      setMessage(scheduleSchemaMissing ? "The live tournament schedule is not available yet." : getFriendlyError(teamsResult.error || matchesResult.error || participantsResult.error));
+      setLoading(false);
+      return;
+    }
+
+    const mappedTeams = mapPublishedTeamsFromRows(teamsResult.data || []);
+    const mappedScores = scoreSchemaMissing || scoresResult.error ? [] : mapMatchScores(scoresResult.data || []);
+    setTeams(mappedTeams);
+    setMatches(mapTeamCourtScheduleMatches(matchesResult.data || [], participantsResult.data || [], mappedTeams, mappedScores));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!allowSignedIn && appSession.ready && appSession.userId) router.replace("/dashboard");
+  }, [allowSignedIn, appSession.ready, appSession.userId, router]);
+
+  useEffect(() => {
+    if (!appSession.ready || (!allowSignedIn && appSession.userId)) return;
+    void loadGuestHome();
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const channel = supabase
+      .channel(allowSignedIn ? "member-spectator-home-live-data" : "guest-home-live-data")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournaments" }, loadGuestHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_teams" }, loadGuestHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_team_members" }, loadGuestHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_matches" }, loadGuestHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_match_players" }, loadGuestHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_match_scores" }, loadGuestHome)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [allowSignedIn, appSession.ready, appSession.userId, loadGuestHome]);
+
+  if (!appSession.ready || (!allowSignedIn && appSession.userId)) return null;
+
+  const completedMatches = matches.filter((match) => Boolean(match.score?.winnerSide));
+  const teamStandings = getLiveTeamStandings(teams, matches);
+  const playerStandings = getLivePlayerStandings(teams, matches).slice().sort((left, right) => right.matchWins - left.matchWins
+    || right.setWinPercentage - left.setWinPercentage
+    || right.gameWinPercentage - left.gameWinPercentage
+    || right.completedMatches - left.completedMatches
+    || left.player.name.localeCompare(right.player.name));
+  const recentMatches = completedMatches.slice().sort((left, right) => {
+    const submittedDifference = (Date.parse(right.score?.submittedAt || "") || 0) - (Date.parse(left.score?.submittedAt || "") || 0);
+    if (submittedDifference) return submittedDifference;
+    return right.dayNumber - left.dayNumber
+      || getScheduleTimeSortValue(right.timeLabel) - getScheduleTimeSortValue(left.timeLabel)
+      || right.sortOrder - left.sortOrder;
+  }).slice(0, 5);
+  const showMemberNav = Boolean(appSession.userId);
+
+  return (
+    <AppFrame active={showMemberNav ? "home" : undefined} withNav={showMemberNav}>
+      <div className={memberPageClass}>
+        <AppTopBar />
+        <main className="mx-auto grid w-full max-w-shell gap-7 px-5 py-6 pb-12 sm:px-8 sm:py-7 lg:px-10">
+          {loading && (
+            <section className="grid gap-3" aria-label="Loading live tournament" role="status">
+              <span className="h-[230px] animate-pulse rounded-[26px] bg-brand-deep/90" />
+              {Array.from({ length: 3 }).map((_, index) => <SkeletonRow key={index} />)}
+              <span className="sr-only">Loading live tournament…</span>
+            </section>
+          )}
+
+          {!loading && message && <StatusMessage tone="warning">{message}</StatusMessage>}
+          {!loading && !tournament && !message && <StatusMessage tone="info">No live tournament found.</StatusMessage>}
+
+          {!loading && tournament && (
+            <>
+              <GuestTournamentBanner tournament={tournament} />
+
+              <section className="grid gap-3" aria-labelledby="guest-leaders-title">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-0.5">
+                  <span className="grid gap-1">
+                    <span className="text-[12px] font-semibold uppercase tracking-[0.1em] text-text-secondary">Live standings</span>
+                    <h2 className="text-[22px] font-extrabold leading-tight tracking-[-0.5px] text-text-primary sm:text-[25px]" id="guest-leaders-title">Tournament leaders</h2>
+                  </span>
+                  <Link className="tap-card inline-flex min-h-8 items-center gap-1 justify-self-end whitespace-nowrap text-[12px] font-semibold text-brand" href="/tournaments/leaderboard">
+                    Leaderboard <ArrowRight size={13} />
+                  </Link>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <GuestTeamLeadersCard standings={teamStandings.slice(0, 3)} />
+                  <GuestPlayerLeadersCard standings={playerStandings.slice(0, 3)} />
+                </div>
+              </section>
+
+              <section className="grid gap-3" aria-labelledby="guest-recent-matches-title">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-0.5">
+                  <h2 className="text-[22px] font-extrabold leading-tight tracking-[-0.5px] text-text-primary sm:text-[25px]" id="guest-recent-matches-title">Recent matches</h2>
+                  <Link className="tap-card inline-flex min-h-8 items-center gap-1 text-[12px] font-semibold text-brand" href="/tournaments/bracket">
+                    View full bracket <ArrowRight size={13} />
+                  </Link>
+                </div>
+                <div className="grid gap-2.5">
+                  {recentMatches.map((match) => <ScheduleBracketMatchLink match={match} key={match.id} />)}
+                  {!recentMatches.length && <StatusMessage tone="info">Completed matches will appear here as scores are submitted.</StatusMessage>}
+                </div>
+              </section>
+
+              <section className="grid gap-3" aria-labelledby="guest-about-title">
+                <h2 className="text-[22px] font-extrabold leading-tight tracking-[-0.5px] text-text-primary sm:text-[25px]" id="guest-about-title">About MRSA</h2>
+                <Link className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:items-center md:p-5" href="/about">
+                  <span className="grid gap-2">
+                    <span className="text-[13px] text-text-secondary">What is MRSA?</span>
+                    <strong className="text-lg font-medium leading-tight text-brand">Mumineen Racquet Sports Association</strong>
+                    <em className="text-[15px] not-italic leading-relaxed text-text-secondary">A North America-wide community bringing together women through a shared passion for racquet sports — tennis, TT, badminton, and pickleball.</em>
+                  </span>
+                  <span className="inline-flex h-10 w-10 items-center justify-center justify-self-end rounded-full bg-brand-primary text-white" aria-hidden="true">
+                    <ArrowRight size={18} />
+                  </span>
+                </Link>
+              </section>
+            </>
+          )}
+        </main>
+      </div>
+    </AppFrame>
+  );
+}
+
+function GuestTournamentBanner({ tournament }: { tournament: Tournament }) {
+  const venueText = `${tournament.venueName} ${tournament.venueAddress}`;
+  const venueLabel = /chicago/i.test(venueText) ? "Chicago" : tournament.venueName || "Venue TBD";
+  const titleHasYear = tournament.seasonYear && tournament.name.includes(String(tournament.seasonYear));
+  const title = tournament.seasonYear && !titleHasYear ? `${tournament.name} - ${tournament.seasonYear}` : tournament.name;
+
+  return (
+    <section className={`${tournamentLiveBannerClass} p-5 sm:p-7`} aria-labelledby="guest-tournament-title">
+      <TournamentHeroAmbience />
+      <div className="relative z-10 grid gap-5">
+        <div className="grid gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/72">MRSA tournament</span>
+            <span className="inline-flex min-h-8 items-center gap-2 rounded-full border-hairline border-[var(--accent)]/35 bg-[var(--accent)]/10 px-3 text-[11px] font-semibold text-[var(--accent)] backdrop-blur">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" aria-hidden="true" />
+              {getGuestTournamentStatus(tournament)}
+            </span>
+          </div>
+          <span className="grid gap-2">
+            <h1 className="max-w-[760px] text-[27px] font-semibold leading-[1.05] tracking-[-0.55px] text-white sm:text-[36px]" id="guest-tournament-title">{title}</h1>
+            <span className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-white/72 sm:text-[14px]">
+              <span className="inline-flex items-center gap-1.5"><Calendar size={15} />{formatTournamentDates(tournament)}</span>
+              <span className="inline-flex items-center gap-1.5"><MapPin size={15} />{venueLabel}</span>
+            </span>
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          <a className="tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px]" href="https://www.youtube.com/live/7JOkZ_ZFZQk" target="_blank" rel="noreferrer">
+            <span className="relative grid h-4 w-[23px] shrink-0 place-items-center rounded-[5px] bg-[#FF0000]" aria-hidden="true">
+              <span className="ml-0.5 h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-white" />
+            </span>
+            <span>View live feed</span>
+          </a>
+          <Link className="tap-card inline-flex min-h-12 items-center justify-center rounded-full border-hairline border-white/20 bg-white/10 px-3 text-center text-[13px] font-semibold text-white backdrop-blur transition hover:bg-white/15 sm:text-[14px]" href="/tournaments/bracket">
+            View bracket
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GuestTeamLeadersCard({ standings }: { standings: TeamStanding[] }) {
+  return (
+    <article className="grid gap-3 rounded-[20px] border-hairline border-line bg-card p-4">
+      <div className="flex items-center justify-between gap-3 border-b-hairline border-line pb-3">
+        <strong className="text-[16px] font-semibold text-text-primary">Top teams</strong>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-muted">W–L</span>
+      </div>
+      <div className="grid gap-2">
+        {standings.map((standing, index) => (
+          <div className="grid min-h-[52px] grid-cols-[24px_40px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[14px] bg-[var(--surface)] px-3 py-2" key={standing.team.id}>
+            <strong className={index < 3 ? "text-center text-[13px] font-semibold text-brand" : "text-center text-[13px] font-semibold text-text-muted"}>{index + 1}</strong>
+            <span className="relative grid h-10 w-10 place-items-center overflow-hidden rounded-[10px] bg-white text-[10px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(var(--brand-deep-rgb),0.05)]">
+              {standing.team.logoUrl ? <NextImage src={standing.team.logoUrl} alt="" fill sizes="40px" className="object-contain p-1" /> : getInitials(standing.team.name)}
+            </span>
+            <strong className="truncate text-[14px] font-semibold text-text-primary">{standing.team.name}</strong>
+            <strong className="min-w-10 text-right text-[14px] font-semibold tabular-nums text-brand" aria-label={`${standing.matchWins} wins and ${standing.matchLosses} losses`}>{standing.matchWins}–{standing.matchLosses}</strong>
+          </div>
+        ))}
+        {!standings.length && <p className="rounded-[14px] bg-[var(--surface)] p-3 text-[13px] text-text-secondary">Team standings will appear when rosters are published.</p>}
+      </div>
+    </article>
+  );
+}
+
+function GuestPlayerLeadersCard({ standings }: { standings: PlayerStanding[] }) {
+  return (
+    <article className="grid gap-3 rounded-[20px] border-hairline border-line bg-card p-4">
+      <div className="flex items-center justify-between gap-3 border-b-hairline border-line pb-3">
+        <strong className="text-[16px] font-semibold text-text-primary">Top players</strong>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-muted">W–L</span>
+      </div>
+      <div className="grid gap-2">
+        {standings.map((standing, index) => (
+          <div className="grid min-h-[52px] grid-cols-[24px_40px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[14px] bg-[var(--surface)] px-3 py-2" key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`}>
+            <strong className={index < 3 ? "text-center text-[13px] font-semibold text-brand" : "text-center text-[13px] font-semibold text-text-muted"}>{index + 1}</strong>
+            <Avatar className="relative grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-[var(--brand-primary-tint)] text-[10px] font-semibold text-[var(--brand-primary-text)]" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl} ariaLabel={`${standing.player.name} profile photo`} sizes="40px" />
+            <span className="grid min-w-0 gap-0.5">
+              <strong className="truncate text-[14px] font-semibold text-text-primary">{standing.player.name}</strong>
+              <em className="truncate text-[11px] not-italic text-text-secondary">{standing.team.name}</em>
+            </span>
+            <strong className="min-w-10 text-right text-[14px] font-semibold tabular-nums text-brand" aria-label={`${standing.matchWins} wins and ${standing.matchLosses} losses`}>{standing.matchWins}–{standing.matchLosses}</strong>
+          </div>
+        ))}
+        {!standings.length && <p className="rounded-[14px] bg-[var(--surface)] p-3 text-[13px] text-text-secondary">Player standings will appear when rosters are published.</p>}
+      </div>
+    </article>
+  );
+}
+
+function getGuestTournamentStatus(tournament: Tournament) {
+  if (tournament.status !== "live") return formatTournamentStatus(tournament.status);
+  const today = getChicagoDateKey();
+  const day = today === getTournamentDayDateKey(tournament, 2) ? 2 : 1;
+  return `Day ${day} · Live`;
 }
 
 export function DrawScreen() {
@@ -3385,7 +3687,7 @@ export function FitnessScreen() {
                   <strong className="text-[28px] font-medium leading-none tracking-[-0.5px] text-brand">Day {selectedDay.day}</strong>
                   <em className="text-[13px] not-italic text-text-secondary">{selectedDay.exercises.length} {selectedDay.exercises.length === 1 ? "movement" : "movements"}</em>
                 </span>
-                <span className={selectedDayComplete ? "inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-3 py-1.5 text-[12px] font-medium text-white" : "inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-3 py-1.5 text-[12px] font-medium text-white"}>
+                <span className={selectedDayComplete ? "inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-3 py-1.5 text-[12px] font-medium text-white" : "inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-3 py-1.5 text-[12px] font-medium text-[var(--accent-on)]"}>
                   {selectedDayComplete ? <CheckCircle2 size={14} /> : <Dumbbell size={14} />}
                   {selectedDayComplete ? "Completed" : recommendedOpenDay?.day === selectedDay.day ? "Up next" : "Ready"}
                 </span>
@@ -4028,7 +4330,7 @@ function TvPersistentHeader({ tournament, now, selectedDay, scene, seconds, paus
       <div className="relative mt-[clamp(14px,1.4vh,26px)] grid grid-cols-[minmax(180px,0.8fr)_minmax(620px,3fr)_minmax(250px,1fr)] items-center gap-[clamp(16px,2vw,48px)] border-t border-white/10 pt-[clamp(12px,1.15vh,22px)]">
         <div className="grid w-max grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/10 p-1" aria-label="TV tournament day">
           {([1, 2] as const).map((day) => (
-            <button className={selectedDay === day ? "min-h-[clamp(40px,2.5vw,54px)] rounded-full bg-[var(--accent)] px-[clamp(20px,1.5vw,34px)] text-[clamp(14px,0.9vw,20px)] font-semibold text-white" : "min-h-[clamp(40px,2.5vw,54px)] rounded-full px-[clamp(20px,1.5vw,34px)] text-[clamp(14px,0.9vw,20px)] font-semibold text-white/72 hover:bg-white/8"} type="button" onClick={() => onSelectDay(day)} aria-pressed={selectedDay === day} key={day}>Day {day}</button>
+            <button className={selectedDay === day ? "min-h-[clamp(40px,2.5vw,54px)] rounded-full bg-[var(--accent)] px-[clamp(20px,1.5vw,34px)] text-[clamp(14px,0.9vw,20px)] font-semibold text-[var(--accent-on)]" : "min-h-[clamp(40px,2.5vw,54px)] rounded-full px-[clamp(20px,1.5vw,34px)] text-[clamp(14px,0.9vw,20px)] font-semibold text-white/72 hover:bg-white/8"} type="button" onClick={() => onSelectDay(day)} aria-pressed={selectedDay === day} key={day}>Day {day}</button>
           ))}
         </div>
         <div className="mx-auto grid w-full max-w-[920px] grid-cols-4 gap-1 rounded-full border border-white/10 bg-white/10 p-1" aria-label="TV display scene">
@@ -4041,7 +4343,7 @@ function TvPersistentHeader({ tournament, now, selectedDay, scene, seconds, paus
             <strong className="text-[clamp(16px,1.1vw,24px)] font-semibold tabular-nums text-[var(--accent)]">{manualScene ? "Manual" : paused ? "Paused" : `${seconds}s`}</strong>
             <em className="text-[clamp(9px,0.55vw,13px)] font-medium not-italic uppercase tracking-[0.06em] text-white/72">{manualScene ? "Stays on this view" : paused ? "Rotation paused" : `${nextScene} next`}</em>
           </span>
-          <button className={paused || manualScene ? "min-w-[clamp(90px,6vw,132px)] rounded-[16px] bg-[var(--accent)] px-4 text-[clamp(13px,0.8vw,18px)] font-semibold text-white" : "min-w-[clamp(90px,6vw,132px)] rounded-[16px] border border-white/15 bg-white/10 px-4 text-[clamp(13px,0.8vw,18px)] font-semibold text-white transition hover:bg-white/18"} type="button" onClick={onTogglePause} aria-pressed={paused}>{manualScene ? "Return live" : paused ? "Resume" : "Pause"}</button>
+          <button className={paused || manualScene ? "min-w-[clamp(90px,6vw,132px)] rounded-[16px] bg-[var(--accent)] px-4 text-[clamp(13px,0.8vw,18px)] font-semibold text-[var(--accent-on)]" : "min-w-[clamp(90px,6vw,132px)] rounded-[16px] border border-white/15 bg-white/10 px-4 text-[clamp(13px,0.8vw,18px)] font-semibold text-white transition hover:bg-white/18"} type="button" onClick={onTogglePause} aria-pressed={paused}>{manualScene ? "Return live" : paused ? "Resume" : "Pause"}</button>
         </span>
       </div>
     </header>
@@ -4342,7 +4644,7 @@ function TvLeadersTicker({ teamStandings, playerStandings }: { teamStandings: Te
 }
 
 function TvTickerChip({ rank, title, value }: { rank: number; title: string; value: string }) {
-  return <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-full bg-white/10 px-2.5 py-1.5"><strong className="grid h-[clamp(24px,1.6vw,34px)] w-[clamp(24px,1.6vw,34px)] place-items-center rounded-full bg-[var(--accent)] text-[clamp(11px,0.7vw,16px)] text-white">{rank}</strong><span className="truncate text-[clamp(12px,0.78vw,17px)] font-semibold">{title}</span><em className="text-[clamp(11px,0.7vw,16px)] font-semibold not-italic text-white/72">{value}</em></span>;
+  return <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-full bg-white/10 px-2.5 py-1.5"><strong className="grid h-[clamp(24px,1.6vw,34px)] w-[clamp(24px,1.6vw,34px)] place-items-center rounded-full bg-[var(--accent)] text-[clamp(11px,0.7vw,16px)] text-[var(--accent-on)]">{rank}</strong><span className="truncate text-[clamp(12px,0.78vw,17px)] font-semibold">{title}</span><em className="text-[clamp(11px,0.7vw,16px)] font-semibold not-italic text-white/72">{value}</em></span>;
 }
 
 function TvSponsorStrip({ sponsors }: { sponsors: TvSponsorSpotlight[] }) {
@@ -4960,12 +5262,22 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
               </div>
 
               <div className="grid gap-2">
-                <div className="grid grid-cols-2 gap-1 rounded-[16px] border-hairline border-white/15 bg-white/10 p-1.5 backdrop-blur" aria-label="Schedule day">
-                  {[1, 2].map((day) => (
-                    <button className={selectedDay === day ? "tap-card flex min-h-10 items-center justify-center gap-2 rounded-[12px] bg-[var(--accent)] px-3 text-white" : "tap-card flex min-h-10 items-center justify-center gap-2 rounded-[12px] px-3 text-white/72 hover:bg-white/10"} type="button" onClick={() => setSelectedDay(day as 1 | 2)} aria-pressed={selectedDay === day} key={day}>
-                      <strong className="text-[12px] font-medium">Day {day}</strong>
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 gap-2" aria-label="Schedule day">
+                  {([1, 2] as const).map((day) => {
+                    const dateKey = getTournamentDayDateKey(tournament, day);
+                    const isActive = selectedDay === day;
+                    const isToday = dateKey === scheduleTodayKey;
+                    const dayStatus = isToday ? "In progress" : dateKey && dateKey < scheduleTodayKey ? "Completed" : "Upcoming";
+                    return (
+                      <button className={isActive ? "tap-card grid min-h-[68px] content-center gap-1 rounded-[15px] border border-brand-primary bg-brand-primary px-3 py-2 text-left text-white" : "tap-card grid min-h-[68px] content-center gap-1 rounded-[15px] border border-white/12 bg-white/[0.08] px-3 py-2 text-left text-white backdrop-blur transition hover:bg-white/15"} type="button" onClick={() => setSelectedDay(day)} aria-pressed={isActive} key={day}>
+                        <span className="flex items-center justify-between gap-2">
+                          <strong className="text-[14px] font-semibold leading-none sm:text-[15px]">Day {day}</strong>
+                          <em className="text-[8px] font-semibold not-italic uppercase tracking-[0.06em] text-white/75">{dayStatus}</em>
+                        </span>
+                        <span className={isActive ? "text-[10px] font-medium text-white sm:text-[11px]" : "text-[10px] font-medium text-white/72 sm:text-[11px]"}>{formatScheduleDayDate(tournament, day)}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -5783,9 +6095,9 @@ export function TournamentLeaderboardScreen() {
                 <button className={activeView === "team" ? "tap-card grid min-h-11 place-items-center rounded-[13px] bg-[var(--brand-deep)] px-2 text-center text-[11px] font-medium leading-tight text-white shadow-[0_8px_18px_rgba(var(--brand-deep-rgb), 0.14)] sm:text-[13px]" : "tap-card grid min-h-11 place-items-center rounded-[13px] bg-surface/45 px-2 text-center text-[11px] font-medium leading-tight text-text-secondary sm:text-[13px]"} type="button" onClick={() => setActiveView("team")} aria-pressed={activeView === "team"}>Team leaderboard</button>
                 <button className={activeView === "player" ? "tap-card grid min-h-11 place-items-center rounded-[13px] bg-[var(--brand-deep)] px-2 text-center text-[11px] font-medium leading-tight text-white shadow-[0_8px_18px_rgba(var(--brand-deep-rgb), 0.14)] sm:text-[13px]" : "tap-card grid min-h-11 place-items-center rounded-[13px] bg-surface/45 px-2 text-center text-[11px] font-medium leading-tight text-text-secondary sm:text-[13px]"} type="button" onClick={() => setActiveView("player")} aria-pressed={activeView === "player"}>Player leaderboard</button>
               </section>
-              <section className="mx-auto grid w-full max-w-[360px] grid-cols-2 gap-1 rounded-full border-hairline border-line bg-surface/70 p-1" aria-label="Leaderboard result scope">
-                <button className={rankingScope === "day1" ? "tap-card min-h-9 rounded-full bg-[var(--accent)] px-3 text-[11px] font-semibold text-white" : "tap-card min-h-9 rounded-full px-3 text-[11px] font-medium text-text-secondary"} type="button" onClick={() => setRankingScope("day1")} aria-pressed={rankingScope === "day1"}>Day 1 only</button>
-                <button className={rankingScope === "all" ? "tap-card min-h-9 rounded-full bg-[var(--accent)] px-3 text-[11px] font-semibold text-white" : "tap-card min-h-9 rounded-full px-3 text-[11px] font-medium text-text-secondary"} type="button" onClick={() => setRankingScope("all")} aria-pressed={rankingScope === "all"}>All tournament</button>
+              <section className="mx-auto grid w-full max-w-[720px] grid-cols-2 gap-2 rounded-[17px] border-hairline border-line bg-white p-1.5 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.05)]" aria-label="Leaderboard result scope">
+                <button className={rankingScope === "day1" ? "tap-card min-h-11 rounded-[13px] border border-brand-primary bg-brand-primary px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.14)] sm:text-[13px]" : "tap-card min-h-11 rounded-[13px] border border-transparent bg-surface/45 px-3 text-[11px] font-medium text-text-secondary transition hover:border-brand/20 sm:text-[13px]"} type="button" onClick={() => setRankingScope("day1")} aria-pressed={rankingScope === "day1"}>Day 1 only</button>
+                <button className={rankingScope === "all" ? "tap-card min-h-11 rounded-[13px] border border-brand-primary bg-brand-primary px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.14)] sm:text-[13px]" : "tap-card min-h-11 rounded-[13px] border border-transparent bg-surface/45 px-3 text-[11px] font-medium text-text-secondary transition hover:border-brand/20 sm:text-[13px]"} type="button" onClick={() => setRankingScope("all")} aria-pressed={rankingScope === "all"}>All tournament</button>
               </section>
               {activeView === "team" && <LiveTeamLeaderboard completedMatches={completedMatches} matches={scopedMatches.length} seasonYear={tournament?.seasonYear} seedingIsFinal={standingsAreFinal} standings={standings} />}
               {activeView === "player" && <LivePlayerLeaderboard seasonYear={tournament?.seasonYear} standings={playerStandings} />}
@@ -6864,13 +7176,13 @@ function getTeamBrandTone(color: string) {
   const inkContrast = getLuminanceContrast(backgroundLuminance, getHexLuminance(MRSA_COLORS.ink));
   return {
     background,
-    borderColor: backgroundLuminance > 0.9 ? MRSA_COLORS.blue300 : background,
+    borderColor: backgroundLuminance > 0.9 ? MRSA_COLORS.green300 : background,
     textColor: whiteContrast >= inkContrast ? MRSA_COLORS.card : MRSA_COLORS.ink
   };
 }
 
 function normalizeTeamColor(value: unknown) {
-  return getHexLuminance(getSourceTeamColor(value)) >= 0.45 ? MRSA_COLORS.blue300 : MRSA_COLORS.blue500;
+  return getHexLuminance(getSourceTeamColor(value)) >= 0.45 ? MRSA_COLORS.green300 : MRSA_COLORS.green500;
 }
 
 type TeamToneVariant = "outline" | "solid";
@@ -7164,31 +7476,9 @@ function HomeTournamentOverviewSkeleton() {
 
 function HomeTournamentOverviewCard({ tournament, countdown, registered }: { tournament: Tournament; countdown: TournamentCountdown; registered: boolean }) {
   const statusLabel = tournament.status === "registration_open" ? "Reg. open" : tournament.status === "registration_closed" ? "Reg. closed" : formatTournamentStatus(tournament.status);
-  const statusClass = tournament.status === "registration_closed"
-    ? "border border-[var(--text-muted-token)] bg-surface text-text-secondary"
-    : "border border-transparent bg-brand-light text-brand";
   const venueText = `${tournament.venueName} ${tournament.venueAddress}`;
   const venueLabel = /chicago/i.test(venueText) ? "Chicago" : tournament.venueName || "Venue TBD";
   const mapsUrl = tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueAddress || tournament.venueName || "")}`;
-
-  if (countdown.state === "today" || countdown.state === "started") {
-    return (
-      <section className="home-dashboard-tournament-card relative mx-auto grid w-full max-w-[600px] gap-5 overflow-hidden rounded-[28px] border border-line bg-card p-5 sm:p-7 lg:max-w-none" style={homeTournamentCardBackground} aria-label="Tournament details">
-        <div className="home-dashboard-meta relative z-10 grid grid-cols-2 gap-2.5">
-          <HomeTournamentMetaTile icon={<Calendar size={16} />} label="Dates">
-            <strong className="text-[15px] font-semibold leading-tight text-text-primary sm:text-[16px]">{formatTournamentDates(tournament)}</strong>
-          </HomeTournamentMetaTile>
-          <HomeTournamentMetaTile href={mapsUrl} icon={<MapPin size={16} />} label="Venue">
-            <strong className="truncate text-[15px] font-semibold leading-tight text-text-primary sm:text-[16px]">{venueLabel}</strong>
-            <span className="home-dashboard-meta-action inline-flex min-h-6 w-max items-center gap-1 text-[11px] font-extrabold text-brand-deep">Open in maps ↗</span>
-          </HomeTournamentMetaTile>
-        </div>
-        <Link className="home-dashboard-tournament-cta tap-card relative z-10 inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 text-center text-[15px] font-extrabold text-brand-deep transition hover:bg-surface sm:text-[18px]" href="/tournaments">
-          View full tournament details <ArrowRight size={16} />
-        </Link>
-      </section>
-    );
-  }
 
   if (!registered) {
     return <HomeTournamentDiscoveryCard countdown={countdown} mapsUrl={mapsUrl} statusLabel={statusLabel} tournament={tournament} venueLabel={venueLabel} />;
@@ -7197,21 +7487,11 @@ function HomeTournamentOverviewCard({ tournament, countdown, registered }: { tou
   return (
     <section className="home-dashboard-tournament-card relative mx-auto grid w-full max-w-[600px] gap-5 overflow-hidden rounded-[28px] border border-line bg-card p-5 sm:p-7 lg:max-w-none" style={homeTournamentCardBackground} aria-labelledby="home-tournament-title">
       <div className="relative z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-        <span className="grid min-w-0 gap-1">
+        <span className="grid min-w-0">
           <h2 className="break-words text-[18px] font-extrabold leading-tight tracking-[-0.4px] text-text-primary sm:text-[22px] lg:text-[24px]" id="home-tournament-title">{tournament.name}</h2>
-          <em className="text-[13px] font-medium not-italic text-text-secondary sm:text-[16px]">{countdown.state === "countdown" ? "Tournament starts in" : countdown.label}</em>
         </span>
-        <span className={`rounded-full px-3 py-2 text-[12px] font-bold sm:px-4 sm:text-[14px] ${statusClass}`}>{statusLabel}</span>
+        <span className="rounded-full border border-brand-primary bg-brand-primary px-3 py-2 text-[12px] font-bold text-white sm:px-4 sm:text-[14px]">Live</span>
       </div>
-
-      {countdown.state === "countdown" && (
-        <div className="home-dashboard-countdown relative z-10 grid grid-cols-4 gap-2 text-center">
-          <HomeCountdownUnit label="Days" value={countdown.days} />
-          <HomeCountdownUnit label="Hrs" value={countdown.hours} />
-          <HomeCountdownUnit label="Min" value={countdown.minutes} />
-          <HomeCountdownUnit label="Sec" value={countdown.seconds} />
-        </div>
-      )}
 
       <div className="home-dashboard-meta relative z-10 grid grid-cols-2 gap-2.5">
         <HomeTournamentMetaTile icon={<Calendar size={16} />} label="Dates">
@@ -7223,9 +7503,12 @@ function HomeTournamentOverviewCard({ tournament, countdown, registered }: { tou
         </HomeTournamentMetaTile>
       </div>
 
-      <Link className="home-dashboard-tournament-cta tap-card relative z-10 inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 text-center text-[15px] font-extrabold text-brand-deep transition hover:bg-surface sm:text-[18px]" href="/tournaments">
-        View full tournament details <ArrowRight size={15} />
-      </Link>
+      <a className="tap-card relative z-10 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px]" href="https://www.youtube.com/live/7JOkZ_ZFZQk" target="_blank" rel="noreferrer">
+        <span className="relative grid h-4 w-[23px] shrink-0 place-items-center rounded-[5px] bg-[#FF0000]" aria-hidden="true">
+          <span className="ml-0.5 h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-white" />
+        </span>
+        <span>Follow live feed</span>
+      </a>
     </section>
   );
 }
@@ -7311,7 +7594,7 @@ function HomeTournamentDiscoveryCard({ tournament, countdown, mapsUrl, statusLab
           <strong className="truncate text-[16px] font-semibold text-white">{venueLabel}</strong>
           <a className="tap-card inline-flex min-h-6 w-max items-center text-[11px] font-semibold text-[var(--accent)]" href={mapsUrl} target="_blank" rel="noreferrer">Open in maps ↗</a>
         </span>
-        <Link className="tap-card col-span-2 inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-5 text-[15px] font-semibold text-white transition hover:bg-brand-mid lg:col-span-1" href="/tournaments">
+        <Link className="tap-card col-span-2 inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-5 text-[15px] font-semibold text-[var(--accent-on)] transition hover:bg-brand-mid hover:text-white lg:col-span-1" href="/tournaments">
           {actionLabel} <ArrowRight size={16} />
         </Link>
       </div>
@@ -7330,15 +7613,6 @@ function HomeDiscoveryCountdownUnit({ value, label }: { value: number; label: st
     <span className="grid min-w-0 gap-1 rounded-[14px] bg-white/10 px-1 py-3">
       <strong className="text-[19px] font-semibold leading-none tabular-nums text-white sm:text-[23px]">{formatCountdownValue(value)}</strong>
       <em className="text-[8px] font-semibold not-italic uppercase tracking-[0.08em] text-white/72 sm:text-[9px]">{label}</em>
-    </span>
-  );
-}
-
-function HomeCountdownUnit({ value, label }: { value: number; label: string }) {
-  return (
-    <span className="grid min-w-0 gap-2 rounded-[18px] border-0 bg-brand-light px-1 py-4 sm:rounded-[22px] sm:py-5">
-      <strong className="text-[24px] font-extrabold leading-none tabular-nums text-brand-deep sm:text-[30px]">{formatCountdownValue(value)}</strong>
-      <em className="text-[10px] font-semibold not-italic uppercase tracking-[0.08em] text-text-secondary sm:text-[13px]">{label}</em>
     </span>
   );
 }
@@ -7768,7 +8042,7 @@ function ScheduleFullBracketBoard({ day, dayOneNodes, dayTwoStages, coinTossDeci
           <em className="text-[9px] font-medium not-italic uppercase tracking-[0.12em] text-text-muted">Day {day} · Full bracket</em>
           <strong className="text-[17px] font-medium text-text-primary">{day === 1 ? "Round-robin matchups" : "Championship path"}</strong>
         </span>
-        <span className="shrink-0 rounded-full bg-[var(--accent)] px-3 py-1.5 text-[10px] font-semibold text-white">{completedPlayerMatches}/{totalPlayerMatches.length} results</span>
+        <span className="shrink-0 rounded-full bg-[var(--accent)] px-3 py-1.5 text-[10px] font-semibold text-[var(--accent-on)]">{completedPlayerMatches}/{totalPlayerMatches.length} results</span>
       </div>
 
       <div className="flex gap-1.5 overflow-x-auto overscroll-x-contain scroll-smooth bg-[var(--surface)] p-2 sm:p-3" aria-label="Bracket rounds" ref={roundTabsRef}>
@@ -7838,7 +8112,7 @@ function ScheduleBracketNodeCard({ node, isOpen, hasConnector, hasIncoming, coin
   const statusClass = status === "Completed"
     ? "bg-[var(--brand-primary-tint)] text-[var(--brand-mid)]"
     : status === "Ongoing"
-      ? "bg-[var(--accent)] text-white"
+      ? "bg-[var(--accent)] text-[var(--accent-on)]"
       : status === "Needs review"
         ? "bg-[var(--warning-tint)] text-[var(--warning)]"
         : status === "Awaiting teams"
@@ -7893,7 +8167,7 @@ function ScheduleBracketNodeCard({ node, isOpen, hasConnector, hasIncoming, coin
   );
 }
 
-function ScheduleBracketMatchLink({ match }: { match: TeamCourtScheduleMatch; node: LiveBracketNode }) {
+function ScheduleBracketMatchLink({ match }: { match: TeamCourtScheduleMatch; node?: LiveBracketNode }) {
   const score = match.score;
   const hasTieBreaker = hasMatchTieBreaker(match);
   const scoreRows = [
@@ -8421,7 +8695,7 @@ function LiveDayOneRound({ nodes }: { nodes: LiveBracketNode[] }) {
                 const groupMatches = group.nodes.flatMap((node) => node.result.matches);
                 const groupCompleted = groupMatches.filter((match) => Boolean(match.score?.winnerSide)).length;
                 return (
-                  <button className={index === activeTimeIndex ? "tap-card grid min-w-[94px] snap-start gap-0.5 rounded-[12px] border-hairline border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-left text-white" : "tap-card grid min-w-[94px] snap-start gap-0.5 rounded-[12px] border-hairline border-white/12 bg-white/[0.07] px-3 py-2 text-left text-white"} type="button" onClick={() => selectTime(index)} aria-pressed={index === activeTimeIndex} key={group.key}>
+                  <button className={index === activeTimeIndex ? "tap-card grid min-w-[94px] snap-start gap-0.5 rounded-[12px] border-hairline border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-left text-[var(--accent-on)]" : "tap-card grid min-w-[94px] snap-start gap-0.5 rounded-[12px] border-hairline border-white/12 bg-white/[0.07] px-3 py-2 text-left text-white"} type="button" onClick={() => selectTime(index)} aria-pressed={index === activeTimeIndex} key={group.key}>
                     <strong className="text-[12px] font-medium leading-none">{group.label}</strong>
                     <em className={index === activeTimeIndex ? "text-[8px] font-medium not-italic text-white/75" : "text-[8px] font-medium not-italic text-white/72"}>{groupCompleted}/{groupMatches.length} results</em>
                   </button>
@@ -8551,7 +8825,7 @@ function LivePlayerLeaderboard({ standings, seasonYear }: { standings: PlayerSta
         {tierGroups.map(([tierNumber, tierStandings]) => (
           <Fragment key={tierNumber}>
             <div className="mt-2 flex items-center gap-2 px-1 first:mt-0 sm:px-3">
-              <strong className="rounded-full bg-[var(--accent)] px-3 py-1 text-[11px] font-semibold text-white">{tierNumber === 99 ? "Tier TBD" : `Tier ${tierNumber}`}</strong>
+              <strong className="rounded-full bg-[var(--accent)] px-3 py-1 text-[11px] font-semibold text-[var(--accent-on)]">{tierNumber === 99 ? "Tier TBD" : `Tier ${tierNumber}`}</strong>
               <span className="h-px flex-1 bg-line" aria-hidden="true" />
               <em className="text-[9px] font-medium not-italic uppercase tracking-[0.08em] text-text-muted">{tierStandings.length} players</em>
             </div>
@@ -8616,7 +8890,7 @@ function LiveBracketBoard({ stages, selectedStage, seedingStatus, onSelectStage 
       {championSlot?.team && (
         <div className="grid gap-3 border-b-hairline border-white/10 bg-[var(--brand-deep)] p-3 text-white sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
           <span className="flex min-w-0 items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-white"><Trophy size={20} /></span>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-[var(--accent-on)]"><Trophy size={20} /></span>
             <span className="grid min-w-0 gap-0.5">
               <em className="text-[9px] font-medium not-italic uppercase tracking-[0.1em] text-[var(--accent)]">Tournament champions</em>
               <strong className="truncate text-[18px] font-medium text-white">{championSlot.team.name}</strong>
@@ -8629,7 +8903,7 @@ function LiveBracketBoard({ stages, selectedStage, seedingStatus, onSelectStage 
       <div className="grid gap-3 bg-[var(--brand-deep)] p-3 lg:hidden">
         <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1" aria-label="Day 2 bracket stages" ref={stageTabsRef}>
           {stages.map((stage, index) => (
-            <button className={index === selectedIndex ? "tap-card grid min-w-[118px] snap-start gap-0.5 rounded-[12px] border-hairline border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-left text-white" : "tap-card grid min-w-[118px] snap-start gap-0.5 rounded-[12px] border-hairline border-white/12 bg-white/[0.07] px-3 py-2 text-left text-white"} type="button" onClick={() => selectStage(index)} aria-pressed={index === selectedIndex} key={stage.key}>
+            <button className={index === selectedIndex ? "tap-card grid min-w-[118px] snap-start gap-0.5 rounded-[12px] border-hairline border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-left text-[var(--accent-on)]" : "tap-card grid min-w-[118px] snap-start gap-0.5 rounded-[12px] border-hairline border-white/12 bg-white/[0.07] px-3 py-2 text-left text-white"} type="button" onClick={() => selectStage(index)} aria-pressed={index === selectedIndex} key={stage.key}>
               <strong className="truncate text-[12px] font-medium leading-none">{stage.label}</strong>
               <em className={index === selectedIndex ? "text-[8px] font-medium not-italic text-white/75" : "text-[8px] font-medium not-italic text-white/72"}>{stage.nodes.length} {stage.nodes.length === 1 ? "matchup" : "matchups"}</em>
             </button>
@@ -8686,7 +8960,7 @@ function LiveBracketMatchCard({ node }: { node: LiveBracketNode }) {
   const statusClass = status === "Completed"
     ? "bg-accent-tint text-[var(--accent-ink)]"
     : status === "Ongoing"
-      ? "bg-[var(--accent)] text-white"
+      ? "bg-[var(--accent)] text-[var(--accent-on)]"
       : status === "Needs review"
         ? "bg-[var(--warning-tint)] text-[var(--warning)]"
         : status === "Awaiting teams"
@@ -9433,7 +9707,7 @@ function TeamRosterMemberCard({ member, team, matches }: { member: PublishedTeam
       <span className="grid min-w-0 gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5">
           <strong className="truncate text-[14px] font-medium leading-tight text-text-primary">{member.name}</strong>
-          {member.isCaptain && <em className="shrink-0 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[8px] font-medium not-italic uppercase tracking-[0.06em] text-white">Captain</em>}
+          {member.isCaptain && <em className="shrink-0 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[8px] font-medium not-italic uppercase tracking-[0.06em] text-[var(--accent-on)]">Captain</em>}
         </span>
         <em className="truncate text-[10px] not-italic text-text-secondary">{member.city || "City TBD"} · {member.tier} · Rating {member.rating || "N/A"}</em>
       </span>
@@ -9586,7 +9860,7 @@ function PlayerNameStack({ label, names, profiles = [], tone, centerOnWideScreen
   const isPrimary = tone === "primary";
   return (
     <span className={`schedule-player-stack schedule-player-stack--${tone} relative grid min-w-0 content-center gap-1.5 ${centerOnWideScreens ? "sm:content-center" : ""}`}>
-      {isWinner && <span className="absolute -right-1 -top-1 z-10 grid h-6 w-6 place-items-center rounded-full bg-[var(--accent)] text-white" title="Winner" aria-label="Winner"><Trophy size={12} strokeWidth={2.4} /></span>}
+      {isWinner && <span className="absolute -right-1 -top-1 z-10 grid h-6 w-6 place-items-center rounded-full bg-[var(--accent)] text-[var(--accent-on)]" title="Winner" aria-label="Winner"><Trophy size={12} strokeWidth={2.4} /></span>}
       {label && <em className="truncate px-1 text-[10px] font-medium not-italic text-text-muted">{label}</em>}
       {names.map((name, index) => {
         const profile = profiles[index] || profiles.find((candidate) => normalizeName(candidate.name) === normalizeName(name));
@@ -9973,7 +10247,7 @@ function TeamCourtScheduleGame({ match, teamName, tournament, onOpenMatch, group
 function TeamSchedulePlayerStack({ names, profiles, isWinner }: { names: string[]; profiles: MatchPlayerProfile[]; isWinner: boolean }) {
   return (
     <span className={isWinner ? "relative flex min-h-12 min-w-0 flex-wrap items-center justify-center gap-x-1 rounded-[11px] border-hairline border-[var(--accent)] bg-[var(--accent-tint)] px-2 py-1.5 text-center text-[12px] font-semibold leading-tight text-[var(--accent-ink)] sm:min-h-14 sm:text-[13px]" : "relative flex min-h-12 min-w-0 flex-wrap items-center justify-center gap-x-1 rounded-[11px] border-hairline border-[var(--hairline-strong)] bg-white px-2 py-1.5 text-center text-[12px] font-semibold leading-tight text-text-primary sm:min-h-14 sm:text-[13px]"}>
-      {isWinner && <span className="absolute -right-1.5 -top-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-[var(--accent)] text-white" title="Winner" aria-label="Winner"><Trophy size={12} strokeWidth={2.4} /></span>}
+      {isWinner && <span className="absolute -right-1.5 -top-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-[var(--accent)] text-[var(--accent-on)]" title="Winner" aria-label="Winner"><Trophy size={12} strokeWidth={2.4} /></span>}
       {names.map((name, index) => {
         const profile = profiles[index] || profiles.find((candidate) => normalizeName(candidate.name) === normalizeName(name));
         return (

@@ -1,11 +1,11 @@
-import { LoginScreen } from "./tennis-app";
+import { GuestHomeScreen, LoginScreen } from "./tennis-app";
 
-export default async function LoginPage({
+export default async function HomePage({
   searchParams
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; signin?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, signin } = await searchParams;
 
-  return <LoginScreen nextPath={next} />;
+  return next || signin === "1" ? <LoginScreen nextPath={next} /> : <GuestHomeScreen />;
 }
