@@ -6197,7 +6197,7 @@ export function TournamentTeamsScreen() {
           {!!teams.length && (
             <section className="grid gap-3 md:grid-cols-2" aria-label="Published team rosters">
               {teams.map((team) => {
-                const teamTone = getTeamBrandTone(team.jerseyColor);
+                const teamTone = getTeamRosterCardTone(team.jerseyColor);
                 const captain = team.members.find((member) => member.isCaptain);
                 return (
                   <article className="tap-card group relative grid gap-3 overflow-hidden rounded-[18px] border-hairline p-3 shadow-[0_14px_34px_rgba(var(--brand-deep-rgb), 0.12)]" key={team.id} style={{ background: teamTone.background, borderColor: teamTone.borderColor, color: teamTone.textColor }}>
@@ -7178,6 +7178,28 @@ function getTeamBrandTone(color: string) {
     background,
     borderColor: backgroundLuminance > 0.9 ? MRSA_COLORS.green300 : background,
     textColor: whiteContrast >= inkContrast ? MRSA_COLORS.card : MRSA_COLORS.ink
+  };
+}
+
+function getTeamRosterCardTone(color: string) {
+  const teamTone = getTeamBrandTone(color);
+  if (getHexLuminance(color) < 0.88) return teamTone;
+  return {
+    background: "linear-gradient(145deg, var(--card) 0%, var(--surface) 100%)",
+    borderColor: "var(--hairline-strong)",
+    textColor: "var(--ink)"
+  };
+}
+
+function getTeamJerseyPresentation(color: string) {
+  const jerseyColor = getSourceTeamColor(color);
+  const isWhiteJersey = getHexLuminance(jerseyColor) >= 0.88;
+  return {
+    badgeBackground: isWhiteJersey ? "linear-gradient(145deg, var(--card) 0%, var(--surface) 100%)" : "var(--card)",
+    badgeBorderColor: isWhiteJersey ? "var(--hairline-strong)" : jerseyColor,
+    fillColor: jerseyColor,
+    strokeColor: isWhiteJersey ? "var(--brand-deep)" : jerseyColor,
+    isWhiteJersey
   };
 }
 
@@ -9629,7 +9651,7 @@ function PlayerProfileNameLink({ player, from, teamId = "", matchId = "", source
 
 function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: PublishedTeam; matches: TeamCourtScheduleMatch[]; backHref: string; backLabel: string }) {
   const teamRecord = getTeamPerformanceSummary(team, matches);
-  const teamColor = normalizeTeamColor(team.jerseyColor);
+  const jerseyPresentation = getTeamJerseyPresentation(team.jerseyColor);
   const completedMatches = teamRecord.wins + teamRecord.losses;
 
   return (
@@ -9641,9 +9663,9 @@ function TeamDetailPageCard({ team, matches, backHref, backLabel }: { team: Publ
         </Link>
         <span className="pointer-events-none absolute right-4 top-4 z-20 flex items-start gap-2">
           <TeamSponsorLogoStamps sponsors={team.sponsors} />
-          <span className="relative grid h-14 w-14 rotate-[6deg] place-items-center rounded-[17px] border border-dashed border-[var(--blue-300)] bg-white" role="img" aria-label="Team jersey color">
+          <span className="relative grid h-14 w-14 rotate-[6deg] place-items-center rounded-[17px] border border-dashed shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.12)]" style={{ background: jerseyPresentation.badgeBackground, borderColor: jerseyPresentation.badgeBorderColor }} role="img" aria-label={`${team.name} jersey color`}>
             <span className="absolute inset-1 rounded-[13px] border-hairline border-line" aria-hidden="true" />
-            <Shirt size={28} strokeWidth={1.9} style={{ color: "var(--ink)", fill: teamColor }} />
+            <Shirt className={jerseyPresentation.isWhiteJersey ? "drop-shadow-[0_1px_1px_rgba(var(--brand-deep-rgb),0.22)]" : ""} size={28} strokeWidth={jerseyPresentation.isWhiteJersey ? 2.3 : 1.9} style={{ color: jerseyPresentation.strokeColor, fill: jerseyPresentation.fillColor }} />
           </span>
         </span>
         <div className="relative grid gap-5 p-5 pt-20 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:p-7 sm:pt-16">
