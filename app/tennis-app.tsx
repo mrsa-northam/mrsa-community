@@ -8230,9 +8230,9 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessS
             </div>
 
             <div className="match-detail-players grid grid-cols-[minmax(0,1fr)_34px_minmax(0,1fr)] items-start gap-1 sm:grid-cols-[minmax(0,1fr)_48px_minmax(0,1fr)] sm:gap-3">
-              <MatchPlayerSide color={leftColor} matchId={match.id} players={leftProfiles} teamName={leftTeam} toneVariant={leftToneVariant} />
+              <MatchPlayerSide color={leftColor} matchId={match.id} players={leftProfiles} teamName={leftTeam} />
               <span className="mt-9 grid h-8 w-8 place-items-center justify-self-center rounded-full border-hairline border-white/18 bg-white/10 text-[10px] font-medium text-white/72 sm:mt-12 sm:h-10 sm:w-10 sm:text-[11px]">VS</span>
-              <MatchPlayerSide color={rightColor} matchId={match.id} players={rightProfiles} teamName={rightTeam} toneVariant={rightToneVariant} />
+              <MatchPlayerSide color={rightColor} matchId={match.id} players={rightProfiles} teamName={rightTeam} />
             </div>
 
             {match.dayNumber === 2 && <div className="flex justify-center"><BallTeamBadge teamName={ballTeamName} pending={!ballTeamName} /></div>}
@@ -8255,9 +8255,9 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessS
           <div className="match-detail-entry-form grid gap-2.5">
             <div className="grid grid-cols-[52px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-2">
               <span aria-hidden="true" />
-              <ScoreSideLabel playerNames={leftTeam} color={leftColor} toneVariant={leftToneVariant} />
+              <ScoreSideLabel playerNames={leftTeam} color={leftColor} />
               <span className="text-center text-[12px] font-medium text-text-muted">vs</span>
-              <ScoreSideLabel playerNames={rightTeam} color={rightColor} toneVariant={rightToneVariant} />
+              <ScoreSideLabel playerNames={rightTeam} color={rightColor} />
             </div>
             <div className="grid gap-2">
               <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={updateScoreDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={1} />
@@ -8302,8 +8302,8 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessS
   );
 }
 
-function MatchPlayerSide({ players, teamName, color, matchId, toneVariant }: { players: MatchPlayerProfile[]; teamName: string; color: string; matchId: string; toneVariant: TeamToneVariant }) {
-  const tone = getTeamCardTone(color, toneVariant);
+function MatchPlayerSide({ players, teamName, color, matchId }: { players: MatchPlayerProfile[]; teamName: string; color: string; matchId: string }) {
+  const tone = getTeamBrandTone(color);
   const isDoubles = players.length > 1;
   return (
     <span className="match-detail-player-side grid min-w-0 justify-items-center gap-2 text-center">
@@ -8370,8 +8370,8 @@ function MatchSetScoreboard({ score, leftSide, rightSide, leftTeam, rightTeam, l
   );
 }
 
-function ScoreSideLabel({ playerNames, color, toneVariant }: { playerNames: string; color: string; toneVariant: TeamToneVariant }) {
-  const tone = getTeamCardTone(color, toneVariant);
+function ScoreSideLabel({ playerNames, color }: { playerNames: string; color: string }) {
+  const tone = getTeamBrandTone(color);
   return (
     <span className="min-w-0 truncate rounded-[11px] border-hairline px-2 py-1.5 text-center text-[11px] font-medium" style={{ background: tone.background, color: tone.textColor, borderColor: tone.borderColor }}>
       {playerNames}
