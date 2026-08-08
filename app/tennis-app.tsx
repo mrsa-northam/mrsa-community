@@ -2626,6 +2626,22 @@ function GuestPlayerSignInPrompt() {
   );
 }
 
+const tournamentLiveStreams = [
+  { label: "Stream 1", href: "https://youtube.com/live/qiyN3c7DHAI?feature=share" },
+  { label: "Stream 2", href: "https://youtube.com/live/uTJmQhUsCfc?feature=share" }
+] as const;
+
+function YouTubeLiveStreamLink({ label, href }: { label: string; href: string }) {
+  return (
+    <a className="tap-card inline-flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px]" href={href} target="_blank" rel="noreferrer" aria-label={`Watch ${label} on YouTube`}>
+      <span className="relative grid h-4 w-[23px] shrink-0 place-items-center rounded-[5px] bg-[#FF0000]" aria-hidden="true">
+        <span className="ml-0.5 h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-white" />
+      </span>
+      <span className="truncate">{label}</span>
+    </a>
+  );
+}
+
 function GuestTournamentBanner({ tournament }: { tournament: Tournament }) {
   const venueText = `${tournament.venueName} ${tournament.venueAddress}`;
   const venueLabel = /chicago/i.test(venueText) ? "Chicago" : tournament.venueName || "Venue TBD";
@@ -2652,16 +2668,14 @@ function GuestTournamentBanner({ tournament }: { tournament: Tournament }) {
             </span>
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-2.5">
-          <a className="tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px]" href="https://youtube.com/live/qiyN3c7DHAI?feature=share" target="_blank" rel="noreferrer">
-            <span className="relative grid h-4 w-[23px] shrink-0 place-items-center rounded-[5px] bg-[#FF0000]" aria-hidden="true">
-              <span className="ml-0.5 h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-white" />
-            </span>
-            <span>View live feed</span>
-          </a>
-          <Link className="tap-card inline-flex min-h-12 items-center justify-center rounded-full border-hairline border-white/20 bg-white/10 px-3 text-center text-[13px] font-semibold text-white backdrop-blur transition hover:bg-white/15 sm:text-[14px]" href="/tournaments/bracket">
-            View bracket
-          </Link>
+        <div className="grid gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.09em] text-white/60">Choose a live stream</span>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {tournamentLiveStreams.map((stream) => <YouTubeLiveStreamLink href={stream.href} label={stream.label} key={stream.label} />)}
+            <Link className="tap-card col-span-2 inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full border-hairline border-white/20 bg-white/10 px-3 text-center text-[13px] font-semibold text-white backdrop-blur transition hover:bg-white/15 sm:col-span-1 sm:text-[14px]" href="/tournaments/bracket">
+              View bracket <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
       </div>
     </section>
@@ -7551,12 +7565,12 @@ function HomeTournamentOverviewCard({ tournament, countdown, registered }: { tou
         </HomeTournamentMetaTile>
       </div>
 
-      <a className="tap-card relative z-10 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px]" href="https://youtube.com/live/qiyN3c7DHAI?feature=share" target="_blank" rel="noreferrer">
-        <span className="relative grid h-4 w-[23px] shrink-0 place-items-center rounded-[5px] bg-[#FF0000]" aria-hidden="true">
-          <span className="ml-0.5 h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-white" />
-        </span>
-        <span>Follow live feed</span>
-      </a>
+      <div className="relative z-10 grid gap-2" aria-label="Choose a live stream">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.09em] text-text-secondary">Choose a live stream</span>
+        <div className="grid grid-cols-2 gap-2.5">
+          {tournamentLiveStreams.map((stream) => <YouTubeLiveStreamLink href={stream.href} label={stream.label} key={stream.label} />)}
+        </div>
+      </div>
     </section>
   );
 }
