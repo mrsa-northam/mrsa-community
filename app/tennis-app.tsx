@@ -4178,7 +4178,7 @@ export function TournamentTvDayScreen() {
       const rightSubmitted = new Date(right.score?.submittedAt || "").getTime() || 0;
       return rightSubmitted - leftSubmitted || getScheduleTimeSortValue(right.timeLabel) - getScheduleTimeSortValue(left.timeLabel) || right.sortOrder - left.sortOrder;
     })
-    .slice(0, 5);
+    .slice(0, 3);
   const dayTwoPreviewMatches = matches.filter((match) => match.dayNumber === 2);
   const dayTwoPreviewGroups = groupTeamMatchesByTime(dayTwoPreviewMatches);
   const dayTwoPreviewTimes = Object.keys(dayTwoPreviewGroups).sort((left, right) => getScheduleTimeSortValue(left) - getScheduleTimeSortValue(right) || left.localeCompare(right));
@@ -4377,7 +4377,7 @@ function TvLiveScene({ timelineNodes, timelineActiveIndex, timelineIsManuallySel
     <section className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto_auto] gap-[clamp(8px,0.8vh,16px)]" aria-label={`Day ${selectedDay} at-a-glance live schedule`}>
       <div className={dayComplete ? "grid min-h-0 grid-cols-[minmax(250px,18fr)_minmax(700px,55fr)_minmax(340px,27fr)] gap-[clamp(12px,1vw,22px)]" : "grid min-h-0 grid-cols-[minmax(240px,18fr)_minmax(520px,38fr)_minmax(320px,24fr)_minmax(260px,20fr)] gap-[clamp(10px,0.8vw,18px)]"}>
         <TvRecentResultsPanel completedMatches={completedDayMatches} dayComplete={dayComplete} matches={recentCompletedMatches} selectedDay={selectedDay} totalMatches={selectedMatches.length} />
-        <TvCurrentBlockPanel activeIndex={timelineActiveIndex} completedDayMatches={completedDayMatches} currentNode={currentNode} dayComplete={dayComplete} isLive={currentIsLive} isManualFocus={timelineIsManuallySelected} onSelectNode={onSelectTimelineNode} onUseAutomatic={onUseAutomaticTimeline} selectedDay={selectedDay} selectedMatches={selectedMatches} teamStandings={teamStandings} teams={teams} tierLeaders={tierLeaders} timelineNodes={timelineNodes} />
+        <TvCurrentBlockPanel activeIndex={timelineActiveIndex} completedDayMatches={completedDayMatches} currentNode={currentNode} dayComplete={dayComplete} isLive={currentIsLive} isManualFocus={timelineIsManuallySelected} onSelectNode={onSelectTimelineNode} onUseAutomatic={onUseAutomaticTimeline} selectedDay={selectedDay} selectedMatches={selectedMatches} teamStandings={teamStandings} tierLeaders={tierLeaders} timelineNodes={timelineNodes} />
         {dayComplete ? <TvDayTwoGlancePanel matches={selectedDay === 1 ? nextDayMatches : []} node={selectedDay === 1 ? nextDayMatchNode : null} selectedDay={selectedDay} teams={teams} /> : <><TvNextBlockPanel node={nextMatchNode} selectedDay={selectedDay} teams={teams} /><TvDayRemainingPanel matches={remainingMatches} timelineNodes={timelineNodes} /></>}
       </div>
       <TvLeadersTicker playerStandings={playerStandings} teamStandings={teamStandings} />
@@ -4401,16 +4401,37 @@ function TvPanelHeading({ eyebrow, time, tone = "neutral" }: { eyebrow: string; 
 function TvRecentResultsPanel({ matches, selectedDay, totalMatches, completedMatches, dayComplete }: { matches: TeamCourtScheduleMatch[]; selectedDay: 1 | 2; totalMatches: number; completedMatches: number; dayComplete: boolean }) {
   return (
     <section className="min-h-0 overflow-hidden rounded-[clamp(16px,1.25vw,24px)] border border-[var(--hairline-strong)] bg-[var(--surface)] py-[clamp(12px,1vh,20px)]">
-      <header className="flex items-center justify-between gap-3 px-[clamp(14px,1vw,22px)] pb-[clamp(9px,0.7vh,14px)]"><span className="inline-flex items-center gap-2"><CheckCircle2 className="h-[clamp(18px,1.2vw,26px)] w-[clamp(18px,1.2vw,26px)] text-brand" /><strong className="text-[clamp(14px,0.9vw,20px)] font-semibold uppercase tracking-[0.08em] text-brand">{dayComplete ? `Day ${selectedDay} completed` : "Completed"}</strong></span><span className="rounded-full bg-white px-3 py-1.5 text-[clamp(12px,0.75vw,17px)] font-semibold tabular-nums text-brand">{completedMatches}/{totalMatches}</span></header>
+      <header className="flex items-center justify-between gap-3 px-[clamp(14px,1vw,22px)] pb-[clamp(9px,0.7vh,14px)]"><span className="inline-flex items-center gap-2"><CheckCircle2 className="h-[clamp(18px,1.2vw,26px)] w-[clamp(18px,1.2vw,26px)] text-brand" /><strong className="text-[clamp(14px,0.9vw,20px)] font-semibold uppercase tracking-[0.08em] text-brand">{dayComplete ? `Day ${selectedDay} results` : "Recent winners"}</strong></span><span className="rounded-full bg-white px-3 py-1.5 text-[clamp(12px,0.75vw,17px)] font-semibold tabular-nums text-brand">{completedMatches}/{totalMatches}</span></header>
       <div className="grid max-h-full gap-[clamp(6px,0.55vh,10px)] overflow-hidden px-[clamp(10px,0.8vw,16px)]">
         {matches.map((match) => {
-          const winnerNames = match.score?.winnerSide === "A" ? match.playersA : match.playersB;
-          const fallback = match.score?.winnerSide === "A" ? match.teamAName : match.teamBName;
-          const winningTeamId = match.score?.winnerSide === "A" ? match.teamAId : match.teamBId;
+          const winnerIsA = match.score?.winnerSide === "A";
+          const winnerNames = winnerIsA ? match.playersA : match.playersB;
+          const loserNames = winnerIsA ? match.playersB : match.playersA;
+          const winnerFallback = winnerIsA ? match.teamAName : match.teamBName;
+          const loserFallback = winnerIsA ? match.teamBName : match.teamAName;
+          const winningTeamId = winnerIsA ? match.teamAId : match.teamBId;
+          const winnerLabel = formatBracketPlayerNames(winnerNames, winnerFallback);
+          const loserLabel = formatBracketPlayerNames(loserNames, loserFallback);
           return (
-            <article className="grid min-h-[clamp(58px,5.2vh,82px)] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[12px] border border-[var(--hairline-strong)] bg-white px-3 py-2" key={match.id}>
-              <strong className="rounded-[8px] bg-brand-deep px-2 py-1.5 text-[clamp(11px,0.68vw,15px)] font-semibold uppercase text-white">{formatCourtNumber(match.courtLabel) || "Court"}</strong>
-              <span className="grid min-w-0 gap-0.5"><strong className="truncate text-[clamp(13px,0.84vw,18px)] font-semibold text-text-primary">{formatBracketPlayerNames(winnerNames, fallback)} won</strong><em className="truncate text-[clamp(11px,0.68vw,15px)] font-semibold not-italic text-text-secondary">{formatBracketMatchScore(match, winningTeamId)} · {getTvWinMargin(match)} games</em></span>
+            <article className="grid gap-2 rounded-[14px] border border-[var(--hairline-strong)] bg-white p-[clamp(9px,0.7vw,13px)] shadow-[0_6px_16px_rgba(var(--brand-deep-rgb),0.04)]" key={match.id} aria-label={`${winnerLabel} defeated ${loserLabel}, ${formatBracketMatchScore(match, winningTeamId)}`}>
+              <header className="flex items-center justify-between gap-2">
+                <strong className="rounded-[8px] bg-brand-deep px-2.5 py-1.5 text-[clamp(10px,0.64vw,14px)] font-semibold uppercase text-white">Court {formatCourtNumber(match.courtLabel) || "TBD"}</strong>
+                <span className="rounded-full bg-[var(--accent-tint)] px-2.5 py-1 text-[clamp(9px,0.58vw,13px)] font-semibold uppercase tracking-[0.06em] text-[var(--accent-ink)]">Final</span>
+              </header>
+              <span className="grid min-w-0 gap-1">
+                <span className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+                  <Trophy className="h-[clamp(17px,1.05vw,23px)] w-[clamp(17px,1.05vw,23px)] text-[var(--accent-ink)]" aria-hidden="true" />
+                  <span className="grid min-w-0 gap-0.5">
+                    <em className="text-[clamp(8px,0.52vw,12px)] font-semibold not-italic uppercase tracking-[0.08em] text-[var(--accent-ink)]">Winner</em>
+                    <strong className="line-clamp-2 text-[clamp(13px,0.82vw,18px)] font-semibold leading-tight text-text-primary">{winnerLabel}</strong>
+                  </span>
+                </span>
+                <span className="line-clamp-2 pl-[clamp(25px,1.55vw,33px)] text-[clamp(10px,0.64vw,14px)] leading-tight text-text-secondary"><em className="font-semibold not-italic">Defeated</em> {loserLabel}</span>
+              </span>
+              <span className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)] gap-1.5">
+                <span className="grid min-w-0 gap-0.5 rounded-[9px] bg-[var(--surface)] px-2.5 py-1.5"><em className="text-[clamp(8px,0.5vw,11px)] font-semibold not-italic uppercase tracking-[0.06em] text-text-muted">Set score</em><strong className="truncate text-[clamp(11px,0.7vw,15px)] font-semibold tabular-nums text-brand">{formatBracketMatchScore(match, winningTeamId)}</strong></span>
+                <span className="grid min-w-0 gap-0.5 rounded-[9px] bg-[var(--accent-tint)] px-2.5 py-1.5"><em className="text-[clamp(8px,0.5vw,11px)] font-semibold not-italic uppercase tracking-[0.06em] text-[var(--accent-ink)]">Games</em><strong className="truncate text-[clamp(11px,0.7vw,15px)] font-semibold tabular-nums text-brand">{getTvWinMargin(match)}</strong></span>
+              </span>
             </article>
           );
         })}
@@ -4420,7 +4441,7 @@ function TvRecentResultsPanel({ matches, selectedDay, totalMatches, completedMat
   );
 }
 
-function TvCurrentBlockPanel({ currentNode, dayComplete, selectedDay, selectedMatches, completedDayMatches, isLive, isManualFocus, teams, teamStandings, tierLeaders, timelineNodes, activeIndex, onSelectNode, onUseAutomatic }: { currentNode: TvTimelineNode | null; dayComplete: boolean; selectedDay: 1 | 2; selectedMatches: TeamCourtScheduleMatch[]; completedDayMatches: number; isLive: boolean; isManualFocus: boolean; teams: PublishedTeam[]; teamStandings: TeamStanding[]; tierLeaders: PlayerStanding[]; timelineNodes: TvTimelineNode[]; activeIndex: number; onSelectNode: (nodeId: string) => void; onUseAutomatic: () => void }) {
+function TvCurrentBlockPanel({ currentNode, dayComplete, selectedDay, selectedMatches, completedDayMatches, isLive, isManualFocus, teamStandings, tierLeaders, timelineNodes, activeIndex, onSelectNode, onUseAutomatic }: { currentNode: TvTimelineNode | null; dayComplete: boolean; selectedDay: 1 | 2; selectedMatches: TeamCourtScheduleMatch[]; completedDayMatches: number; isLive: boolean; isManualFocus: boolean; teamStandings: TeamStanding[]; tierLeaders: PlayerStanding[]; timelineNodes: TvTimelineNode[]; activeIndex: number; onSelectNode: (nodeId: string) => void; onUseAutomatic: () => void }) {
   if (dayComplete && selectedDay === 1) return <TvDayOneLeadersPanel teamStanding={teamStandings[0] || null} tierLeaders={tierLeaders} />;
   if (dayComplete) return <TvDayCompletePanel completedMatches={completedDayMatches} selectedDay={selectedDay} selectedMatches={selectedMatches} />;
   if (currentNode?.kind === "event") return <TvAmbientEventPanel activeIndex={activeIndex} event={currentNode.event} isLive={isLive} isManual={isManualFocus} nodes={timelineNodes} onSelectNode={onSelectNode} onUseAutomatic={onUseAutomatic} />;
@@ -4429,8 +4450,8 @@ function TvCurrentBlockPanel({ currentNode, dayComplete, selectedDay, selectedMa
     <section className="min-h-0 overflow-hidden rounded-[clamp(16px,1.25vw,24px)] border border-[var(--hairline-strong)] bg-white py-[clamp(12px,1vh,20px)] shadow-[0_16px_40px_rgba(var(--brand-deep-rgb), 0.08)]">
       <TvBlockNavigator activeIndex={activeIndex} isManual={isManualFocus} nodes={timelineNodes} onSelectNode={onSelectNode} onUseAutomatic={onUseAutomatic} />
       <TvPanelHeading eyebrow={isLive ? `Happening now · ${currentNode?.label || "Court block"}` : isManualFocus ? `Organizer selected · ${currentNode?.label || "Court block"}` : `Current focus · ${currentNode?.label || "Court block"}`} time={currentNode?.timeLabel || "TBD"} tone={isLive ? "live" : "neutral"} />
-      <div className="grid min-h-0 grid-cols-2 gap-[clamp(8px,0.65vw,14px)] overflow-hidden px-[clamp(10px,0.8vw,16px)]">
-        {matches.map((match) => <TvLiveMatchCard isLive={isLive && !match.score?.winnerSide} match={match} teams={teams} key={match.id} />)}
+      <div className="grid min-h-0 grid-cols-2 content-start gap-[clamp(6px,0.5vw,10px)] overflow-hidden px-[clamp(10px,0.8vw,16px)]">
+        {matches.map((match) => <TvActiveMatchCard isLive={isLive} match={match} key={match.id} />)}
         {!matches.length && <p className="col-span-2 grid min-h-[220px] place-items-center rounded-[18px] border border-dashed border-[var(--hairline-strong)] bg-[var(--surface)] p-8 text-center text-[clamp(18px,1.2vw,28px)] font-semibold text-brand">This block is completed. Move to the next block or follow the live schedule.</p>}
       </div>
     </section>
@@ -4613,36 +4634,21 @@ function TvDayTwoGlancePanel({ matches, node, selectedDay, teams }: { matches: T
   );
 }
 
-function TvLiveMatchCard({ match, teams, isLive }: { match: TeamCourtScheduleMatch; teams: PublishedTeam[]; isLive: boolean }) {
-  const score = match.score;
-  const leftWon = score?.winnerSide === "A";
-  const rightWon = score?.winnerSide === "B";
-  const teamA = teams.find((team) => team.id === match.teamAId);
-  const teamB = teams.find((team) => team.id === match.teamBId);
+function TvActiveMatchCard({ match, isLive }: { match: TeamCourtScheduleMatch; isLive: boolean }) {
+  const sideA = formatBracketPlayerNames(match.playersA, match.teamAName);
+  const sideB = formatBracketPlayerNames(match.playersB, match.teamBName);
   return (
-    <article className={isLive ? "overflow-hidden rounded-[14px] border-2 border-[var(--urgent)] bg-white shadow-[0_8px_20px_rgba(var(--urgent-rgb), 0.10)]" : "overflow-hidden rounded-[14px] border border-[var(--hairline-strong)] bg-white"}>
-      <header className="flex items-center justify-between gap-3 border-b border-[var(--hairline-strong)] px-3 py-2">
-        <span className="inline-flex min-w-0 items-center gap-2"><strong className="text-[clamp(14px,0.9vw,20px)] font-semibold text-brand">{match.courtLabel || "Court TBD"}</strong><em className="truncate text-[clamp(10px,0.62vw,14px)] font-semibold not-italic uppercase text-text-muted">{match.format}</em></span>
-        <span className={score?.winnerSide ? "rounded-full bg-accent-tint px-2.5 py-1 text-[clamp(10px,0.62vw,14px)] font-semibold uppercase text-[var(--accent-ink)]" : isLive ? "inline-flex items-center gap-1.5 rounded-full bg-[var(--urgent-tint)] px-2.5 py-1 text-[clamp(10px,0.62vw,14px)] font-semibold uppercase text-[var(--urgent)]" : "rounded-full bg-[var(--surface)] px-2.5 py-1 text-[clamp(10px,0.62vw,14px)] font-semibold uppercase text-text-secondary"}>{isLive && <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--urgent)]" />}{score?.winnerSide ? "Completed" : isLive ? "Live" : "Upcoming"}</span>
-      </header>
-      <div className="grid gap-1.5 p-2.5">
-        <TvLiveScoreRow fallback={match.teamAName} isWinner={leftWon} players={match.playersA} scores={[score?.sideASet1, score?.sideASet2, score?.sideASet3]} team={teamA} />
-        <TvLiveScoreRow fallback={match.teamBName} isWinner={rightWon} players={match.playersB} scores={[score?.sideBSet1, score?.sideBSet2, score?.sideBSet3]} team={teamB} />
-        {score?.winnerSide && <span className="justify-self-end rounded-full bg-[var(--accent-tint)] px-3 py-1 text-[clamp(11px,0.7vw,16px)] font-semibold tabular-nums text-brand">Win margin {getTvWinMargin(match)}</span>}
-      </div>
-    </article>
-  );
-}
-
-function TvLiveScoreRow({ team, fallback, players, scores, isWinner }: { team?: PublishedTeam; fallback: string; players: string[]; scores: Array<number | null | undefined>; isWinner: boolean }) {
-  return (
-    <div className={isWinner ? "grid min-h-[clamp(44px,4vh,62px)] grid-cols-[minmax(0,1fr)_repeat(3,clamp(30px,2.1vw,44px))] items-center gap-1.5 rounded-[10px] bg-[var(--accent-tint)] px-2" : "grid min-h-[clamp(44px,4vh,62px)] grid-cols-[minmax(0,1fr)_repeat(3,clamp(30px,2.1vw,44px))] items-center gap-1.5 rounded-[10px] bg-[var(--surface)] px-2"}>
-      <span className="grid min-w-0 grid-cols-[clamp(28px,2vw,40px)_minmax(0,1fr)] items-center gap-2">
-        <span className="relative grid aspect-square place-items-center overflow-hidden rounded-[8px] bg-white text-[10px] font-semibold text-brand">{team?.logoUrl ? <NextImage src={team.logoUrl} alt="" fill sizes="40px" className="object-contain p-1" /> : getInitials(team?.name || fallback)}</span>
-        <strong className="line-clamp-2 text-[clamp(12px,0.78vw,17px)] font-semibold leading-tight text-text-primary">{formatBracketPlayerNames(players, fallback)}</strong>
+    <article className={isLive ? "grid min-h-[clamp(68px,7vh,92px)] grid-cols-[clamp(58px,4.2vw,80px)_minmax(0,1fr)] overflow-hidden rounded-[13px] border-2 border-[var(--urgent)] bg-white shadow-[0_6px_16px_rgba(var(--urgent-rgb),0.08)]" : "grid min-h-[clamp(68px,7vh,92px)] grid-cols-[clamp(58px,4.2vw,80px)_minmax(0,1fr)] overflow-hidden rounded-[13px] border border-[var(--hairline-strong)] bg-white"} aria-label={`${sideA} versus ${sideB} on ${match.courtLabel || "court to be determined"}`}>
+      <span className={isLive ? "grid content-center justify-items-center gap-0.5 border-r border-[var(--urgent)] bg-[var(--urgent-tint)] px-1.5 text-center" : "grid content-center justify-items-center gap-0.5 border-r border-[var(--hairline-strong)] bg-[var(--surface)] px-1.5 text-center"}>
+        <em className={isLive ? "text-[clamp(8px,0.5vw,11px)] font-semibold not-italic uppercase tracking-[0.08em] text-[var(--urgent)]" : "text-[clamp(8px,0.5vw,11px)] font-semibold not-italic uppercase tracking-[0.08em] text-text-muted"}>Court</em>
+        <strong className="text-[clamp(20px,1.35vw,30px)] font-semibold leading-none tabular-nums text-brand">{formatCourtNumber(match.courtLabel) || "TBD"}</strong>
       </span>
-      {scores.map((value, index) => <strong className="grid aspect-square place-items-center rounded-[8px] bg-white text-[clamp(15px,1vw,22px)] font-semibold tabular-nums text-brand shadow-[inset_0_0_0_1px_rgba(var(--brand-deep-rgb), 0.05)]" key={index}>{value ?? "–"}</strong>)}
-    </div>
+      <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-[clamp(5px,0.4vw,8px)] px-[clamp(8px,0.65vw,12px)] py-2 text-center">
+        <strong className="line-clamp-3 text-[clamp(11px,0.72vw,16px)] font-semibold leading-[1.12] text-text-primary">{sideA}</strong>
+        <em className={isLive ? "text-[clamp(9px,0.56vw,12px)] font-semibold not-italic uppercase text-[var(--urgent)]" : "text-[clamp(9px,0.56vw,12px)] font-semibold not-italic uppercase text-text-muted"}>vs</em>
+        <strong className="line-clamp-3 text-[clamp(11px,0.72vw,16px)] font-semibold leading-[1.12] text-text-primary">{sideB}</strong>
+      </span>
+    </article>
   );
 }
 
