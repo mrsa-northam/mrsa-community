@@ -2653,7 +2653,7 @@ function GuestTournamentBanner({ tournament }: { tournament: Tournament }) {
           </span>
         </div>
         <div className="grid grid-cols-2 gap-2.5">
-          <a className="tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px]" href="https://www.youtube.com/live/7JOkZ_ZFZQk" target="_blank" rel="noreferrer">
+          <a className="tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px]" href="https://youtube.com/live/qiyN3c7DHAI?feature=share" target="_blank" rel="noreferrer">
             <span className="relative grid h-4 w-[23px] shrink-0 place-items-center rounded-[5px] bg-[#FF0000]" aria-hidden="true">
               <span className="ml-0.5 h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-white" />
             </span>
@@ -7551,7 +7551,7 @@ function HomeTournamentOverviewCard({ tournament, countdown, registered }: { tou
         </HomeTournamentMetaTile>
       </div>
 
-      <a className="tap-card relative z-10 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px]" href="https://www.youtube.com/live/7JOkZ_ZFZQk" target="_blank" rel="noreferrer">
+      <a className="tap-card relative z-10 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px]" href="https://youtube.com/live/qiyN3c7DHAI?feature=share" target="_blank" rel="noreferrer">
         <span className="relative grid h-4 w-[23px] shrink-0 place-items-center rounded-[5px] bg-[#FF0000]" aria-hidden="true">
           <span className="ml-0.5 h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-white" />
         </span>
