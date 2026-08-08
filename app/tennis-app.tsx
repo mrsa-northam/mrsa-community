@@ -3963,14 +3963,12 @@ const tvScenes: Array<{ id: TvScene; label: string }> = [
   { id: "sponsor", label: "Sponsor spotlight" }
 ];
 
-function getNextTvScene(scene: TvScene): TvScene {
-  return scene === "sponsor" ? "live" : "sponsor";
-}
+const TV_SCENE_DURATION_SECONDS = 15;
 
-function getTvSceneDuration(scene: TvScene) {
-  if (scene === "live") return 60;
-  if (scene === "sponsor") return 10;
-  return 0;
+function getNextTvScene(scene: TvScene, hasSponsors: boolean): TvScene {
+  const availableScenes = tvScenes.filter((candidate) => hasSponsors || candidate.id !== "sponsor");
+  const currentIndex = availableScenes.findIndex((candidate) => candidate.id === scene);
+  return availableScenes[(currentIndex + 1) % availableScenes.length]?.id || "live";
 }
 
 function getTvTierLeaders(standings: PlayerStanding[]) {
@@ -4004,7 +4002,7 @@ export function TournamentTvDayScreen() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [tvScene, setTvScene] = useState<TvScene>("live");
-  const [sceneSeconds, setSceneSeconds] = useState(60);
+  const [sceneSeconds, setSceneSeconds] = useState(TV_SCENE_DURATION_SECONDS);
   const [rotationPaused, setRotationPaused] = useState(false);
   const [sponsorIndex, setSponsorIndex] = useState(0);
   const [manualTimelineNodeId, setManualTimelineNodeId] = useState<string | null>(null);
@@ -4020,7 +4018,7 @@ export function TournamentTvDayScreen() {
   }, []);
 
   useEffect(() => {
-    setSceneSeconds(getTvSceneDuration(tvScene));
+    setSceneSeconds(TV_SCENE_DURATION_SECONDS);
   }, [tvScene]);
 
   useEffect(() => {
@@ -4032,15 +4030,14 @@ export function TournamentTvDayScreen() {
   }, [tvSponsors.length]);
 
   useEffect(() => {
-    if (rotationPaused || tvScene === "team" || tvScene === "player") return;
+    if (rotationPaused) return;
     const timer = window.setInterval(() => {
       setSceneSeconds((current) => {
         if (current > 1) return current - 1;
-        if (tvScene === "live" && !tvSponsors.length) return getTvSceneDuration("live");
-        const nextScene = getNextTvScene(tvScene);
+        const nextScene = getNextTvScene(tvScene, Boolean(tvSponsors.length));
         if (tvScene === "sponsor" && tvSponsors.length) setSponsorIndex((index) => (index + 1) % tvSponsors.length);
         setTvScene(nextScene);
-        return getTvSceneDuration(nextScene);
+        return TV_SCENE_DURATION_SECONDS;
       });
     }, 1000);
     return () => window.clearInterval(timer);
@@ -4241,24 +4238,19 @@ export function TournamentTvDayScreen() {
       || left.player.name.localeCompare(right.player.name));
   const tournamentChampion = getTournamentChampion(teams, matches);
   const tournamentTierLeaders = getTvTierLeaders(getLivePlayerStandings(teams, matches));
-  const automaticNextScene = tvScene === "team" || tvScene === "player" ? null : tvScene === "live" && !tvSponsors.length ? "live" : getNextTvScene(tvScene);
-  const nextScene = automaticNextScene ? tvScenes.find((scene) => scene.id === automaticNextScene)?.label || "Live view" : "Manual view";
+  const automaticNextScene = getNextTvScene(tvScene, Boolean(tvSponsors.length));
+  const nextScene = tvScenes.find((scene) => scene.id === automaticNextScene)?.label || "Live view";
   const selectTvScene = (scene: TvScene) => {
     setTvScene(scene);
-    setSceneSeconds(getTvSceneDuration(scene));
+    setSceneSeconds(TV_SCENE_DURATION_SECONDS);
   };
   const selectTvSponsor = (index: number) => {
     if (!tvSponsors.length) return;
     setSponsorIndex(((index % tvSponsors.length) + tvSponsors.length) % tvSponsors.length);
-    setSceneSeconds(getTvSceneDuration("sponsor"));
+    setSceneSeconds(TV_SCENE_DURATION_SECONDS);
     setRotationPaused(true);
   };
   const toggleTvRotation = () => {
-    if (tvScene === "team" || tvScene === "player") {
-      setRotationPaused(false);
-      selectTvScene("live");
-      return;
-    }
     setRotationPaused((current) => !current);
   };
 
@@ -4368,7 +4360,6 @@ function buildTvTimelineNodes(dayEvents: ScheduleItem[], matchesByTime: Record<s
 }
 
 function TvPersistentHeader({ tournament, now, selectedDay, scene, seconds, paused, nextScene, onSelectDay, onSelectScene, onTogglePause }: { tournament: Tournament | null; now: Date; selectedDay: 1 | 2; scene: TvScene; seconds: number; paused: boolean; nextScene: string; onSelectDay: (day: 1 | 2) => void; onSelectScene: (scene: TvScene) => void; onTogglePause: () => void }) {
-  const manualScene = scene === "team" || scene === "player";
   return (
     <header className="relative shrink-0 overflow-hidden border-b border-white/10 bg-[var(--brand-deep)] px-[clamp(48px,4.5vw,220px)] pb-[clamp(14px,1.4vh,28px)] pt-[clamp(28px,4vh,80px)] text-white shadow-[0_14px_38px_rgba(var(--brand-deep-rgb), 0.22)]">
       <span className="pointer-events-none absolute inset-0 opacity-35 court-lines" aria-hidden="true" />
@@ -4400,10 +4391,10 @@ function TvPersistentHeader({ tournament, now, selectedDay, scene, seconds, paus
         </div>
         <span className="flex items-stretch justify-end gap-2">
           <span className="grid min-w-[clamp(140px,9vw,200px)] content-center justify-items-end rounded-[16px] border border-white/10 bg-white/10 px-4 text-right">
-            <strong className="text-[clamp(16px,1.1vw,24px)] font-semibold tabular-nums text-[var(--accent)]">{manualScene ? "Manual" : paused ? "Paused" : `${seconds}s`}</strong>
-            <em className="text-[clamp(9px,0.55vw,13px)] font-medium not-italic uppercase tracking-[0.06em] text-white/72">{manualScene ? "Stays on this view" : paused ? "Rotation paused" : `${nextScene} next`}</em>
+            <strong className="text-[clamp(16px,1.1vw,24px)] font-semibold tabular-nums text-[var(--accent)]">{paused ? "Paused" : `${seconds}s`}</strong>
+            <em className="text-[clamp(9px,0.55vw,13px)] font-medium not-italic uppercase tracking-[0.06em] text-white/72">{paused ? "Rotation paused" : `${nextScene} next`}</em>
           </span>
-          <button className={paused || manualScene ? "min-w-[clamp(90px,6vw,132px)] rounded-[16px] bg-[var(--accent)] px-4 text-[clamp(13px,0.8vw,18px)] font-semibold text-[var(--accent-on)]" : "min-w-[clamp(90px,6vw,132px)] rounded-[16px] border border-white/15 bg-white/10 px-4 text-[clamp(13px,0.8vw,18px)] font-semibold text-white transition hover:bg-white/18"} type="button" onClick={onTogglePause} aria-pressed={paused}>{manualScene ? "Return live" : paused ? "Resume" : "Pause"}</button>
+          <button className={paused ? "min-w-[clamp(90px,6vw,132px)] rounded-[16px] bg-[var(--accent)] px-4 text-[clamp(13px,0.8vw,18px)] font-semibold text-[var(--accent-on)]" : "min-w-[clamp(90px,6vw,132px)] rounded-[16px] border border-white/15 bg-white/10 px-4 text-[clamp(13px,0.8vw,18px)] font-semibold text-white transition hover:bg-white/18"} type="button" onClick={onTogglePause} aria-pressed={paused}>{paused ? "Resume" : "Pause"}</button>
         </span>
       </div>
     </header>
