@@ -2038,7 +2038,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     { id: "content", label: "Content", detail: "FAQs, considerations, match rules", count: `${normalizeAdminTournamentFaqs(tournament?.faqs).length + scheduleNotes.length} items`, icon: <CheckCircle2 size={16} /> },
     { id: "teams", label: "Teams", detail: "Draft, captains, logos", count: `${teams.length} teams`, icon: <Trophy size={16} /> },
     { id: "players", label: "Players", detail: "Registered, undrafted, interested", count: `${registeredPlayers.length + interestedPlayers.length} total`, icon: <UsersRound size={16} /> },
-    { id: "waitlist", label: "Waitlist", detail: "Accept or reject slots", count: `${waitlistedPlayers.length} players`, icon: <CheckCircle2 size={16} /> }
+    { id: "waitlist", label: "Waitlist", detail: "Oldest signup first", count: `${waitlistedPlayers.length} players`, icon: <CheckCircle2 size={16} /> }
   ];
   const playerSections: {
     id: AdminTournamentPlayerSection;
@@ -2915,27 +2915,42 @@ function InterestedPlayersList({ players }: { players: AdminInterestedPlayer[] }
 }
 
 function WaitlistedPlayersList({ players, onReview, saving }: { players: AdminWaitlistedPlayer[]; onReview: (player: AdminWaitlistedPlayer, status: "accepted" | "rejected") => Promise<void>; saving: boolean }) {
+  const orderedPlayers = players.slice().sort((left, right) => {
+    const leftJoinedAt = Date.parse(left.joinedAt) || Number.MAX_SAFE_INTEGER;
+    const rightJoinedAt = Date.parse(right.joinedAt) || Number.MAX_SAFE_INTEGER;
+    return leftJoinedAt - rightJoinedAt || left.fullName.localeCompare(right.fullName);
+  });
+
   return (
     <div className="grid gap-3" aria-label="Waitlisted players">
       <div className="grid gap-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <span className="grid gap-1">
           <h3 className="text-[15px] font-medium text-text-primary">Waitlist</h3>
-          <p className="max-w-[680px] text-[13px] leading-relaxed text-text-secondary">Accept a player to unlock their payment button. Reject keeps registration closed for them.</p>
+          <p className="max-w-[680px] text-[13px] leading-relaxed text-text-secondary">Players are numbered by signup time, with the earliest signup first. Accept a player to unlock their payment button.</p>
         </span>
-        <span className="rounded-full bg-accent-tint px-3 py-1 text-[13px] font-medium text-[var(--accent-ink)]">{players.length} players</span>
+        <span className="grid gap-1 md:justify-items-end">
+          <span className="rounded-full bg-accent-tint px-3 py-1 text-[13px] font-medium text-[var(--accent-ink)]">{players.length} players</span>
+          <em className="text-[11px] font-medium not-italic uppercase tracking-[0.07em] text-text-muted">Oldest first</em>
+        </span>
       </div>
 
-      {players.length ? (
+      {orderedPlayers.length ? (
         <ul className="grid gap-2">
-          {players.map((player) => (
-            <li className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 md:grid-cols-[42px_minmax(0,1fr)_auto] md:items-center" key={player.registrationId}>
-              <span className="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-full bg-accent-tint text-[13px] font-medium text-[var(--accent-ink)]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
-                {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
+          {orderedPlayers.map((player, index) => (
+            <li className="grid gap-3 rounded-[14px] border-hairline border-line bg-card p-3 md:grid-cols-[78px_minmax(0,1fr)_auto] md:items-center" key={player.registrationId}>
+              <span className="grid grid-cols-[28px_42px] items-center gap-2">
+                <strong className={index === 0 ? "grid h-7 w-7 place-items-center rounded-full bg-brand-deep text-[12px] font-semibold tabular-nums text-white" : "grid h-7 w-7 place-items-center rounded-full border-hairline border-line bg-surface text-[12px] font-semibold tabular-nums text-brand"} aria-label={`Waitlist position ${index + 1}`}>{index + 1}</strong>
+                <span className="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-full bg-accent-tint text-[13px] font-medium text-[var(--accent-ink)]" style={player.profilePhotoUrl ? { backgroundImage: `url(${player.profilePhotoUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
+                  {!player.profilePhotoUrl && getAdminInitials(player.fullName)}
+                </span>
               </span>
               <span className="grid min-w-0 gap-1">
-                <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
+                <span className="flex min-w-0 flex-wrap items-center gap-2">
+                  <strong className="truncate text-[15px] font-medium text-text-primary">{player.fullName}</strong>
+                  {index === 0 && <em className="shrink-0 rounded-full bg-brand-light px-2 py-0.5 text-[9px] font-semibold not-italic uppercase tracking-[0.05em] text-brand">First signup</em>}
+                </span>
                 <em className="truncate text-[13px] not-italic text-text-secondary">{player.jamaatCity} · Self: {player.selfEvaluation}</em>
-                <em className="text-[12px] not-italic text-text-secondary">Joined {formatAdminDateTime(player.joinedAt)}</em>
+                <em className="text-[12px] font-medium not-italic text-brand">Signed up {formatAdminDateTime(player.joinedAt)}</em>
               </span>
               <span className="grid gap-2 md:justify-items-end">
                 <b className={player.waitlistStatus === "accepted" ? "rounded-full bg-accent-tint px-2.5 py-1 text-[12px] font-medium text-[var(--accent-ink)]" : player.waitlistStatus === "rejected" ? "rounded-full bg-[var(--error-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--error)]" : "rounded-full bg-[var(--warning-tint)] px-2.5 py-1 text-[12px] font-medium text-[var(--warning)]"}>{player.waitlistStatus}</b>
