@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChangeEvent, createContext, CSSProperties, FormEvent, Fragment, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./lib/supabase";
+import { getMatchVideoBrowserPath, getSwingVisionMatchUrl as getSwingVisionUrlByPublicId } from "./lib/match-videos";
 import { MRSA_COLORS } from "./design-tokens";
 
 const TournamentHeroAmbience = dynamic(() => import("./tournament-hero-ambience").then((mod) => mod.TournamentHeroAmbience), { ssr: false });
@@ -166,12 +167,6 @@ type TeamCourtScheduleMatch = {
   sortOrder: number;
 };
 
-const swingVisionMatchLinks: Record<string, string> = {
-  "D1-005": "https://swing.vision/matches/sw2-Z1kvN3s",
-  "D1-008": "https://swing.vision/matches/sw2-tsVu6B0",
-  "D1-009": "https://swing.vision/matches/sw2-g4xRsZM",
-  "D1-010": "https://swing.vision/matches/sw2-y0TEJP8"
-};
 type TeamCourtScheduleBlock = {
   id: string;
   primaryTeamId: string;
@@ -3974,7 +3969,7 @@ function getNextTvScene(scene: TvScene, hasSponsors: boolean): TvScene {
 function getTvTierLeaders(standings: PlayerStanding[]) {
   const seenTiers = new Set<number>();
   return standings
-    .filter((standing) => standing.tierRank === 1)
+    .filter((standing) => standing.tierRank === 1 && standing.tierNumber >= 1 && standing.tierNumber <= 4)
     .sort((left, right) => left.tierNumber - right.tierNumber
       || right.matchWins - left.matchWins
       || left.matchLosses - right.matchLosses
@@ -4300,7 +4295,7 @@ export function TournamentTvDayScreen() {
           />
         )}
         {!loading && !message && tvScene === "team" && <TvTeamLeaderboardScene standings={teamStandings} />}
-        {!loading && !message && tvScene === "player" && <TvPlayerLeaderboardScene standings={playerStandings} />}
+        {!loading && !message && tvScene === "player" && <TvPlayerLeaderboardScene standings={tierLeaders} />}
         {!loading && !message && tvScene === "sponsor" && (
           <TvSponsorSpotlightScene
             activeIndex={sponsorIndex}
@@ -4853,26 +4848,21 @@ function TvTeamMark({ team, large = false, compact = false }: { team: PublishedT
 }
 
 function TvPlayerLeaderboardScene({ standings }: { standings: PlayerStanding[] }) {
-  const seenTeams = new Set<string>();
-  const teamLeaders = standings.filter((standing) => {
-    if (seenTeams.has(standing.team.id)) return false;
-    seenTeams.add(standing.team.id);
-    return true;
-  }).slice(0, 4);
+  const tierLeaders = getTvTierLeaders(standings);
   return (
-    <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-[clamp(18px,2.2vh,34px)]" aria-label="Player leaderboard">
+    <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-[clamp(18px,2.2vh,34px)]" aria-label="Player leaders by tier">
       <div className="grid justify-items-center gap-1 text-center">
-        <span className="text-[clamp(12px,0.78vw,17px)] font-semibold uppercase tracking-[0.12em] text-text-secondary">Player leaderboard</span>
-        <h2 className="text-[clamp(28px,2vw,46px)] font-bold leading-tight tracking-[-0.03em] text-text-primary">Best player from each team</h2>
+        <span className="text-[clamp(12px,0.78vw,17px)] font-semibold uppercase tracking-[0.12em] text-text-secondary">Player leaders by tier</span>
+        <h2 className="text-[clamp(28px,2vw,46px)] font-bold leading-tight tracking-[-0.03em] text-text-primary">Best player from each tier</h2>
       </div>
       <div className="grid min-h-0 grid-cols-4 gap-[clamp(14px,1.35vw,28px)]">
-        {teamLeaders.map((standing) => <TvPlayerTeamLeaderCard standing={standing} key={standing.team.id} />)}
+        {tierLeaders.map((standing) => <TvPlayerTierLeaderCard standing={standing} key={standing.tierNumber} />)}
       </div>
     </section>
   );
 }
 
-function TvPlayerTeamLeaderCard({ standing }: { standing: PlayerStanding }) {
+function TvPlayerTierLeaderCard({ standing }: { standing: PlayerStanding }) {
   const playerAccent = normalizeTeamColor(standing.team.jerseyColor);
   const played = standing.matchWins + standing.matchLosses;
   const winPercentage = played ? (standing.matchWins / played) * 100 : 0;
@@ -4880,7 +4870,7 @@ function TvPlayerTeamLeaderCard({ standing }: { standing: PlayerStanding }) {
     <article className="relative grid h-full min-h-0 min-w-0 grid-rows-[auto_auto_auto_1fr_auto] justify-items-center gap-[clamp(10px,1.2vh,18px)] overflow-hidden rounded-[clamp(20px,1.5vw,28px)] border border-[var(--hairline-strong)] bg-white px-[clamp(18px,1.5vw,30px)] py-[clamp(20px,2.2vh,36px)] text-center text-text-primary shadow-[0_18px_44px_rgba(var(--brand-deep-rgb),0.11)]">
       <span className="absolute inset-x-0 top-0 h-[clamp(5px,0.45vw,8px)]" style={{ background: playerAccent }} aria-hidden="true" />
       <span className="flex w-full items-center justify-between gap-2">
-        <strong className="rounded-full border border-[var(--hairline)] bg-[var(--surface)] px-3 py-1 text-[clamp(10px,0.7vw,15px)] font-semibold uppercase tracking-[0.07em] text-brand">Team leader</strong>
+        <strong className="rounded-full border border-[var(--hairline)] bg-[var(--surface)] px-3 py-1 text-[clamp(10px,0.7vw,15px)] font-semibold uppercase tracking-[0.07em] text-brand">{standing.tier} leader</strong>
         <span className="rounded-full bg-[var(--accent-tint)] px-3 py-1 text-[clamp(10px,0.7vw,15px)] font-semibold text-brand">{standing.matchWins}W · {standing.matchLosses}L</span>
       </span>
       <Avatar className="relative grid h-[clamp(86px,6.5vw,132px)] w-[clamp(86px,6.5vw,132px)] shrink-0 place-items-center overflow-hidden rounded-full border-[4px] border-white bg-brand-deep text-[clamp(22px,1.6vw,34px)] font-semibold text-white shadow-[0_12px_30px_rgba(var(--brand-deep-rgb),0.18)]" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="132px" />
@@ -4890,7 +4880,7 @@ function TvPlayerTeamLeaderCard({ standing }: { standing: PlayerStanding }) {
           <TvTeamMark compact team={standing.team} />
           <strong className="break-words text-left text-[clamp(13px,0.9vw,19px)] font-semibold leading-tight text-brand [overflow-wrap:anywhere]">{standing.team.name}</strong>
         </span>
-        <em className="text-[clamp(11px,0.72vw,16px)] not-italic text-text-secondary">{standing.tier}</em>
+        <em className="text-[clamp(11px,0.72vw,16px)] not-italic text-text-secondary">{standing.player.city || "MRSA player"}</em>
       </span>
       <span className="grid w-full grid-cols-3 gap-2">
         <span className="rounded-[clamp(10px,0.8vw,14px)] border border-[var(--hairline)] bg-[var(--surface)] px-2 py-[clamp(8px,0.8vh,13px)] text-brand"><strong className="block text-[clamp(19px,1.3vw,28px)] leading-none">{standing.matchWins}</strong><em className="text-[clamp(8px,0.52vw,12px)] font-semibold not-italic uppercase tracking-[0.07em] text-text-secondary">Wins</em></span>
@@ -7692,8 +7682,9 @@ function HomeDiscoveryCountdownUnit({ value, label }: { value: number; label: st
 
 function HomeMatchVideoCard({ match }: { match: PlayerScheduleMatch }) {
   const opponentNames = match.opponentNames.length ? match.opponentNames : [match.opposingTeamName];
+  const browserVideoUrl = getMatchVideoBrowserPath(formatPublicMatchId(match));
   return (
-    <a className="tap-card group grid min-h-[108px] grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-[20px] border-hairline border-line bg-card p-3.5 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.05)] transition hover:border-brand/25 hover:shadow-[0_14px_32px_rgba(var(--brand-deep-rgb),0.09)]" href={match.swingVisionUrl} target="_blank" rel="noreferrer" aria-label={`Watch match ${formatPublicMatchId(match)} against ${opponentNames.join(" and ")} on SwingVision`}>
+    <a className="tap-card group grid min-h-[108px] grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-[20px] border-hairline border-line bg-card p-3.5 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.05)] transition hover:border-brand/25 hover:shadow-[0_14px_32px_rgba(var(--brand-deep-rgb),0.09)]" href={browserVideoUrl} target="_blank" rel="noopener noreferrer" aria-label={`Watch match ${formatPublicMatchId(match)} against ${opponentNames.join(" and ")} on SwingVision in your browser`}>
       <span className="grid h-[42px] w-[42px] place-items-center rounded-[14px] bg-brand-deep text-[var(--accent)] shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.14)]" aria-hidden="true"><MonitorUp size={20} /></span>
       <span className="grid min-w-0 gap-1">
         <span className="inline-flex min-w-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-text-muted">
@@ -7702,9 +7693,9 @@ function HomeMatchVideoCard({ match }: { match: PlayerScheduleMatch }) {
           <span className="truncate">{match.timeLabel} · {match.courtLabel}</span>
         </span>
         <strong className="line-clamp-2 text-[14px] font-semibold leading-tight text-text-primary">vs {opponentNames.join(" & ")}</strong>
-        <em className="text-[11px] not-italic text-text-secondary">Watch the full match on SwingVision</em>
+        <em className="text-[11px] not-italic text-text-secondary">Watch the full match in your browser</em>
       </span>
-      <span className="inline-flex min-h-9 items-center gap-1 rounded-full bg-brand-primary px-3 text-[11px] font-semibold text-white transition group-hover:bg-brand-mid">Watch <ExternalLink size={12} /></span>
+      <span className="inline-flex min-h-9 items-center gap-1 rounded-full bg-brand-primary px-3 text-[11px] font-semibold text-white transition group-hover:bg-brand-mid">Open web <ExternalLink size={12} /></span>
     </a>
   );
 }
@@ -8552,16 +8543,17 @@ function ScheduleHeaderTeamName({ name, showBallIcon = false }: { name: string; 
 
 function SwingVisionMatchReplayCard({ match }: { match: TeamCourtScheduleMatch }) {
   const publicMatchId = formatPublicMatchId(match);
+  const browserVideoUrl = getMatchVideoBrowserPath(publicMatchId);
   return (
-    <a className="tap-card group grid grid-cols-[44px_minmax(0,1fr)] items-center gap-3 rounded-[20px] border border-[var(--brand-primary-line)] bg-[var(--accent-tint)] p-3.5 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.06)] transition hover:border-brand/30 hover:shadow-[0_14px_34px_rgba(var(--brand-deep-rgb),0.10)] sm:grid-cols-[48px_minmax(0,1fr)_auto] sm:p-4" href={match.swingVisionUrl} target="_blank" rel="noreferrer" aria-label={`Watch match ${publicMatchId} on SwingVision`}>
+    <a className="tap-card group grid grid-cols-[44px_minmax(0,1fr)] items-center gap-3 rounded-[20px] border border-[var(--brand-primary-line)] bg-[var(--accent-tint)] p-3.5 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.06)] transition hover:border-brand/30 hover:shadow-[0_14px_34px_rgba(var(--brand-deep-rgb),0.10)] sm:grid-cols-[48px_minmax(0,1fr)_auto] sm:p-4" href={browserVideoUrl} target="_blank" rel="noopener noreferrer" aria-label={`Watch match ${publicMatchId} on SwingVision in your browser`}>
       <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-brand-deep text-[var(--accent)] shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.14)] sm:h-12 sm:w-12" aria-hidden="true"><MonitorUp size={22} /></span>
       <span className="grid min-w-0 gap-0.5">
         <em className="text-[10px] font-semibold not-italic uppercase tracking-[0.09em] text-[var(--accent-ink)]">Match video ready · {publicMatchId}</em>
         <strong className="text-[16px] font-semibold leading-tight text-text-primary sm:text-[18px]">Watch the full match on SwingVision</strong>
-        <span className="text-[12px] leading-relaxed text-text-secondary">The recording opens in a new tab.</span>
+        <span className="text-[12px] leading-relaxed text-text-secondary">The recording opens in a web browser tab.</span>
       </span>
       <span className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-brand-primary px-5 text-[13px] font-semibold text-white transition group-hover:bg-brand-mid sm:col-span-1">
-        Watch replay <ExternalLink size={14} />
+        Open web replay <ExternalLink size={14} />
       </span>
     </a>
   );
@@ -10923,7 +10915,7 @@ function formatPublicMatchId(match: Pick<PlayerScheduleMatch, "id" | "dayNumber"
 }
 
 function getSwingVisionMatchUrl(match: Pick<PlayerScheduleMatch, "id" | "dayNumber" | "matchId">) {
-  return swingVisionMatchLinks[formatPublicMatchId(match)] || "";
+  return getSwingVisionUrlByPublicId(formatPublicMatchId(match));
 }
 
 function isScheduleItemForTeam(item: ScheduleItem, team: PublishedTeam) {
