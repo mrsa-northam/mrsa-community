@@ -4853,55 +4853,49 @@ function TvTeamMark({ team, large = false, compact = false }: { team: PublishedT
 }
 
 function TvPlayerLeaderboardScene({ standings }: { standings: PlayerStanding[] }) {
-  const topPlayers = standings.slice(0, 6);
-  const podium = [topPlayers[1], topPlayers[0], topPlayers[2]].filter(Boolean);
+  const seenTeams = new Set<string>();
+  const teamLeaders = standings.filter((standing) => {
+    if (seenTeams.has(standing.team.id)) return false;
+    seenTeams.add(standing.team.id);
+    return true;
+  }).slice(0, 4);
   return (
-    <section className="grid h-full min-h-0 grid-rows-[minmax(230px,0.8fr)_minmax(0,1.2fr)] gap-[clamp(10px,1.3vh,22px)] overflow-hidden" aria-label="Player leaderboard">
-      <div className="flex min-h-0 items-end justify-center gap-[clamp(18px,2vw,42px)] px-[clamp(50px,7vw,140px)]">
-        {podium.map((standing, index) => <TvPlayerPodiumCard rank={index === 0 ? 2 : index === 1 ? 1 : 3} standing={standing} key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`} />)}
+    <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-[clamp(18px,2.2vh,34px)]" aria-label="Player leaderboard">
+      <div className="grid justify-items-center gap-1 text-center">
+        <span className="text-[clamp(12px,0.78vw,17px)] font-semibold uppercase tracking-[0.12em] text-text-secondary">Player leaderboard</span>
+        <h2 className="text-[clamp(28px,2vw,46px)] font-bold leading-tight tracking-[-0.03em] text-text-primary">Best player from each team</h2>
       </div>
-      <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[clamp(18px,1.4vw,28px)] border border-[var(--hairline-strong)] bg-white shadow-[0_14px_34px_rgba(var(--brand-deep-rgb), 0.07)]">
-        <div className="grid h-[clamp(36px,4vh,52px)] grid-cols-[76px_minmax(380px,1.8fr)_repeat(3,minmax(110px,0.55fr))_minmax(160px,0.8fr)] items-center gap-3 border-b border-[var(--hairline-strong)] bg-[var(--surface)] px-[clamp(20px,1.8vw,38px)] text-[clamp(12px,0.72vw,16px)] font-semibold uppercase tracking-[0.08em] text-text-secondary">
-          <span>Rank</span><span>Player</span><span className="text-center">Matches</span><span className="text-center">Record</span><span className="text-center">Win %</span><span className="text-center">Team</span>
-        </div>
-        <div className="grid min-h-0 grid-rows-6">
-          {topPlayers.map((standing, index) => {
-            const played = standing.matchWins + standing.matchLosses;
-            const winPercentage = played ? (standing.matchWins / played) * 100 : 0;
-            return (
-              <article className={`${index === 0 ? "bg-[var(--accent-tint)]" : "bg-white"} grid min-h-0 grid-cols-[76px_minmax(380px,1.8fr)_repeat(3,minmax(110px,0.55fr))_minmax(160px,0.8fr)] items-center gap-3 border-b border-[var(--hairline-strong)] px-[clamp(20px,1.8vw,38px)] last:border-0`} key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`}>
-                <strong className="text-[clamp(18px,1.15vw,26px)] font-semibold text-text-secondary">{index + 1}</strong>
-                <span className="grid min-w-0 grid-cols-[clamp(34px,3.8vh,50px)_minmax(0,1fr)] items-center gap-[clamp(12px,1vw,20px)]"><Avatar className="relative grid h-[clamp(34px,3.8vh,50px)] w-[clamp(34px,3.8vh,50px)] place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-deep text-[clamp(11px,0.78vw,16px)] font-semibold text-white shadow-[0_7px_16px_rgba(var(--brand-deep-rgb),0.13)]" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="50px" /><span className="grid min-w-0"><strong className="truncate text-[clamp(17px,1vw,23px)] font-semibold text-text-primary">{standing.player.name}</strong><em className="truncate text-[clamp(12px,0.72vw,16px)] not-italic text-text-secondary">{standing.player.city || "City pending"}</em></span></span>
-                <TvLeaderboardValue value={String(played)} /><TvLeaderboardValue value={`${standing.matchWins}–${standing.matchLosses}`} /><TvLeaderboardValue value={`${formatBracketPercentage(winPercentage)}%`} /><TvLeaderboardValue value={standing.team.name.replace(/^Team\s+/i, "")} />
-              </article>
-            );
-          })}
-        </div>
+      <div className="grid min-h-0 grid-cols-4 gap-[clamp(14px,1.35vw,28px)]">
+        {teamLeaders.map((standing) => <TvPlayerTeamLeaderCard standing={standing} key={standing.team.id} />)}
       </div>
     </section>
   );
 }
 
-function TvPlayerPodiumCard({ standing, rank }: { standing: PlayerStanding; rank: number }) {
-  const first = rank === 1;
-  const third = rank === 3;
+function TvPlayerTeamLeaderCard({ standing }: { standing: PlayerStanding }) {
   const playerAccent = normalizeTeamColor(standing.team.jerseyColor);
-  const rankTone = first
-    ? "border-[var(--medal-gold-line)] bg-[var(--accent-tint)] text-[var(--medal-gold-ink)]"
-    : third
-      ? "border-[var(--medal-bronze-line)] bg-[var(--avatar-peach)] text-[var(--medal-bronze-ink)]"
-      : "border-[var(--hairline-strong)] bg-[var(--surface-subtle)] text-brand";
+  const played = standing.matchWins + standing.matchLosses;
+  const winPercentage = played ? (standing.matchWins / played) * 100 : 0;
   return (
-    <article className={`${first ? "h-full w-[clamp(300px,23vw,460px)] border-[var(--medal-gold-line)] shadow-[0_24px_55px_rgba(var(--brand-deep-rgb),0.16)]" : "h-[92%] w-[clamp(260px,19vw,390px)] border-[var(--hairline-strong)] shadow-[0_16px_38px_rgba(var(--brand-deep-rgb),0.10)]"} relative grid min-h-0 content-center justify-items-center gap-[clamp(5px,0.7vh,11px)] overflow-hidden rounded-[clamp(20px,1.5vw,28px)] border bg-white px-[clamp(16px,1.4vw,28px)] py-[clamp(12px,1.35vh,22px)] text-center text-text-primary`}>
+    <article className="relative grid h-full min-h-0 min-w-0 grid-rows-[auto_auto_auto_1fr_auto] justify-items-center gap-[clamp(10px,1.2vh,18px)] overflow-hidden rounded-[clamp(20px,1.5vw,28px)] border border-[var(--hairline-strong)] bg-white px-[clamp(18px,1.5vw,30px)] py-[clamp(20px,2.2vh,36px)] text-center text-text-primary shadow-[0_18px_44px_rgba(var(--brand-deep-rgb),0.11)]">
       <span className="absolute inset-x-0 top-0 h-[clamp(5px,0.45vw,8px)]" style={{ background: playerAccent }} aria-hidden="true" />
-      <span className="flex w-full items-center justify-start">
-        <strong className={`${rankTone} grid h-[clamp(34px,2.3vw,46px)] w-[clamp(34px,2.3vw,46px)] place-items-center rounded-full border text-[clamp(16px,1.05vw,23px)] font-bold shadow-[0_6px_14px_rgba(var(--brand-deep-rgb),0.08)]`}>{rank}</strong>
+      <span className="flex w-full items-center justify-between gap-2">
+        <strong className="rounded-full border border-[var(--hairline)] bg-[var(--surface)] px-3 py-1 text-[clamp(10px,0.7vw,15px)] font-semibold uppercase tracking-[0.07em] text-brand">Team leader</strong>
+        <span className="rounded-full bg-[var(--accent-tint)] px-3 py-1 text-[clamp(10px,0.7vw,15px)] font-semibold text-brand">{standing.matchWins}W · {standing.matchLosses}L</span>
       </span>
-      <Avatar className="relative grid h-[clamp(58px,4.2vw,82px)] w-[clamp(58px,4.2vw,82px)] shrink-0 place-items-center overflow-hidden rounded-full border-[3px] border-white bg-brand-deep text-[clamp(17px,1.2vw,25px)] font-semibold text-white shadow-[0_10px_24px_rgba(var(--brand-deep-rgb),0.16)]" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="82px" />
-      <span className="grid min-h-0 min-w-0 content-center gap-0.5 overflow-hidden"><strong className="line-clamp-2 text-[clamp(19px,1.3vw,28px)] font-bold leading-tight text-text-primary">{standing.player.name}</strong><em className="line-clamp-2 text-[clamp(11px,0.7vw,15px)] leading-tight not-italic text-text-secondary">{standing.player.city || "City pending"} · {standing.team.name}</em></span>
-      <span className="grid w-full grid-cols-2 gap-2">
-        <span className="rounded-[clamp(10px,0.8vw,14px)] border border-[var(--hairline)] bg-[var(--surface)] px-2 py-[clamp(6px,0.62vh,10px)] text-brand"><strong className="block text-[clamp(17px,1.15vw,25px)] leading-none">{standing.matchWins}</strong><em className="text-[clamp(8px,0.52vw,12px)] font-semibold not-italic uppercase tracking-[0.07em] text-text-secondary">Wins</em></span>
-        <span className="rounded-[clamp(10px,0.8vw,14px)] border border-[var(--hairline)] bg-[var(--surface)] px-2 py-[clamp(6px,0.62vh,10px)] text-brand"><strong className="block text-[clamp(17px,1.15vw,25px)] leading-none">{standing.matchLosses}</strong><em className="text-[clamp(8px,0.52vw,12px)] font-semibold not-italic uppercase tracking-[0.07em] text-text-secondary">Losses</em></span>
+      <Avatar className="relative grid h-[clamp(86px,6.5vw,132px)] w-[clamp(86px,6.5vw,132px)] shrink-0 place-items-center overflow-hidden rounded-full border-[4px] border-white bg-brand-deep text-[clamp(22px,1.6vw,34px)] font-semibold text-white shadow-[0_12px_30px_rgba(var(--brand-deep-rgb),0.18)]" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="132px" />
+      <strong className="min-h-[2.2em] w-full break-words text-[clamp(24px,1.7vw,38px)] font-bold leading-[1.08] tracking-[-0.025em] text-text-primary [overflow-wrap:anywhere]">{standing.player.name}</strong>
+      <span className="grid min-w-0 content-start justify-items-center gap-2">
+        <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--hairline)] bg-[var(--surface)] px-3 py-2">
+          <TvTeamMark compact team={standing.team} />
+          <strong className="break-words text-left text-[clamp(13px,0.9vw,19px)] font-semibold leading-tight text-brand [overflow-wrap:anywhere]">{standing.team.name}</strong>
+        </span>
+        <em className="text-[clamp(11px,0.72vw,16px)] not-italic text-text-secondary">{standing.tier}</em>
+      </span>
+      <span className="grid w-full grid-cols-3 gap-2">
+        <span className="rounded-[clamp(10px,0.8vw,14px)] border border-[var(--hairline)] bg-[var(--surface)] px-2 py-[clamp(8px,0.8vh,13px)] text-brand"><strong className="block text-[clamp(19px,1.3vw,28px)] leading-none">{standing.matchWins}</strong><em className="text-[clamp(8px,0.52vw,12px)] font-semibold not-italic uppercase tracking-[0.07em] text-text-secondary">Wins</em></span>
+        <span className="rounded-[clamp(10px,0.8vw,14px)] border border-[var(--hairline)] bg-[var(--surface)] px-2 py-[clamp(8px,0.8vh,13px)] text-brand"><strong className="block text-[clamp(19px,1.3vw,28px)] leading-none">{standing.matchLosses}</strong><em className="text-[clamp(8px,0.52vw,12px)] font-semibold not-italic uppercase tracking-[0.07em] text-text-secondary">Losses</em></span>
+        <span className="rounded-[clamp(10px,0.8vw,14px)] border border-[var(--hairline)] bg-[var(--surface)] px-2 py-[clamp(8px,0.8vh,13px)] text-brand"><strong className="block text-[clamp(19px,1.3vw,28px)] leading-none">{formatBracketPercentage(winPercentage)}%</strong><em className="text-[clamp(8px,0.52vw,12px)] font-semibold not-italic uppercase tracking-[0.07em] text-text-secondary">Win rate</em></span>
       </span>
     </article>
   );
