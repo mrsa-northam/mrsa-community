@@ -117,6 +117,7 @@ type PlayerScheduleMatch = {
   opponentProfiles: MatchPlayerProfile[];
   score: MatchScore | null;
   matchId: string;
+  swingVisionUrl: string;
   sortOrder: number;
 };
 type MatchScore = {
@@ -161,7 +162,15 @@ type TeamCourtScheduleMatch = {
   playerProfilesA: MatchPlayerProfile[];
   playerProfilesB: MatchPlayerProfile[];
   score: MatchScore | null;
+  swingVisionUrl: string;
   sortOrder: number;
+};
+
+const swingVisionMatchLinks: Record<string, string> = {
+  "D1-005": "https://swing.vision/matches/sw2-Z1kvN3s",
+  "D1-008": "https://swing.vision/matches/sw2-tsVu6B0",
+  "D1-009": "https://swing.vision/matches/sw2-g4xRsZM",
+  "D1-010": "https://swing.vision/matches/sw2-y0TEJP8"
 };
 type TeamCourtScheduleBlock = {
   id: string;
@@ -2250,6 +2259,7 @@ export function HomeScreen() {
 
   const homeTournamentCountdown = useTournamentCountdown(upcomingTournament?.startsOn || null);
   const homeIncompleteMatches = homeUpcomingMatches.filter((match) => !match.score?.winnerSide);
+  const homeVideoMatches = homeUpcomingMatches.filter((match) => match.swingVisionUrl);
   const homePrimaryMatch = homeIncompleteMatches[0] || null;
   const homeSecondMatch = homeIncompleteMatches[1] || null;
   const homeQueuedMatch = homePrimaryMatch
@@ -2291,6 +2301,21 @@ export function HomeScreen() {
                   {homeSecondMatch && <div className="hidden lg:block lg:h-full [&>.home-dashboard-match-card]:h-full"><HomePrimaryMatchCard match={homeSecondMatch} tournament={upcomingTournament} /></div>}
                 </div>
                 {homeQueuedMatch && <div className="lg:hidden"><HomeQueuedMatchLine match={homeQueuedMatch} /></div>}
+              </section>
+            )}
+
+            {homeVideoMatches.length > 0 && (
+              <section className="mx-auto grid w-full max-w-[600px] gap-3 lg:max-w-none" aria-labelledby="home-match-videos-title">
+                <div className="flex flex-wrap items-end justify-between gap-2 px-0.5">
+                  <span className="grid gap-0.5">
+                    <h2 className="text-[13px] font-bold uppercase tracking-[0.12em] text-text-secondary sm:text-[15px]" id="home-match-videos-title">Your match videos</h2>
+                    <em className="text-[11px] not-italic text-text-muted sm:text-[12px]">Full recordings available on SwingVision</em>
+                  </span>
+                  <span className="rounded-full bg-accent-tint px-2.5 py-1 text-[10px] font-semibold text-[var(--accent-ink)]">{homeVideoMatches.length} ready</span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {homeVideoMatches.map((match) => <HomeMatchVideoCard match={match} key={match.id} />)}
+                </div>
               </section>
             )}
 
@@ -2628,12 +2653,13 @@ function GuestPlayerSignInPrompt() {
 
 const tournamentLiveStreams = [
   { label: "Stream 1", href: "https://youtube.com/live/qiyN3c7DHAI?feature=share" },
-  { label: "Stream 2", href: "https://youtube.com/live/uTJmQhUsCfc?feature=share" }
+  { label: "Stream 2", href: "https://youtube.com/live/uTJmQhUsCfc?feature=share" },
+  { label: "Stream 3", href: "https://youtube.com/live/BfNllNOVRsA?feature=share" }
 ] as const;
 
-function YouTubeLiveStreamLink({ label, href }: { label: string; href: string }) {
+function YouTubeLiveStreamLink({ label, href, className = "" }: { label: string; href: string; className?: string }) {
   return (
-    <a className="tap-card inline-flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px]" href={href} target="_blank" rel="noreferrer" aria-label={`Watch ${label} on YouTube`}>
+    <a className={`tap-card inline-flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px] ${className}`} href={href} target="_blank" rel="noreferrer" aria-label={`Watch ${label} on YouTube`}>
       <span className="relative grid h-4 w-[23px] shrink-0 place-items-center rounded-[5px] bg-[#FF0000]" aria-hidden="true">
         <span className="ml-0.5 h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-white" />
       </span>
@@ -2670,7 +2696,7 @@ function GuestTournamentBanner({ tournament }: { tournament: Tournament }) {
         </div>
         <div className="grid gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-[0.09em] text-white/60">Choose a live stream</span>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {tournamentLiveStreams.map((stream) => <YouTubeLiveStreamLink href={stream.href} label={stream.label} key={stream.label} />)}
             <Link className="tap-card col-span-2 inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full border-hairline border-white/20 bg-white/10 px-3 text-center text-[13px] font-semibold text-white backdrop-blur transition hover:bg-white/15 sm:col-span-1 sm:text-[14px]" href="/tournaments/bracket">
               View bracket <ArrowRight size={14} />
@@ -7567,8 +7593,8 @@ function HomeTournamentOverviewCard({ tournament, countdown, registered }: { tou
 
       <div className="relative z-10 grid gap-2" aria-label="Choose a live stream">
         <span className="text-[10px] font-semibold uppercase tracking-[0.09em] text-text-secondary">Choose a live stream</span>
-        <div className="grid grid-cols-2 gap-2.5">
-          {tournamentLiveStreams.map((stream) => <YouTubeLiveStreamLink href={stream.href} label={stream.label} key={stream.label} />)}
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          {tournamentLiveStreams.map((stream, index) => <YouTubeLiveStreamLink className={index === tournamentLiveStreams.length - 1 ? "col-span-2 sm:col-span-1" : ""} href={stream.href} label={stream.label} key={stream.label} />)}
         </div>
       </div>
     </section>
@@ -7676,6 +7702,25 @@ function HomeDiscoveryCountdownUnit({ value, label }: { value: number; label: st
       <strong className="text-[19px] font-semibold leading-none tabular-nums text-white sm:text-[23px]">{formatCountdownValue(value)}</strong>
       <em className="text-[8px] font-semibold not-italic uppercase tracking-[0.08em] text-white/72 sm:text-[9px]">{label}</em>
     </span>
+  );
+}
+
+function HomeMatchVideoCard({ match }: { match: PlayerScheduleMatch }) {
+  const opponentNames = match.opponentNames.length ? match.opponentNames : [match.opposingTeamName];
+  return (
+    <a className="tap-card group grid min-h-[108px] grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-[20px] border-hairline border-line bg-card p-3.5 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.05)] transition hover:border-brand/25 hover:shadow-[0_14px_32px_rgba(var(--brand-deep-rgb),0.09)]" href={match.swingVisionUrl} target="_blank" rel="noreferrer" aria-label={`Watch match ${formatPublicMatchId(match)} against ${opponentNames.join(" and ")} on SwingVision`}>
+      <span className="grid h-[42px] w-[42px] place-items-center rounded-[14px] bg-brand-deep text-[var(--accent)] shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.14)]" aria-hidden="true"><MonitorUp size={20} /></span>
+      <span className="grid min-w-0 gap-1">
+        <span className="inline-flex min-w-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-text-muted">
+          <strong className="text-brand">{formatPublicMatchId(match)}</strong>
+          <span aria-hidden="true">·</span>
+          <span className="truncate">{match.timeLabel} · {match.courtLabel}</span>
+        </span>
+        <strong className="line-clamp-2 text-[14px] font-semibold leading-tight text-text-primary">vs {opponentNames.join(" & ")}</strong>
+        <em className="text-[11px] not-italic text-text-secondary">Watch the full match on SwingVision</em>
+      </span>
+      <span className="inline-flex min-h-9 items-center gap-1 rounded-full bg-brand-primary px-3 text-[11px] font-semibold text-white transition group-hover:bg-brand-mid">Watch <ExternalLink size={12} /></span>
+    </a>
   );
 }
 
@@ -8520,6 +8565,23 @@ function ScheduleHeaderTeamName({ name, showBallIcon = false }: { name: string; 
   );
 }
 
+function SwingVisionMatchReplayCard({ match }: { match: TeamCourtScheduleMatch }) {
+  const publicMatchId = formatPublicMatchId(match);
+  return (
+    <a className="tap-card group grid grid-cols-[44px_minmax(0,1fr)] items-center gap-3 rounded-[20px] border border-[var(--brand-primary-line)] bg-[var(--accent-tint)] p-3.5 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.06)] transition hover:border-brand/30 hover:shadow-[0_14px_34px_rgba(var(--brand-deep-rgb),0.10)] sm:grid-cols-[48px_minmax(0,1fr)_auto] sm:p-4" href={match.swingVisionUrl} target="_blank" rel="noreferrer" aria-label={`Watch match ${publicMatchId} on SwingVision`}>
+      <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-brand-deep text-[var(--accent)] shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.14)] sm:h-12 sm:w-12" aria-hidden="true"><MonitorUp size={22} /></span>
+      <span className="grid min-w-0 gap-0.5">
+        <em className="text-[10px] font-semibold not-italic uppercase tracking-[0.09em] text-[var(--accent-ink)]">Match video ready · {publicMatchId}</em>
+        <strong className="text-[16px] font-semibold leading-tight text-text-primary sm:text-[18px]">Watch the full match on SwingVision</strong>
+        <span className="text-[12px] leading-relaxed text-text-secondary">The recording opens in a new tab.</span>
+      </span>
+      <span className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-brand-primary px-5 text-[13px] font-semibold text-white transition group-hover:bg-brand-mid sm:col-span-1">
+        Watch replay <ExternalLink size={14} />
+      </span>
+    </a>
+  );
+}
+
 function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessScoreEntry, ownSide, entryLabel, message, saving, backHref, backLabel, onChangeDraft, onSubmit }: { match: TeamCourtScheduleMatch; ballTeamName: string; draft: ScoreDraft; canSubmit: boolean; canAccessScoreEntry: boolean; ownSide: "A" | "B" | null; entryLabel: string; message: string; saving: boolean; backHref: string; backLabel: string; onChangeDraft: (draft: ScoreDraft) => void; onSubmit: () => void }) {
   const showSideBOnLeft = ownSide === "B";
   const fallbackProfilesA = match.playersA.length
@@ -8577,6 +8639,8 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessS
           </div>
         </div>
       </article>
+
+      {match.swingVisionUrl && <SwingVisionMatchReplayCard match={match} />}
 
       <article className="match-detail-entry grid gap-3 rounded-[20px] border-hairline border-line bg-white p-3 sm:p-4">
         <div className="match-detail-entry-header grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
@@ -10873,6 +10937,10 @@ function formatPublicMatchId(match: Pick<PlayerScheduleMatch, "id" | "dayNumber"
   return `D${match.dayNumber}-${stableCode}`;
 }
 
+function getSwingVisionMatchUrl(match: Pick<PlayerScheduleMatch, "id" | "dayNumber" | "matchId">) {
+  return swingVisionMatchLinks[formatPublicMatchId(match)] || "";
+}
+
 function isScheduleItemForTeam(item: ScheduleItem, team: PublishedTeam) {
   return item.teamASortOrder === team.sortOrder || item.teamBSortOrder === team.sortOrder;
 }
@@ -10956,6 +11024,7 @@ function mapPlayerScheduleMatches(matchRows: PlayerScheduleMatchRow[], playerRow
       opponentProfiles,
       score: scoresByMatch[match.id] || null,
       matchId: match.external_match_id || "",
+      swingVisionUrl: getSwingVisionMatchUrl({ id: match.id, dayNumber: match.day_number || 1, matchId: match.external_match_id || "" }),
       sortOrder: match.sort_order || 0
     }];
   }).sort((a, b) => a.dayNumber - b.dayNumber || a.sortOrder - b.sortOrder || a.courtLabel.localeCompare(b.courtLabel));
@@ -11011,6 +11080,7 @@ function mapTeamCourtScheduleMatches(matchRows: PlayerScheduleMatchRow[], player
       playerProfilesA,
       playerProfilesB,
       score: scoresByMatch[match.id] || null,
+      swingVisionUrl: getSwingVisionMatchUrl({ id: match.id, dayNumber: match.day_number || 1, matchId: match.external_match_id || "" }),
       sortOrder: match.sort_order || 0
     };
   }).sort((a, b) => a.dayNumber - b.dayNumber || a.sortOrder - b.sortOrder || a.courtLabel.localeCompare(b.courtLabel));
