@@ -2554,7 +2554,10 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
 
           {!loading && tournament && (
             <>
-              <GuestTournamentBanner tournament={tournament} />
+              <div className="grid gap-3">
+                <GuestTournamentBanner tournament={tournament} />
+                {!appSession.userId && <GuestPlayerSignInPrompt />}
+              </div>
 
               <section className="grid gap-3" aria-labelledby="guest-leaders-title">
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-0.5">
@@ -2603,6 +2606,23 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
         </main>
       </div>
     </AppFrame>
+  );
+}
+
+function GuestPlayerSignInPrompt() {
+  return (
+    <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.05)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" aria-labelledby="guest-player-sign-in-title">
+      <span className="grid gap-1">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-secondary">Tournament players</span>
+        <strong className="text-[17px] font-semibold leading-tight text-text-primary" id="guest-player-sign-in-title">Playing in the tournament?</strong>
+        <em className="text-[13px] not-italic leading-relaxed text-text-secondary">Sign in to see your personal matches, schedule, and team details.</em>
+      </span>
+      <Link className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-brand-deep px-5 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(var(--brand-deep-rgb),0.15)] transition hover:bg-brand-mid" href="/?next=%2Fdashboard">
+        <LogIn size={15} />
+        Player sign in
+        <ArrowRight size={14} />
+      </Link>
+    </section>
   );
 }
 
