@@ -591,10 +591,12 @@ const winnerConfettiPieces = Array.from({ length: 132 }, (_, index) => {
   };
 });
 
-const winnerPillPaths = [
-  { delay: "180ms", midX: "-30vw", midY: "-28vh", endX: "-43vw", endY: "-48vh", rotation: "-9deg" },
-  { delay: "360ms", midX: "2vw", midY: "-36vh", endX: "-8vw", endY: "-64vh", rotation: "5deg" },
-  { delay: "540ms", midX: "31vw", midY: "-25vh", endX: "43vw", endY: "-49vh", rotation: "9deg" }
+const winnerTeamPillPath = { delay: "100ms", midX: "0vw", midY: "-28vh", endX: "0vw", endY: "-64vh", rotation: "0deg" };
+const winnerPlayerPillPaths = [
+  { delay: "240ms", midX: "-19vw", midY: "-20vh", endX: "-36vw", endY: "-48vh", rotation: "-10deg" },
+  { delay: "380ms", midX: "19vw", midY: "-20vh", endX: "36vw", endY: "-48vh", rotation: "10deg" },
+  { delay: "520ms", midX: "-22vw", midY: "-9vh", endX: "-39vw", endY: "-22vh", rotation: "-7deg" },
+  { delay: "660ms", midX: "22vw", midY: "-9vh", endX: "39vw", endY: "-22vh", rotation: "7deg" }
 ];
 
 const winnerFireworkBursts = [
@@ -603,6 +605,40 @@ const winnerFireworkBursts = [
   { x: "52vw", y: "38vh", delay: "880ms", color: "var(--accent)", size: "92px" },
   { x: "84vw", y: "48vh", delay: "1220ms", color: "var(--celebration-gold)", size: "76px" }
 ];
+
+function WinnerCelebrationPills({ team, trophySize = 15 }: { team: PublishedTeam; trophySize?: number }) {
+  const winnerPillTone = getTeamBrandTone(team.jerseyColor);
+  const pillStyle = (path: typeof winnerTeamPillPath) => ({
+    "--winner-pill-delay": path.delay,
+    "--winner-pill-mid-x": path.midX,
+    "--winner-pill-mid-y": path.midY,
+    "--winner-pill-end-x": path.endX,
+    "--winner-pill-end-y": path.endY,
+    "--winner-pill-rotation": path.rotation,
+    "--winner-pill-bg": winnerPillTone.background,
+    "--winner-pill-border": winnerPillTone.borderColor,
+    "--winner-pill-color": winnerPillTone.textColor
+  } as CSSProperties);
+  const players = getEffectiveTeamTierMembers(team).slice(0, 4).map((row) => row.member);
+
+  return (
+    <>
+      <span className="winner-team-pill winner-champion-pill" style={pillStyle(winnerTeamPillPath)}>
+        <Trophy size={trophySize} fill="currentColor" aria-hidden="true" />
+        <strong>{team.name}</strong>
+      </span>
+      {players.map((player, index) => {
+        const path = winnerPlayerPillPaths[index];
+        return (
+          <span className="winner-team-pill winner-player-pill" style={pillStyle(path)} key={player.id}>
+            <Avatar className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border border-white/70 bg-white text-[9px] font-semibold text-brand" name={player.name} photoUrl={player.profilePhotoUrl} sizes="32px" />
+            <strong>{player.name}</strong>
+          </span>
+        );
+      })}
+    </>
+  );
+}
 
 function TournamentWinnerBanner({ tournament, team, source }: { tournament: Tournament; team: PublishedTeam; source: "dashboard" | "bracket" }) {
   return (
@@ -701,26 +737,7 @@ function TournamentWinnerCelebration({ tournamentId, team, autoPlay = false }: {
               ))}
             </span>
           ))}
-          {winnerPillPaths.map((path) => (
-            <span
-              className="winner-team-pill"
-              key={path.midX}
-              style={{
-                "--winner-pill-delay": path.delay,
-                "--winner-pill-mid-x": path.midX,
-                "--winner-pill-mid-y": path.midY,
-                "--winner-pill-end-x": path.endX,
-                "--winner-pill-end-y": path.endY,
-                "--winner-pill-rotation": path.rotation,
-                "--winner-pill-bg": winnerPillTone.background,
-                "--winner-pill-border": winnerPillTone.borderColor,
-                "--winner-pill-color": winnerPillTone.textColor
-              } as CSSProperties}
-            >
-              <Trophy size={15} fill="currentColor" aria-hidden="true" />
-              <strong>{team.name}</strong>
-            </span>
-          ))}
+          <WinnerCelebrationPills team={team} />
         </div>
       )}
       <span className="sr-only" role="status" aria-live="polite">{celebrating ? `Celebrating tournament champions ${team.name}` : ""}</span>
@@ -4258,6 +4275,8 @@ export function TournamentTvDayScreen() {
   const dayOneMatches = matches.filter((match) => match.dayNumber === 1);
   const dayOneStandings = getLiveTeamStandings(teams, dayOneMatches);
   const dayTwoBracketStages = buildLiveTeamBracket(dayOneStandings, dayTwoPreviewMatches, Boolean(dayOneMatches.length));
+  const dayTwoFinalNode = dayTwoBracketStages.find((stage) => stage.key === "final")?.nodes[0] || null;
+  const finalTeamsAreFinalized = Boolean(dayTwoFinalNode?.sideA.team && dayTwoFinalNode.sideB.team);
   const tierRankedPlayerStandings = getLivePlayerStandings(teams, matches);
   const tierLeaders = getTvTierLeaders(tierRankedPlayerStandings);
   const playerStandings = [...tierRankedPlayerStandings]
@@ -4286,6 +4305,10 @@ export function TournamentTvDayScreen() {
 
   if (!loading && !message && tournament && tournamentChampion) {
     return <TvTournamentFinaleScene champion={tournamentChampion} sponsors={tvSponsors} tierLeaders={tournamentTierLeaders} tournament={tournament} />;
+  }
+
+  if (!loading && !message && tournament && dayTwoFinalNode && finalTeamsAreFinalized) {
+    return <TvTournamentFinalsScene currentMinutes={currentMinutes} isToday={isToday} node={dayTwoFinalNode} now={now} tournament={tournament} />;
   }
 
   return (
@@ -4447,6 +4470,138 @@ function TvLiveScene({ timelineNodes, timelineActiveIndex, timelineIsManuallySel
       <TvLeadersTicker playerStandings={playerStandings} teamStandings={teamStandings} />
       <TvSponsorStrip sponsors={sponsors} />
     </section>
+  );
+}
+
+function TvTournamentFinalsScene({ tournament, node, currentMinutes, isToday, now }: { tournament: Tournament; node: LiveBracketNode; currentMinutes: number; isToday: boolean; now: Date }) {
+  const teamA = node.sideA.team;
+  const teamB = node.sideB.team;
+  if (!teamA || !teamB) return null;
+  const definitions = getProjectedTierDefinitions(node, null);
+  const completedMatches = node.result.matches.filter((match) => match.score?.winnerSide).length;
+  const statusLabel = completedMatches
+    ? `${completedMatches} of 6 championship matches final`
+    : "Championship teams confirmed";
+
+  return (
+    <main className="relative grid h-dvh min-h-[720px] grid-rows-[auto_auto_minmax(0,1fr)] gap-[clamp(12px,1.6vh,26px)] overflow-hidden bg-[var(--surface)] px-[clamp(42px,4.5vw,104px)] py-[clamp(24px,3vh,54px)] font-sans text-[var(--brand-deep)]" aria-label={`${teamA.name} versus ${teamB.name} championship final`}>
+      <span className="pointer-events-none absolute inset-0 opacity-[0.055] court-lines" aria-hidden="true" />
+      <span className="pointer-events-none absolute -left-[12vw] top-[8vh] h-[42vw] w-[42vw] rounded-full blur-3xl" style={{ background: getTeamColorRgba(teamA.jerseyColor, 0.16) }} aria-hidden="true" />
+      <span className="pointer-events-none absolute -right-[12vw] top-[8vh] h-[42vw] w-[42vw] rounded-full blur-3xl" style={{ background: getTeamColorRgba(teamB.jerseyColor, 0.16) }} aria-hidden="true" />
+
+      <header className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[clamp(20px,2vw,40px)]">
+        <Link className="tap-card inline-flex !w-max items-center gap-2 rounded-full border border-[var(--hairline-strong)] bg-white/90 px-5 py-3 text-[clamp(12px,0.78vw,17px)] font-semibold text-brand shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.08)] backdrop-blur-xl transition hover:bg-white active:scale-[0.98]" href="/tournaments">
+          <ArrowLeft className="h-[1.05em] w-[1.05em]" /> Tournament
+        </Link>
+        <span className="grid min-w-0 justify-items-center gap-0.5 text-center">
+          <em className="inline-flex items-center gap-2 text-[clamp(10px,0.65vw,15px)] font-semibold not-italic uppercase tracking-[0.16em] text-[var(--accent-ink)]"><Trophy className="h-[1.1em] w-[1.1em]" fill="currentColor" /> The Final</em>
+          <h1 className="truncate text-[clamp(24px,2vw,42px)] font-bold leading-tight tracking-[-0.035em] text-text-primary">{tournament.name}</h1>
+        </span>
+        <span className="grid min-w-[clamp(150px,12vw,240px)] justify-items-end gap-0.5 text-right">
+          <time className="text-[clamp(20px,1.55vw,32px)] font-bold tabular-nums text-brand">{formatTvClock(now)}</time>
+          <em className="text-[clamp(8px,0.5vw,11px)] font-semibold not-italic uppercase tracking-[0.09em] text-text-secondary">Live tournament TV</em>
+        </span>
+      </header>
+
+      <section className="relative z-10 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch gap-[clamp(14px,1.5vw,30px)]" aria-label="Finalist teams">
+        <TvFinalistTeamCard team={teamA} />
+        <span className="grid min-w-[clamp(150px,11vw,220px)] content-center justify-items-center gap-2 text-center">
+          <em className="rounded-full bg-[var(--accent-tint)] px-3 py-1.5 text-[clamp(9px,0.58vw,13px)] font-semibold not-italic uppercase tracking-[0.1em] text-[var(--accent-ink)]">{statusLabel}</em>
+          <strong className="text-[clamp(40px,4vw,78px)] font-bold leading-none tracking-[-0.06em] tabular-nums text-brand">{node.result.matchWinsA}<span className="px-[0.2em] text-text-muted">–</span>{node.result.matchWinsB}</strong>
+          <span className="text-[clamp(10px,0.65vw,14px)] font-medium text-text-secondary">Six matches decide the title</span>
+        </span>
+        <TvFinalistTeamCard team={teamB} />
+      </section>
+
+      <section className="relative z-10 grid min-h-0 grid-cols-[minmax(360px,0.72fr)_minmax(620px,1.28fr)] gap-[clamp(12px,1.2vw,24px)]" aria-label="Championship final matches">
+        <section className="grid min-h-0 grid-rows-[auto_repeat(2,minmax(0,1fr))] gap-[clamp(8px,0.8vh,13px)] rounded-[clamp(18px,1.3vw,26px)] border border-[var(--hairline-strong)] bg-white/88 p-[clamp(12px,1vw,20px)] shadow-[0_18px_44px_rgba(var(--brand-deep-rgb),0.08)] backdrop-blur-xl">
+          <TvFinalMatchGroupHeading detail="Courts 6 & 7" format="Doubles" time="4:00 PM" />
+          {definitions.slice(0, 2).map((definition, index) => <TvFinalMatchCard currentMinutes={currentMinutes} definition={definition} isToday={isToday} match={node.result.matches[index] || null} node={node} key={definition.label} />)}
+        </section>
+        <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-[clamp(8px,0.8vh,13px)] rounded-[clamp(18px,1.3vw,26px)] border border-[var(--hairline-strong)] bg-white/88 p-[clamp(12px,1vw,20px)] shadow-[0_18px_44px_rgba(var(--brand-deep-rgb),0.08)] backdrop-blur-xl">
+          <TvFinalMatchGroupHeading detail="Courts 6–9" format="Singles" time="5:10 PM" />
+          <div className="grid min-h-0 grid-cols-2 grid-rows-2 gap-[clamp(8px,0.7vw,13px)]">
+            {definitions.slice(2).map((definition, index) => <TvFinalMatchCard currentMinutes={currentMinutes} definition={definition} isToday={isToday} match={node.result.matches[index + 2] || null} node={node} key={definition.label} />)}
+          </div>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function TvFinalistTeamCard({ team }: { team: PublishedTeam }) {
+  const teamTone = getTeamBrandTone(team.jerseyColor);
+  const roster = getEffectiveTeamTierMembers(team).slice(0, 4);
+  return (
+    <article className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-[clamp(12px,1vw,20px)] overflow-hidden rounded-[clamp(18px,1.35vw,28px)] border bg-white/90 p-[clamp(12px,1.2vw,22px)] shadow-[0_16px_38px_rgba(var(--brand-deep-rgb),0.08)] backdrop-blur-xl" style={{ borderColor: teamTone.borderColor }}>
+      <span className="relative grid h-[clamp(68px,5.2vw,104px)] w-[clamp(68px,5.2vw,104px)] place-items-center overflow-hidden rounded-[clamp(18px,1.35vw,27px)] border bg-white p-2 text-[clamp(18px,1.45vw,29px)] font-bold text-brand shadow-[0_10px_24px_rgba(var(--brand-deep-rgb),0.10)]" style={{ borderColor: teamTone.borderColor }}>
+        {team.logoUrl ? <NextImage src={team.logoUrl} alt={`${team.name} logo`} fill sizes="104px" className="object-contain p-2" /> : <Shirt className="h-[64%] w-[64%]" style={{ fill: normalizeTeamColor(team.jerseyColor), color: "var(--brand-deep)" }} />}
+      </span>
+      <span className="grid min-w-0 gap-2">
+        <span className="grid min-w-0 gap-0.5"><em className="text-[clamp(8px,0.5vw,11px)] font-semibold not-italic uppercase tracking-[0.11em] text-[var(--accent-ink)]">Finalist</em><strong className="truncate text-[clamp(24px,2vw,42px)] font-bold leading-none tracking-[-0.04em] text-text-primary">{team.name}</strong></span>
+        <span className="grid grid-cols-2 gap-1.5" aria-label={`${team.name} final roster`}>
+          {roster.map(({ member, tier }) => <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-1.5 rounded-full border border-[var(--hairline)] bg-[var(--surface)] py-1 pl-1 pr-2" key={member.id}><Avatar className="relative grid h-[clamp(24px,1.65vw,34px)] w-[clamp(24px,1.65vw,34px)] place-items-center overflow-hidden rounded-full bg-white text-[8px] font-semibold text-brand" name={member.name} photoUrl={member.profilePhotoUrl} sizes="34px" /><span className="grid min-w-0"><strong className="truncate text-[clamp(9px,0.58vw,13px)] font-semibold leading-tight text-text-primary">{member.name}</strong><em className="text-[clamp(7px,0.42vw,9px)] font-medium not-italic text-text-muted">Tier {tier}</em></span></span>)}
+        </span>
+      </span>
+    </article>
+  );
+}
+
+function TvFinalMatchGroupHeading({ time, format, detail }: { time: string; format: string; detail: string }) {
+  return <header className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-2"><Clock className="h-[clamp(16px,1vw,21px)] w-[clamp(16px,1vw,21px)] text-[var(--accent-ink)]" /><strong className="text-[clamp(16px,1.05vw,23px)] font-bold tabular-nums text-brand">{time}</strong><em className="text-[clamp(9px,0.55vw,12px)] font-semibold not-italic uppercase tracking-[0.08em] text-text-secondary">{format}</em></span><span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-[clamp(8px,0.5vw,11px)] font-semibold uppercase tracking-[0.07em] text-text-muted">{detail}</span></header>;
+}
+
+function TvFinalMatchCard({ node, definition, match, currentMinutes, isToday }: { node: LiveBracketNode; definition: ReturnType<typeof getProjectedTierDefinitions>[number]; match: TeamCourtScheduleMatch | null; currentMinutes: number; isToday: boolean }) {
+  const fallbackProfiles = (team: PublishedTeam | null) => {
+    const members = getEffectiveTeamTierMembers(team);
+    return definition.tiers.flatMap((tier) => {
+      const member = members.find((row) => row.tier === tier)?.member;
+      return member ? [{ id: member.playerId || member.id, name: member.name, profilePhotoUrl: member.profilePhotoUrl }] : [];
+    });
+  };
+  const profilesA = match?.playerProfilesA.length ? match.playerProfilesA : fallbackProfiles(node.sideA.team);
+  const profilesB = match?.playerProfilesB.length ? match.playerProfilesB : fallbackProfiles(node.sideB.team);
+  const teamAName = match?.teamAName || node.sideA.team?.name || node.sideA.fallbackLabel;
+  const teamBName = match?.teamBName || node.sideB.team?.name || node.sideB.fallbackLabel;
+  const teamAColor = match?.teamAColor || node.sideA.team?.jerseyColor || "";
+  const teamBColor = match?.teamBColor || node.sideB.team?.jerseyColor || "";
+  const timeLabel = match?.timeLabel || (definition.format === "Doubles" ? "4:00 PM" : "5:10 PM");
+  const scheduledMinutes = getScheduleTimeSortValue(timeLabel);
+  const completed = Boolean(match?.score?.winnerSide);
+  const live = Boolean(!completed && isToday && currentMinutes >= scheduledMinutes && currentMinutes < scheduledMinutes + 70);
+  const winnerIsA = match?.score?.winnerSide === "A";
+  const winnerIsB = match?.score?.winnerSide === "B";
+  const score = match?.score ? formatBracketMatchScore(match, match.teamAId) : "";
+  const cardTone = completed ? "border-[var(--accent-line)]" : live ? "border-[var(--urgent)] shadow-[0_8px_22px_rgba(var(--urgent-rgb),0.13)]" : "border-[var(--hairline-strong)]";
+
+  return (
+    <article className={`${cardTone} grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-[clamp(12px,0.9vw,18px)] border bg-white`}>
+      <header className="flex items-center justify-between gap-2 border-b border-line bg-[var(--surface)] px-[clamp(9px,0.7vw,13px)] py-[clamp(6px,0.55vh,9px)]">
+        <span className="inline-flex min-w-0 items-center gap-2"><strong className="truncate text-[clamp(9px,0.56vw,12px)] font-semibold uppercase tracking-[0.05em] text-brand">{match ? formatPublicMatchId(match) : definition.label}</strong><em className="shrink-0 text-[clamp(8px,0.48vw,10px)] font-medium not-italic text-text-muted">{definition.label}</em></span>
+        <span className={`${completed ? "bg-[var(--accent-tint)] text-[var(--accent-ink)]" : live ? "bg-[var(--urgent)] text-white" : "bg-white text-text-secondary"} shrink-0 rounded-full px-2 py-1 text-[clamp(7px,0.43vw,9px)] font-bold uppercase tracking-[0.07em]`}>{completed ? "Final" : live ? "Live" : "Scheduled"}</span>
+      </header>
+      <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-[clamp(6px,0.5vw,10px)] px-[clamp(8px,0.65vw,13px)] py-[clamp(6px,0.7vh,11px)]">
+        <TvFinalMatchPlayers align="left" color={teamAColor} profiles={profilesA} teamName={teamAName} won={winnerIsA} />
+        <strong className="text-[clamp(9px,0.55vw,12px)] font-semibold uppercase text-text-muted">vs</strong>
+        <TvFinalMatchPlayers align="right" color={teamBColor} profiles={profilesB} teamName={teamBName} won={winnerIsB} />
+      </div>
+      <footer className="flex items-center justify-between gap-2 border-t border-line px-[clamp(9px,0.7vw,13px)] py-[clamp(5px,0.45vh,8px)] text-[clamp(8px,0.5vw,11px)]"><span className="font-semibold text-text-secondary">{definition.court} · {definition.format}</span>{score && <strong className="tabular-nums text-brand">{score}</strong>}</footer>
+    </article>
+  );
+}
+
+function TvFinalMatchPlayers({ profiles, teamName, color, won, align }: { profiles: MatchPlayerProfile[]; teamName: string; color: string; won: boolean; align: "left" | "right" }) {
+  return (
+    <span className={`${align === "right" ? "justify-items-end text-right" : "justify-items-start text-left"} grid min-w-0 gap-1`}>
+      <span className={`${align === "right" ? "flex-row-reverse" : ""} flex max-w-full items-center gap-1.5`}>
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full border border-white shadow-sm" style={{ background: getSourceTeamColor(color) }} />
+        <em className="truncate text-[clamp(7px,0.43vw,9px)] font-semibold not-italic uppercase tracking-[0.05em] text-text-muted">{teamName}</em>
+      </span>
+      <span className={`${align === "right" ? "justify-end" : "justify-start"} flex min-w-0 flex-wrap gap-1.5`}>
+        {profiles.map((player) => <span className={`${won ? "border-[var(--accent-line)] bg-[var(--accent-tint)]" : "border-[var(--hairline)] bg-[var(--surface)]"} inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border py-1 pl-1 pr-2`} key={player.id}><Avatar className="relative grid h-[clamp(23px,1.45vw,30px)] w-[clamp(23px,1.45vw,30px)] shrink-0 place-items-center overflow-hidden rounded-full bg-white text-[8px] font-semibold text-brand" name={player.name} photoUrl={player.profilePhotoUrl} sizes="30px" /><strong className="truncate text-[clamp(9px,0.56vw,12px)] font-semibold text-text-primary">{player.name}</strong></span>)}
+        {!profiles.length && <strong className="text-[clamp(9px,0.56vw,12px)] font-semibold text-text-muted">Players publishing…</strong>}
+      </span>
+    </span>
   );
 }
 
@@ -5137,12 +5292,11 @@ function TvTournamentFinaleScene({ tournament, champion, tierLeaders, sponsors }
 }
 
 function TvFinaleConfetti({ burstId, team }: { burstId: number; team: PublishedTeam }) {
-  const winnerPillTone = getTeamBrandTone(team.jerseyColor);
   return (
     <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden" key={burstId} aria-hidden="true">
       {winnerConfettiPieces.map((piece, index) => <span className="winner-confetti-piece" key={index} style={{ "--confetti-delay": piece.delay, "--confetti-duration": piece.duration, "--confetti-x": piece.x, "--confetti-y": piece.y, "--confetti-end-y": piece.endY, "--confetti-drift": piece.drift, "--confetti-rotation": piece.rotation, backgroundColor: piece.color, borderRadius: piece.rounded, clipPath: piece.clipPath, height: piece.height, width: piece.width } as CSSProperties} />)}
       {winnerFireworkBursts.map((burst) => <span className="winner-firework" key={`${burst.x}:${burst.y}`} style={{ "--firework-x": burst.x, "--firework-y": burst.y, "--firework-delay": burst.delay, "--firework-color": burst.color, "--firework-size": burst.size } as CSSProperties}>{Array.from({ length: 16 }).map((_, sparkIndex) => <span className="winner-firework-spark" style={{ "--firework-angle": `${sparkIndex * 22.5}deg` } as CSSProperties} key={sparkIndex} />)}</span>)}
-      {winnerPillPaths.map((path) => <span className="winner-team-pill" key={path.midX} style={{ "--winner-pill-delay": path.delay, "--winner-pill-mid-x": path.midX, "--winner-pill-mid-y": path.midY, "--winner-pill-end-x": path.endX, "--winner-pill-end-y": path.endY, "--winner-pill-rotation": path.rotation, "--winner-pill-bg": winnerPillTone.background, "--winner-pill-border": winnerPillTone.borderColor, "--winner-pill-color": winnerPillTone.textColor } as CSSProperties}><Trophy size={20} fill="currentColor" /><strong>{team.name}</strong></span>)}
+      <WinnerCelebrationPills team={team} trophySize={20} />
     </div>
   );
 }
@@ -9869,7 +10023,10 @@ function getTournamentChampion(teams: PublishedTeam[], matches: TeamCourtSchedul
 
 function getTournamentChampionFromStages(stages: LiveBracketStage[]) {
   const finalNode = stages.find((stage) => stage.key === "final")?.nodes[0];
-  if (!finalNode?.result.winnerTeamId) return null;
+  const finalIsComplete = Boolean(finalNode
+    && finalNode.result.scheduledMatches >= 6
+    && finalNode.result.completedMatches === finalNode.result.scheduledMatches);
+  if (!finalNode?.result.winnerTeamId || !finalIsComplete) return null;
   return [finalNode.sideA.team, finalNode.sideB.team].find((team) => team?.id === finalNode.result.winnerTeamId) || null;
 }
 

@@ -6175,6 +6175,16 @@ body,
   text-overflow: ellipsis;
 }
 
+.winner-champion-pill {
+  box-shadow: 0 15px 38px rgba(var(--brand-deep-rgb), 0.26);
+}
+
+.winner-player-pill {
+  max-width: min(230px, calc(100vw - 36px));
+  min-height: 42px;
+  padding: 4px 12px 4px 4px;
+}
+
 .winner-firework {
   position: fixed;
   top: var(--firework-y);
@@ -6235,7 +6245,14 @@ body,
     opacity: 0;
     transform: translate3d(-50%, 16px, 0) rotate(0deg) scale(0.76);
   }
-  11%, 80% {
+  11% {
+    opacity: 1;
+  }
+  52% {
+    opacity: 1;
+    transform: translate3d(calc(-50% + var(--winner-pill-mid-x)), var(--winner-pill-mid-y), 0) rotate(calc(var(--winner-pill-rotation) * 0.45)) scale(1.03);
+  }
+  80% {
     opacity: 1;
   }
   100% {
@@ -6276,6 +6293,10 @@ body,
 @media (max-width: 520px) {
   .winner-team-pill {
     max-width: min(220px, calc(100vw - 28px));
+  }
+
+  .winner-player-pill {
+    max-width: 42vw;
   }
 }
 
