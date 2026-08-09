@@ -4,29 +4,43 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Keep Match Finder text visible when browsers restyle native search fields. */
+/* The native search text is transparent; a foreground layer renders the value
+   above browser-specific search decorations so it can never be painted white. */
 #match-finder-search.match-finder-search-input,
 #match-finder-search.match-finder-search-input:focus,
 #match-finder-search.match-finder-search-input:active {
-  color: #18181A !important;
-  -webkit-text-fill-color: #18181A !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
   caret-color: #0C3B20 !important;
   opacity: 1 !important;
   text-shadow: none !important;
 }
 
 #match-finder-search.match-finder-search-input::placeholder {
-  color: #7B766D !important;
-  -webkit-text-fill-color: #7B766D !important;
-  opacity: 1 !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  opacity: 0 !important;
 }
 
 #match-finder-search.match-finder-search-input:-webkit-autofill,
 #match-finder-search.match-finder-search-input:-webkit-autofill:hover,
 #match-finder-search.match-finder-search-input:-webkit-autofill:focus {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: #0C3B20 !important;
+}
+
+.match-finder-search-value {
   color: #18181A !important;
   -webkit-text-fill-color: #18181A !important;
-  caret-color: #0C3B20 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+.match-finder-search-placeholder {
+  color: #7B766D !important;
+  -webkit-text-fill-color: #7B766D !important;
+  opacity: 1 !important;
 }
 
 :root {

@@ -5844,9 +5844,12 @@ export function TournamentMatchFinderScreen() {
 
           <section className="sticky top-2 z-20 grid gap-3 rounded-[22px] border border-[var(--hairline-strong)] bg-white/95 p-3 shadow-[0_18px_42px_rgba(var(--brand-deep-rgb),0.11)] backdrop-blur-xl sm:p-4">
             <label className="relative grid" htmlFor="match-finder-search">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-[18px] w-[18px] -translate-y-1/2 text-brand" aria-hidden="true" />
               <input className="match-finder-search-input min-h-[50px] w-full appearance-none rounded-[15px] border border-[var(--hairline-strong)] bg-[var(--surface)] py-3 pl-11 pr-12 text-[15px] font-medium outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/8 sm:min-h-[56px] sm:text-[17px]" id="match-finder-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Type a Match ID, player, or team…" autoComplete="off" />
-              {query && <button className="tap-card absolute right-2.5 top-1/2 z-10 inline-grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-white text-text-secondary shadow-[0_4px_12px_rgba(var(--brand-deep-rgb),0.08)]" type="button" onClick={() => setQuery("")} aria-label="Clear match search"><X size={15} /></button>}
+              <span className="pointer-events-none absolute inset-y-0 left-3.5 right-12 z-20 flex min-w-0 items-center gap-2" aria-hidden="true">
+                <Search className="h-[18px] w-[18px] shrink-0 text-brand" />
+                <span className={`${query ? "match-finder-search-value" : "match-finder-search-placeholder"} min-w-0 truncate text-[15px] font-medium sm:text-[17px]`}>{query || "Type a Match ID, player, or team…"}</span>
+              </span>
+              {query && <button className="tap-card absolute right-2.5 top-1/2 z-30 inline-grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-white text-text-secondary shadow-[0_4px_12px_rgba(var(--brand-deep-rgb),0.08)]" type="button" onClick={() => setQuery("")} aria-label="Clear match search"><X size={15} /></button>}
             </label>
             <div className="flex items-center justify-between gap-3 overflow-hidden">
               <div className="flex min-w-0 items-center gap-1 overflow-x-auto rounded-full bg-[var(--surface)] p-1" aria-label="Filter matches by day">
