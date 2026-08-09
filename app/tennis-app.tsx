@@ -4519,6 +4519,8 @@ function getTvBracketNodeState(node: LiveBracketNode, currentMinutes: number, is
 
 function getDayTwoBracketExpectedCourts(node: LiveBracketNode) {
   if (node.phase === "Final") return ["Court 6", "Court 7", "Court 6", "Court 7", "Court 8", "Court 9"];
+  if (node.id === "semifinal1") return ["Court 9", "Court 10", "Court 11"];
+  if (node.id === "semifinal2") return ["Court 6", "Court 7", "Court 8"];
   return node.id.endsWith("2") || node.id === "qf4" ? ["Court 9", "Court 10", "Court 11"] : ["Court 6", "Court 7", "Court 8"];
 }
 
@@ -9922,10 +9924,12 @@ function getPendingDayTwoSyncSignature(teams: PublishedTeam[], matches: TeamCour
     const fixedFormat = node.phase === "Quarterfinal" || node.phase === "Advantage" || node.phase === "Survival" || node.phase === "Final";
     const decision = decisionByNode.get(node.id as DayTwoCoinTossNodeKey);
     const hasValidDecision = Boolean(decision && knownTeamIds.includes(decision.winningTeamId));
-    if (!fixedFormat && !hasValidDecision) return false;
+    if (!fixedFormat && !hasValidDecision && !node.result.matches.length) return false;
     const expectedMatches = node.phase === "Final" ? 6 : 3;
     const hasWrongPairing = node.result.matches.some((match) => !knownTeamIds.includes(match.teamAId) || !knownTeamIds.includes(match.teamBId) || match.teamAId === match.teamBId);
-    return node.result.matches.length < expectedMatches || hasWrongPairing || node.result.matches.some((match) => !match.courtLabel);
+    const hasMissingCourt = node.result.matches.some((match) => !match.courtLabel);
+    const hasWrongSemifinalCourt = (node.id === "semifinal1" || node.id === "semifinal2") && node.result.matches.some((match, index) => normalizeName(match.courtLabel) !== normalizeName(getDayTwoBracketExpectedCourts(node)[index] || ""));
+    return node.result.matches.length < expectedMatches || hasWrongPairing || hasMissingCourt || hasWrongSemifinalCourt;
   });
   return pendingNodes.map((node) => `${node.id}:${node.sideA.team?.id}:${node.sideB.team?.id}`).join("|");
 }

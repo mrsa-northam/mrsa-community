@@ -228,8 +228,8 @@ const nodeSchedule: Record<string, { phase: string; timeLabel: string; startTime
   advantage2: { phase: "Advantage", timeLabel: "12:30 PM", startTime: "12:30", podLabel: "Pod C (9-11)", courts: ["Court 9", "Court 10", "Court 11"], sortBase: 1070 },
   reentry1: { phase: "Re-entry", timeLabel: "1:40 PM", startTime: "13:40", podLabel: "Pod B (6-8)", courts: ["Court 6", "Court 7", "Court 8"], sortBase: 1080 },
   reentry2: { phase: "Re-entry", timeLabel: "1:40 PM", startTime: "13:40", podLabel: "Pod C (9-11)", courts: ["Court 9", "Court 10", "Court 11"], sortBase: 1090 },
-  semifinal1: { phase: "Semifinal", timeLabel: "2:50 PM", startTime: "14:50", podLabel: "Pod B (6-8)", courts: ["Court 6", "Court 7", "Court 8"], sortBase: 1100 },
-  semifinal2: { phase: "Semifinal", timeLabel: "2:50 PM", startTime: "14:50", podLabel: "Pod C (9-11)", courts: ["Court 9", "Court 10", "Court 11"], sortBase: 1110 },
+  semifinal1: { phase: "Semifinal", timeLabel: "2:50 PM", startTime: "14:50", podLabel: "Pod C (9-11)", courts: ["Court 9", "Court 10", "Court 11"], sortBase: 1100 },
+  semifinal2: { phase: "Semifinal", timeLabel: "2:50 PM", startTime: "14:50", podLabel: "Pod B (6-8)", courts: ["Court 6", "Court 7", "Court 8"], sortBase: 1110 },
   final: { phase: "Final", timeLabel: "4:00 PM onward", startTime: "16:00", podLabel: "Championship courts", courts: ["Court 6", "Court 7", "Court 6", "Court 7", "Court 8", "Court 9"], sortBase: 1120 }
 };
 
@@ -285,8 +285,11 @@ async function ensureNodeMatches(admin: NonNullable<ReturnType<typeof getSupabas
       is_published: true
     };
     if (existing) {
-      if (!existingHasScore) {
-        const { error } = await admin.from("tournament_schedule_matches").update(matchPayload).eq("id", matchId);
+      if (!existingHasScore || node.key === "semifinal1" || node.key === "semifinal2") {
+        const updatePayload = existingHasScore
+          ? { court_label: matchPayload.court_label, pod_label: matchPayload.pod_label }
+          : matchPayload;
+        const { error } = await admin.from("tournament_schedule_matches").update(updatePayload).eq("id", matchId);
         if (error) throw error;
       }
     } else {
