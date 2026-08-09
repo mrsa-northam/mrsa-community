@@ -3291,19 +3291,30 @@ export function DrawScreen() {
           </Link>
 
           {appSession.isAdmin && (
-            <Link className="tap-card group grid grid-cols-[42px_minmax(0,1fr)_36px] items-center gap-3 rounded-[18px] border-hairline border-line bg-white p-3.5 transition hover:border-brand/25" href="/tournaments/tv">
-              <span className="grid h-10 w-10 place-items-center rounded-[13px] bg-brand-deep text-[var(--accent)] shadow-[0_8px_18px_rgba(var(--brand-deep-rgb), 0.16)]">
-                <MonitorUp size={19} />
-              </span>
-              <span className="grid min-w-0 gap-0.5">
-                <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-text-muted">Admin display</em>
-                <strong className="text-[16px] font-semibold leading-tight text-brand">TV Day View</strong>
-                <span className="text-[11px] leading-snug text-text-secondary">Show the full day schedule and live results on a large screen.</span>
-              </span>
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-brand shadow-[0_6px_14px_rgba(var(--brand-deep-rgb), 0.09)] transition-transform group-hover:translate-x-0.5" aria-hidden="true">
-                <ArrowRight size={15} />
-              </span>
-            </Link>
+            <section className="grid gap-2 sm:grid-cols-2" aria-label="Organizer tools">
+              <Link className="tap-card group grid grid-cols-[42px_minmax(0,1fr)_36px] items-center gap-3 rounded-[18px] border-hairline border-line bg-white p-3.5 transition hover:border-brand/25" href="/tournaments/tv">
+                <span className="grid h-10 w-10 place-items-center rounded-[13px] bg-brand-deep text-[var(--accent)] shadow-[0_8px_18px_rgba(var(--brand-deep-rgb), 0.16)]">
+                  <MonitorUp size={19} />
+                </span>
+                <span className="grid min-w-0 gap-0.5">
+                  <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-text-muted">Admin display</em>
+                  <strong className="text-[16px] font-semibold leading-tight text-brand">TV Day View</strong>
+                  <span className="text-[11px] leading-snug text-text-secondary">Show the live tournament on a large screen.</span>
+                </span>
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-brand shadow-[0_6px_14px_rgba(var(--brand-deep-rgb), 0.09)] transition-transform group-hover:translate-x-0.5" aria-hidden="true"><ArrowRight size={15} /></span>
+              </Link>
+              <Link className="tap-card group grid grid-cols-[42px_minmax(0,1fr)_36px] items-center gap-3 rounded-[18px] border border-[var(--accent-line)] bg-accent-tint p-3.5 transition hover:border-[var(--accent)]" href="/admin/raffle">
+                <span className="grid h-10 w-10 place-items-center rounded-[13px] bg-brand-deep text-[var(--accent)] shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.16)]">
+                  <Gift size={19} />
+                </span>
+                <span className="grid min-w-0 gap-0.5">
+                  <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-[var(--accent-ink)]">Organizer raffle</em>
+                  <strong className="text-[16px] font-semibold leading-tight text-brand">Open raffle</strong>
+                  <span className="text-[11px] leading-snug text-text-secondary">Open the 36-name wheel and draw the winner.</span>
+                </span>
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-brand shadow-[0_6px_14px_rgba(var(--brand-deep-rgb),0.09)] transition-transform group-hover:translate-x-0.5" aria-hidden="true"><ArrowRight size={15} /></span>
+              </Link>
+            </section>
           )}
 
           {!!tournament?.faqs.length && (
