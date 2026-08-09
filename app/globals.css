@@ -4,6 +4,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Keep Match Finder text visible when browsers restyle native search fields. */
+#match-finder-search.match-finder-search-input,
+#match-finder-search.match-finder-search-input:focus,
+#match-finder-search.match-finder-search-input:active {
+  color: #18181A !important;
+  -webkit-text-fill-color: #18181A !important;
+  caret-color: #0C3B20 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+#match-finder-search.match-finder-search-input::placeholder {
+  color: #7B766D !important;
+  -webkit-text-fill-color: #7B766D !important;
+  opacity: 1 !important;
+}
+
+#match-finder-search.match-finder-search-input:-webkit-autofill,
+#match-finder-search.match-finder-search-input:-webkit-autofill:hover,
+#match-finder-search.match-finder-search-input:-webkit-autofill:focus {
+  color: #18181A !important;
+  -webkit-text-fill-color: #18181A !important;
+  caret-color: #0C3B20 !important;
+}
+
 :root {
   /* MRSA green system: canonical tokens */
   --green-50: #EAF3DE;
