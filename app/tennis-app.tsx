@@ -3082,7 +3082,7 @@ export function DrawScreen() {
           )}
 
           {tournament && (
-            <section className={registered ? "grid grid-cols-2 gap-2 md:gap-3 xl:grid-cols-5" : "grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3"}>
+            <section className={registered ? "grid grid-cols-2 gap-2 md:gap-3 xl:grid-cols-4" : "grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3"}>
               {registered && (
                 <Link className="tournament-hub-card tap-card group relative grid min-h-[118px] overflow-hidden rounded-[18px] border-hairline border-transparent bg-brand-deep p-3 text-white sm:min-h-[136px] sm:rounded-[22px] sm:p-4" href="/tournaments/schedule">
                   <span className="pointer-events-none absolute inset-0 opacity-25 court-lines" aria-hidden="true" />
@@ -3101,24 +3101,6 @@ export function DrawScreen() {
                   </span>
                 </Link>
               )}
-
-              <Link className="tournament-hub-card tap-card group relative grid min-h-[118px] overflow-hidden rounded-[18px] border-hairline border-transparent bg-brand-deep p-3 text-white sm:min-h-[136px] sm:rounded-[22px] sm:p-4" href="/tournaments/matches">
-                <span className="pointer-events-none absolute inset-0 opacity-20 court-lines" aria-hidden="true" />
-                <span className="pointer-events-none absolute -right-5 -top-5 h-24 w-24 rounded-full border border-white/10" aria-hidden="true" />
-                <span className="relative grid h-full content-between gap-3 sm:gap-4">
-                  <span className="grid gap-1">
-                    <span className="inline-grid h-8 w-8 place-items-center rounded-[11px] bg-white/10 text-white sm:h-10 sm:w-10 sm:rounded-[14px]">
-                      <Search className="h-4 w-4 sm:h-[19px] sm:w-[19px]" />
-                    </span>
-                    <strong className="text-[15px] font-medium leading-tight tracking-[-0.1px] sm:text-[21px] sm:tracking-[-0.2px]">Find a match</strong>
-                    <em className="line-clamp-2 pr-9 text-[9px] not-italic leading-[1.25] text-white/72 sm:block sm:pr-0 sm:text-[13px] sm:leading-relaxed">Search by Match ID, player, team, or day.</em>
-                  </span>
-                  <span className="absolute bottom-0 right-0 inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-primary text-white sm:static sm:h-auto sm:w-max sm:gap-2 sm:px-3 sm:py-1.5 sm:text-[13px] sm:font-medium">
-                    <span className="hidden sm:inline">Search matches</span>
-                    <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
-                  </span>
-                </span>
-              </Link>
 
               <Link className="tournament-hub-card tap-card group relative grid min-h-[118px] overflow-hidden rounded-[18px] border-hairline border-transparent bg-brand-deep p-3 text-white sm:min-h-[136px] sm:rounded-[22px] sm:p-4" href="/tournaments/bracket">
                 <span className="pointer-events-none absolute inset-0 opacity-20 court-lines" aria-hidden="true" />
@@ -3221,6 +3203,20 @@ export function DrawScreen() {
               </div>
             </div>
             </section>
+
+          <Link className="tap-card group grid grid-cols-[42px_minmax(0,1fr)_36px] items-center gap-3 rounded-[18px] border-hairline border-line bg-white p-3.5 transition hover:border-brand/25" href="/tournaments/matches">
+            <span className="grid h-10 w-10 place-items-center rounded-[13px] bg-brand-deep text-[var(--accent)] shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.16)]">
+              <Search size={19} />
+            </span>
+            <span className="grid min-w-0 gap-0.5">
+              <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-text-muted">Tournament utility</em>
+              <strong className="text-[16px] font-semibold leading-tight text-brand">Find a match</strong>
+              <span className="text-[11px] leading-snug text-text-secondary">Search instantly by Match ID, player, team, or tournament day.</span>
+            </span>
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-brand shadow-[0_6px_14px_rgba(var(--brand-deep-rgb),0.09)] transition-transform group-hover:translate-x-0.5" aria-hidden="true">
+              <ArrowRight size={15} />
+            </span>
+          </Link>
 
           {appSession.isAdmin && (
             <Link className="tap-card group grid grid-cols-[42px_minmax(0,1fr)_36px] items-center gap-3 rounded-[18px] border-hairline border-line bg-white p-3.5 transition hover:border-brand/25" href="/tournaments/tv">
@@ -4240,11 +4236,11 @@ export function TournamentTvDayScreen() {
     || [...timelineNodes].reverse().find((node) => node.kind === "matches")
     || null;
   const displayNode = currentTimelineNode || fallbackMatchNode;
-  const teamStandings = getLiveTeamStandings(teams, selectedMatches);
+  const teamStandings = getLiveTeamStandings(teams, matches);
   const dayOneMatches = matches.filter((match) => match.dayNumber === 1);
   const dayOneStandings = getLiveTeamStandings(teams, dayOneMatches);
   const dayTwoBracketStages = buildLiveTeamBracket(dayOneStandings, dayTwoPreviewMatches, Boolean(dayOneMatches.length));
-  const tierRankedPlayerStandings = getLivePlayerStandings(teams, selectedMatches);
+  const tierRankedPlayerStandings = getLivePlayerStandings(teams, matches);
   const tierLeaders = getTvTierLeaders(tierRankedPlayerStandings);
   const playerStandings = [...tierRankedPlayerStandings]
     .sort((left, right) => right.matchWins - left.matchWins
