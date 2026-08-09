@@ -188,7 +188,7 @@ function buildBracket(standings: Standing[], dayTwoMatches: ScheduleMatch[]) {
   const reentry2 = makeNode(dayTwoMatches, "reentry2", survival2.winner, advantage1.loser);
   const semifinal1 = makeNode(dayTwoMatches, "semifinal1", advantage1.winner, reentry2.winner);
   const semifinal2 = makeNode(dayTwoMatches, "semifinal2", advantage2.winner, reentry1.winner);
-  const final = makeNode(dayTwoMatches, "final", semifinal1.winner, semifinal2.winner, 6);
+  const final = makeNode(dayTwoMatches, "final", semifinal1.winner, semifinal2.winner, 3);
   return { qf1, qf2, qf3, qf4, survival1, survival2, advantage1, advantage2, reentry1, reentry2, semifinal1, semifinal2, final };
 }
 
@@ -208,12 +208,9 @@ function standardDefinitions(choice: FormatChoice): MatchDefinition[] {
 
 function finalDefinitions(): MatchDefinition[] {
   return [
-    { format: "Doubles", tiers: [1, 2], tierRule: "Tier 1/2 Doubles", timeLabel: "4:00 PM", startTime: "16:00", courtLabel: "Court 6" },
-    { format: "Doubles", tiers: [3, 4], tierRule: "Tier 3/4 Doubles", timeLabel: "4:00 PM", startTime: "16:00", courtLabel: "Court 7" },
-    { format: "Singles", tiers: [1], tierRule: "Tier 1 Singles", timeLabel: "5:10 PM", startTime: "17:10", courtLabel: "Court 6" },
-    { format: "Singles", tiers: [2], tierRule: "Tier 2 Singles", timeLabel: "5:10 PM", startTime: "17:10", courtLabel: "Court 7" },
-    { format: "Singles", tiers: [3], tierRule: "Tier 3 Singles", timeLabel: "5:10 PM", startTime: "17:10", courtLabel: "Court 8" },
-    { format: "Singles", tiers: [4], tierRule: "Tier 4 Singles", timeLabel: "5:10 PM", startTime: "17:10", courtLabel: "Court 9" }
+    { format: "Singles", tiers: [1], tierRule: "Tier 1 Singles", timeLabel: "4:00 PM", startTime: "16:00", courtLabel: "Court 6" },
+    { format: "Singles", tiers: [2], tierRule: "Tier 2 Singles", timeLabel: "4:00 PM", startTime: "16:00", courtLabel: "Court 7" },
+    { format: "Doubles", tiers: [3, 4], tierRule: "Tier 3/4 Doubles", timeLabel: "4:00 PM", startTime: "16:00", courtLabel: "Court 8" }
   ];
 }
 
@@ -230,7 +227,7 @@ const nodeSchedule: Record<string, { phase: string; timeLabel: string; startTime
   reentry2: { phase: "Re-entry", timeLabel: "1:40 PM", startTime: "13:40", podLabel: "Pod C (9-11)", courts: ["Court 9", "Court 10", "Court 11"], sortBase: 1090 },
   semifinal1: { phase: "Semifinal", timeLabel: "2:50 PM", startTime: "14:50", podLabel: "Pod C (9-11)", courts: ["Court 9", "Court 10", "Court 11"], sortBase: 1100 },
   semifinal2: { phase: "Semifinal", timeLabel: "2:50 PM", startTime: "14:50", podLabel: "Pod B (6-8)", courts: ["Court 6", "Court 7", "Court 8"], sortBase: 1110 },
-  final: { phase: "Final", timeLabel: "4:00 PM onward", startTime: "16:00", podLabel: "Championship courts", courts: ["Court 6", "Court 7", "Court 6", "Court 7", "Court 8", "Court 9"], sortBase: 1120 }
+  final: { phase: "Final", timeLabel: "4:00 PM", startTime: "16:00", podLabel: "Championship courts", courts: ["Court 6", "Court 7", "Court 8"], sortBase: 1120 }
 };
 
 function effectiveMembers(team: Team) {

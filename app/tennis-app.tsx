@@ -4559,8 +4559,8 @@ function TvTournamentFinalsScene({ tournament, node, currentMinutes, isToday, no
   const definitions = getProjectedTierDefinitions(node, null);
   const completedMatches = node.result.matches.filter((match) => match.score?.winnerSide).length;
   const statusLabel = completedMatches
-    ? `${completedMatches} of 6 championship matches final`
-    : "Championship teams confirmed";
+    ? `${completedMatches} of 3 championship matches final`
+    : "Three championship matches live now";
 
   return (
     <main className="relative grid h-dvh min-h-[720px] grid-rows-[auto_auto_minmax(0,1fr)] gap-[clamp(12px,1.6vh,26px)] overflow-hidden bg-[var(--surface)] px-[clamp(42px,4.5vw,104px)] py-[clamp(24px,3vh,54px)] font-sans text-[var(--brand-deep)]" aria-label={`${teamA.name} versus ${teamB.name} championship final`}>
@@ -4587,20 +4587,16 @@ function TvTournamentFinalsScene({ tournament, node, currentMinutes, isToday, no
         <span className="grid min-w-[clamp(150px,11vw,220px)] content-center justify-items-center gap-2 text-center">
           <em className="rounded-full bg-[var(--accent-tint)] px-3 py-1.5 text-[clamp(9px,0.58vw,13px)] font-semibold not-italic uppercase tracking-[0.1em] text-[var(--accent-ink)]">{statusLabel}</em>
           <strong className="text-[clamp(40px,4vw,78px)] font-bold leading-none tracking-[-0.06em] tabular-nums text-brand">{node.result.matchWinsA}<span className="px-[0.2em] text-text-muted">–</span>{node.result.matchWinsB}</strong>
-          <span className="text-[clamp(10px,0.65vw,14px)] font-medium text-text-secondary">Six matches decide the title</span>
+          <span className="text-[clamp(10px,0.65vw,14px)] font-medium text-text-secondary">Best of three matches decides the title</span>
         </span>
         <TvFinalistTeamCard team={teamB} />
       </section>
 
-      <section className="relative z-10 grid min-h-0 grid-cols-[minmax(360px,0.72fr)_minmax(620px,1.28fr)] gap-[clamp(12px,1.2vw,24px)]" aria-label="Championship final matches">
-        <section className="grid min-h-0 grid-rows-[auto_repeat(2,minmax(0,1fr))] gap-[clamp(8px,0.8vh,13px)] rounded-[clamp(18px,1.3vw,26px)] border border-[var(--hairline-strong)] bg-white/88 p-[clamp(12px,1vw,20px)] shadow-[0_18px_44px_rgba(var(--brand-deep-rgb),0.08)] backdrop-blur-xl">
-          <TvFinalMatchGroupHeading detail="Courts 6 & 7" format="Doubles" time="4:00 PM" />
-          {definitions.slice(0, 2).map((definition, index) => <TvFinalMatchCard currentMinutes={currentMinutes} definition={definition} isToday={isToday} match={node.result.matches[index] || null} node={node} key={definition.label} />)}
-        </section>
-        <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-[clamp(8px,0.8vh,13px)] rounded-[clamp(18px,1.3vw,26px)] border border-[var(--hairline-strong)] bg-white/88 p-[clamp(12px,1vw,20px)] shadow-[0_18px_44px_rgba(var(--brand-deep-rgb),0.08)] backdrop-blur-xl">
-          <TvFinalMatchGroupHeading detail="Courts 6–9" format="Singles" time="5:10 PM" />
-          <div className="grid min-h-0 grid-cols-2 grid-rows-2 gap-[clamp(8px,0.7vw,13px)]">
-            {definitions.slice(2).map((definition, index) => <TvFinalMatchCard currentMinutes={currentMinutes} definition={definition} isToday={isToday} match={node.result.matches[index + 2] || null} node={node} key={definition.label} />)}
+      <section className="relative z-10 grid min-h-0" aria-label="Championship final matches">
+        <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-[clamp(10px,1vh,16px)] rounded-[clamp(18px,1.3vw,26px)] border border-[var(--hairline-strong)] bg-white/88 p-[clamp(14px,1.2vw,24px)] shadow-[0_18px_44px_rgba(var(--brand-deep-rgb),0.08)] backdrop-blur-xl">
+          <TvFinalMatchGroupHeading detail="Courts 6, 7 & 8" format="Three matches · live now" time="4:00 PM" />
+          <div className="grid min-h-0 grid-cols-3 gap-[clamp(10px,1vw,18px)]">
+            {definitions.map((definition, index) => <TvFinalMatchCard currentMinutes={currentMinutes} definition={definition} isToday={isToday} match={node.result.matches[index] || null} node={node} key={definition.label} />)}
           </div>
         </section>
       </section>
@@ -4688,7 +4684,7 @@ function TvDayTwoBracketScene({ stages, currentMinutes, isToday }: { stages: Liv
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const nodes = stages.flatMap((stage) => stage.nodes);
-  const expectedMatches = nodes.reduce((total, node) => total + (node.phase === "Final" ? 6 : 3), 0);
+  const expectedMatches = nodes.reduce((total) => total + 3, 0);
   const completedMatches = nodes.flatMap((node) => node.result.matches).filter((match) => match.score?.winnerSide).length;
   const liveNodeIds = new Set(nodes.filter((node) => getTvBracketNodeState(node, currentMinutes, isToday) === "live").map((node) => node.id));
   const activeStageIndex = Math.max(0, stages.reduce((latest, stage, index) => stage.nodes.some((node) => node.result.matches.length || liveNodeIds.has(node.id) || (node.sideA.team && node.sideB.team)) ? index : latest, 0));
@@ -4752,7 +4748,7 @@ function getTvBracketNodeState(node: LiveBracketNode, currentMinutes: number, is
 }
 
 function getDayTwoBracketExpectedCourts(node: LiveBracketNode) {
-  if (node.phase === "Final") return ["Court 6", "Court 7", "Court 6", "Court 7", "Court 8", "Court 9"];
+  if (node.phase === "Final") return ["Court 6", "Court 7", "Court 8"];
   if (node.id === "semifinal1") return ["Court 9", "Court 10", "Court 11"];
   if (node.id === "semifinal2") return ["Court 6", "Court 7", "Court 8"];
   return node.id.endsWith("2") || node.id === "qf4" ? ["Court 9", "Court 10", "Court 11"] : ["Court 6", "Court 7", "Court 8"];
@@ -9041,23 +9037,14 @@ function BracketPlayerProfileNames({ players, fallback, match }: { players: Matc
 }
 
 function DayTwoFinalMatchGroups({ matches, node }: { matches: TeamCourtScheduleMatch[]; node: LiveBracketNode }) {
-  const doubles = matches.filter((match) => match.format === "Doubles");
-  const singles = matches.filter((match) => match.format === "Singles");
   return (
-    <div className="grid gap-2">
-      {[
-        { label: "4:00 PM", detail: "Doubles · Courts 6 & 7", matches: doubles },
-        { label: "5:10 PM", detail: "Singles · Courts 6–9", matches: singles }
-      ].map((group) => (
-        <section className="grid gap-1 rounded-[10px] border-hairline border-line/80 bg-surface/65 p-1.5" key={group.label}>
-          <span className="flex items-center justify-between gap-2 px-1 py-0.5">
-            <strong className="text-[9px] font-semibold text-brand">{group.label}</strong>
-            <em className="text-[7px] font-medium not-italic text-text-muted">{group.detail}</em>
-          </span>
-          {group.matches.map((match) => <ScheduleBracketMatchLink match={match} node={node} key={match.id} />)}
-        </section>
-      ))}
-    </div>
+    <section className="grid gap-1 rounded-[10px] border-hairline border-line/80 bg-surface/65 p-1.5">
+      <span className="flex items-center justify-between gap-2 px-1 py-0.5">
+        <strong className="text-[9px] font-semibold text-brand">4:00 PM · Live now</strong>
+        <em className="text-[7px] font-medium not-italic text-text-muted">Two singles + one doubles · Courts 6–8</em>
+      </span>
+      {matches.map((match) => <ScheduleBracketMatchLink match={match} node={node} key={match.id} />)}
+    </section>
   );
 }
 
@@ -9082,12 +9069,9 @@ function getEffectiveTeamTierMembers(team: PublishedTeam | null) {
 
 function getProjectedTierDefinitions(node: LiveBracketNode, formatChoice: DayTwoFormatChoice | null) {
   if (node.phase === "Final") return [
-    { label: "Doubles 1", tiers: [1, 2], format: "Doubles", court: "Court 6" },
-    { label: "Doubles 2", tiers: [3, 4], format: "Doubles", court: "Court 7" },
     { label: "Tier 1", tiers: [1], format: "Singles", court: "Court 6" },
     { label: "Tier 2", tiers: [2], format: "Singles", court: "Court 7" },
-    { label: "Tier 3", tiers: [3], format: "Singles", court: "Court 8" },
-    { label: "Tier 4", tiers: [4], format: "Singles", court: "Court 9" }
+    { label: "Tiers 3 & 4", tiers: [3, 4], format: "Doubles", court: "Court 8" }
   ];
   if (!formatChoice) return [];
   const definitions = formatChoice === "tiers_1_2_singles"
@@ -9113,10 +9097,10 @@ function DayTwoProjectedMatchups({ node, formatChoice }: { node: LiveBracketNode
     <div className="grid gap-1" aria-label={`${node.label} projected player matchups`}>
       {definitions.map((definition, index) => (
         <Fragment key={`${node.id}:${definition.label}`}>
-          {node.phase === "Final" && (index === 0 || index === 2) && (
+          {node.phase === "Final" && index === 0 && (
             <span className="mt-1 flex items-center justify-between gap-2 rounded-[8px] bg-[var(--surface)] px-2 py-1.5 first:mt-0">
-              <strong className="text-[9px] font-semibold text-brand">{index === 0 ? "4:00 PM" : "5:10 PM"}</strong>
-              <em className="text-[7px] font-medium not-italic text-text-muted">{index === 0 ? "Doubles · Courts 6 & 7" : "Singles · Courts 6–9"}</em>
+              <strong className="text-[9px] font-semibold text-brand">4:00 PM · Live now</strong>
+              <em className="text-[7px] font-medium not-italic text-text-muted">Two singles + one doubles · Courts 6–8</em>
             </span>
           )}
           <article className="grid gap-1 rounded-[9px] border-hairline border-line/70 bg-white px-2 py-2">
@@ -9929,7 +9913,7 @@ function getTeamMatchupResults(teams: PublishedTeam[], matches: TeamCourtSchedul
     const teamB = teams.find((team) => team.id === firstMatch.teamBId) || null;
     const sideA: BracketSlot = { team: teamA, seed: null, fallbackLabel: firstMatch.teamAName || "Team A" };
     const sideB: BracketSlot = { team: teamB, seed: null, fallbackLabel: firstMatch.teamBName || "Team B" };
-    return getTeamTieResult(sideA, sideB, teamMatches, firstMatch.matchType === "Final" ? 6 : 3);
+    return getTeamTieResult(sideA, sideB, teamMatches, 3);
   });
 }
 
@@ -10105,7 +10089,7 @@ function getTournamentChampion(teams: PublishedTeam[], matches: TeamCourtSchedul
 function getTournamentChampionFromStages(stages: LiveBracketStage[]) {
   const finalNode = stages.find((stage) => stage.key === "final")?.nodes[0];
   const finalIsComplete = Boolean(finalNode
-    && finalNode.result.scheduledMatches >= 6
+    && finalNode.result.scheduledMatches >= 3
     && finalNode.result.completedMatches === finalNode.result.scheduledMatches);
   if (!finalNode?.result.winnerTeamId || !finalIsComplete) return null;
   return [finalNode.sideA.team, finalNode.sideB.team].find((team) => team?.id === finalNode.result.winnerTeamId) || null;
@@ -10118,7 +10102,7 @@ function buildLiveTeamBracket(standings: TeamStanding[], dayTwoMatches: TeamCour
   };
   const makeNode = (id: string, label: string, phase: string, timeLabel: string, timeMinutes: number[], sideA: BracketSlot, sideB: BracketSlot): LiveBracketNode => {
     const nodeMatches = findBracketNodeMatches(dayTwoMatches, id, sideA.team?.id || "", sideB.team?.id || "", timeMinutes);
-    return { id, label, phase, timeLabel, timeMinutes, sideA, sideB, result: getTeamTieResult(sideA, sideB, nodeMatches, phase === "Final" ? 6 : 3) };
+    return { id, label, phase, timeLabel, timeMinutes, sideA, sideB, result: getTeamTieResult(sideA, sideB, nodeMatches, 3) };
   };
   const outcomeSlot = (node: LiveBracketNode, outcome: "winner" | "loser", fallbackLabel: string): BracketSlot => {
     const teamId = outcome === "winner" ? node.result.winnerTeamId : node.result.loserTeamId;
@@ -10138,7 +10122,7 @@ function buildLiveTeamBracket(standings: TeamStanding[], dayTwoMatches: TeamCour
   const reentry2 = makeNode("reentry2", "Re-entry 2", "Re-entry", "1:40 PM", [820], outcomeSlot(survival2, "winner", "Survival 2 winner"), outcomeSlot(advantage1, "loser", "Advantage 1 loser"));
   const semifinal1 = makeNode("semifinal1", "Semifinal 1", "Semifinal", "2:50 PM", [890], outcomeSlot(advantage1, "winner", "Advantage 1 winner"), outcomeSlot(reentry2, "winner", "Re-entry 2 winner"));
   const semifinal2 = makeNode("semifinal2", "Semifinal 2", "Semifinal", "2:50 PM", [890], outcomeSlot(advantage2, "winner", "Advantage 2 winner"), outcomeSlot(reentry1, "winner", "Re-entry 1 winner"));
-  const final = makeNode("final", "Championship final", "Final", "4:00 PM & 5:10 PM", [960, 1030], outcomeSlot(semifinal1, "winner", "Semifinal 1 winner"), outcomeSlot(semifinal2, "winner", "Semifinal 2 winner"));
+  const final = makeNode("final", "Championship final", "Final", "4:00 PM · Courts 6–8", [960], outcomeSlot(semifinal1, "winner", "Semifinal 1 winner"), outcomeSlot(semifinal2, "winner", "Semifinal 2 winner"));
 
   return [
     { key: "quarterfinals", label: "Quarterfinals", helper: "Seeds 1–8 enter the draw", nodes: [qf1, qf2, qf3, qf4] },
@@ -10163,7 +10147,7 @@ function getPendingDayTwoSyncSignature(teams: PublishedTeam[], matches: TeamCour
     const decision = decisionByNode.get(node.id as DayTwoCoinTossNodeKey);
     const hasValidDecision = Boolean(decision && knownTeamIds.includes(decision.winningTeamId));
     if (!fixedFormat && !hasValidDecision && !node.result.matches.length) return false;
-    const expectedMatches = node.phase === "Final" ? 6 : 3;
+    const expectedMatches = 3;
     const hasWrongPairing = node.result.matches.some((match) => !knownTeamIds.includes(match.teamAId) || !knownTeamIds.includes(match.teamBId) || match.teamAId === match.teamBId);
     const hasMissingCourt = node.result.matches.some((match) => !match.courtLabel);
     const hasWrongSemifinalCourt = (node.id === "semifinal1" || node.id === "semifinal2") && node.result.matches.some((match, index) => normalizeName(match.courtLabel) !== normalizeName(getDayTwoBracketExpectedCourts(node)[index] || ""));
