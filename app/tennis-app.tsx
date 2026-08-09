@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, ChevronRight, Clock, Dumbbell, ExternalLink, House, Info, LogIn, LogOut, Mail, MapPin, MonitorUp, Pencil, RefreshCw, Search, Shield, Shirt, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, ChevronRight, Clock, Dumbbell, ExternalLink, Gift, House, Info, LogIn, LogOut, Mail, MapPin, MonitorUp, Pencil, RefreshCw, Search, Shield, Shirt, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -60,6 +60,8 @@ type Tournament = {
   faqs: TournamentFaq[];
 };
 type TournamentFaq = { question: string; answer: string };
+type TournamentRaffleWinner = { id: string; tournamentId: string; name: string; photoUrl: string; kind: "drafted_player" | "volunteer"; playerId: string; drawnAt: string };
+type TournamentRaffleWinnerRow = { id?: string | null; tournament_id?: string | null; winner_name?: string | null; winner_photo_url?: string | null; winner_kind?: string | null; winner_player_id?: string | null; drawn_at?: string | null };
 type RegisteredPlayer = { id: string; name: string; age: string; city: string; rating: string; tennisVideoUrl: string };
 type TournamentProfileReminder = { missingPhoto: boolean; missingJerseyName: boolean; missingJerseySize: boolean };
 type PublishedTeamMember = { id: string; playerId: string; name: string; age: string; city: string; tier: string; rating: string; profilePhotoUrl: string; isCaptain: boolean; draftOrder: number | null };
@@ -673,6 +675,34 @@ function TournamentWinnerBanner({ tournament, team, source }: { tournament: Tour
       </div>
     </section>
   );
+}
+
+function TournamentRaffleWinnerTile({ winner }: { winner: TournamentRaffleWinner }) {
+  return (
+    <section className="relative mx-auto grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-[20px] border border-[var(--accent-line)] bg-accent-tint p-3.5 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.06)] sm:p-4" aria-labelledby={`raffle-winner-${winner.id}`}>
+      <span className="pointer-events-none absolute -right-8 -top-12 h-32 w-32 rounded-full bg-[var(--accent)]/20 blur-2xl" aria-hidden="true" />
+      <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-brand-deep text-[var(--accent)]"><Gift size={20} /></span>
+      <span className="relative grid min-w-0 gap-0.5">
+        <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-[var(--accent-ink)]">Tournament raffle winner</em>
+        <strong className="truncate text-[18px] font-bold leading-tight tracking-[-0.02em] text-text-primary sm:text-[21px]" id={`raffle-winner-${winner.id}`}>{winner.name}</strong>
+        <span className="text-[10px] font-medium text-text-secondary">{winner.kind === "volunteer" ? "Tournament volunteer" : "Drafted player"}</span>
+      </span>
+      <Avatar className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border-[3px] border-white bg-brand-deep text-[11px] font-bold text-white shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.16)]" name={winner.name} photoUrl={winner.photoUrl} sizes="48px" />
+    </section>
+  );
+}
+
+function mapTournamentRaffleWinner(row: TournamentRaffleWinnerRow): TournamentRaffleWinner | null {
+  if (!row.id || !row.tournament_id || !row.winner_name) return null;
+  return {
+    id: row.id,
+    tournamentId: row.tournament_id,
+    name: row.winner_name,
+    photoUrl: row.winner_photo_url || "",
+    kind: row.winner_kind === "volunteer" ? "volunteer" : "drafted_player",
+    playerId: row.winner_player_id || "",
+    drawnAt: row.drawn_at || ""
+  };
 }
 
 function TournamentWinnerCelebration({ tournamentId, team, autoPlay = false }: { tournamentId: string; team: PublishedTeam; autoPlay?: boolean }) {
@@ -2023,6 +2053,7 @@ export function HomeScreen() {
   const [homeRegistrationResolutionKey, setHomeRegistrationResolutionKey] = useState("");
   const [homeUpcomingMatches, setHomeUpcomingMatches] = useState<PlayerScheduleMatch[]>([]);
   const [homeTournamentChampion, setHomeTournamentChampion] = useState<PublishedTeam | null>(null);
+  const [homeRaffleWinner, setHomeRaffleWinner] = useState<TournamentRaffleWinner | null>(null);
   const homeWeatherDate = getHomeTournamentWeatherDate(upcomingTournament);
 
   useEffect(() => {
@@ -2061,7 +2092,7 @@ export function HomeScreen() {
         supabase
           .from("tournaments")
           .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
-	          .in("status", ["registration_open", "registration_closed", "live"])
+	          .in("status", ["registration_open", "registration_closed", "live", "completed"])
           .order("starts_on", { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -2092,8 +2123,9 @@ export function HomeScreen() {
           profilePhotoUrl: row.profile_photo_url || ""
       })));
       setHomeTournamentChampion(null);
+      setHomeRaffleWinner(null);
       if (tournamentData) {
-        const [championTeamsResult, championMatchesResult, championPlayersResult, championScoresResult] = await Promise.all([
+        const [championTeamsResult, championMatchesResult, championPlayersResult, championScoresResult, raffleResult] = await Promise.all([
           supabase
             .from("tournament_teams")
             .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
@@ -2119,8 +2151,14 @@ export function HomeScreen() {
             .from("tournament_match_scores")
             .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
             .eq("tournament_id", tournamentData.id)
-            .limit(400)
+            .limit(400),
+          supabase
+            .from("tournament_raffles")
+            .select("id,tournament_id,winner_name,winner_photo_url,winner_kind,winner_player_id,drawn_at")
+            .eq("tournament_id", tournamentData.id)
+            .maybeSingle()
         ]);
+        if (!raffleResult.error && raffleResult.data) setHomeRaffleWinner(mapTournamentRaffleWinner(raffleResult.data));
         const championScheduleMissing = isScheduleSchemaMissing(championMatchesResult.error?.message || championPlayersResult.error?.message || "");
         const championScoresMissing = isScoreSchemaMissing(championScoresResult.error?.message || "");
         if (!championTeamsResult.error && !championScheduleMissing && !championMatchesResult.error && !championPlayersResult.error) {
@@ -2225,6 +2263,7 @@ export function HomeScreen() {
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_matches" }, loadDashboard)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_match_players" }, loadDashboard)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_match_scores" }, loadDashboard)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_raffles" }, loadDashboard)
       .subscribe();
 
     return () => {
@@ -2298,6 +2337,8 @@ export function HomeScreen() {
           {upcomingTournament && homeTournamentChampion && (
             <TournamentWinnerBanner source="dashboard" team={homeTournamentChampion} tournament={upcomingTournament} />
           )}
+
+          {upcomingTournament && homeRaffleWinner && <TournamentRaffleWinnerTile winner={homeRaffleWinner} />}
 
           <div className="home-dashboard-focus grid gap-6 lg:gap-7">
             {upcomingTournament && homeCanViewSchedule && homePrimaryMatch && (
@@ -2446,6 +2487,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [teams, setTeams] = useState<PublishedTeam[]>([]);
   const [matches, setMatches] = useState<TeamCourtScheduleMatch[]>([]);
+  const [raffleWinner, setRaffleWinner] = useState<TournamentRaffleWinner | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -2462,7 +2504,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
     const { data: tournamentData, error: tournamentError } = await supabase
       .from("tournaments")
       .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
-      .in("status", ["registration_open", "registration_closed", "live"])
+      .in("status", ["registration_open", "registration_closed", "live", "completed"])
       .order("starts_on", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -2471,6 +2513,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
       setTournament(null);
       setTeams([]);
       setMatches([]);
+      setRaffleWinner(null);
       setMessage(getFriendlyError(tournamentError));
       setLoading(false);
       return;
@@ -2480,13 +2523,14 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
       setTournament(null);
       setTeams([]);
       setMatches([]);
+      setRaffleWinner(null);
       setLoading(false);
       return;
     }
 
     const mappedTournament = mapTournament(tournamentData);
     setTournament(mappedTournament);
-    const [teamsResult, matchesResult, participantsResult, scoresResult] = await Promise.all([
+    const [teamsResult, matchesResult, participantsResult, scoresResult, raffleResult] = await Promise.all([
       supabase
         .from("tournament_teams")
         .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
@@ -2512,7 +2556,12 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
         .from("tournament_match_scores")
         .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_by, submitted_at")
         .eq("tournament_id", mappedTournament.id)
-        .limit(400)
+        .limit(400),
+      supabase
+        .from("tournament_raffles")
+        .select("id,tournament_id,winner_name,winner_photo_url,winner_kind,winner_player_id,drawn_at")
+        .eq("tournament_id", mappedTournament.id)
+        .maybeSingle()
     ]);
 
     const scheduleSchemaMissing = isScheduleSchemaMissing(matchesResult.error?.message || participantsResult.error?.message || "");
@@ -2529,6 +2578,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
     const mappedScores = scoreSchemaMissing || scoresResult.error ? [] : mapMatchScores(scoresResult.data || []);
     setTeams(mappedTeams);
     setMatches(mapTeamCourtScheduleMatches(matchesResult.data || [], participantsResult.data || [], mappedTeams, mappedScores));
+    setRaffleWinner(!raffleResult.error && raffleResult.data ? mapTournamentRaffleWinner(raffleResult.data) : null);
     setLoading(false);
   }, []);
 
@@ -2549,6 +2599,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_matches" }, loadGuestHome)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_match_players" }, loadGuestHome)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_match_scores" }, loadGuestHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_raffles" }, loadGuestHome)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -2571,6 +2622,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
       || getScheduleTimeSortValue(right.timeLabel) - getScheduleTimeSortValue(left.timeLabel)
       || right.sortOrder - left.sortOrder;
   }).slice(0, 5);
+  const guestTournamentChampion = getTournamentChampion(teams, matches);
   const showMemberNav = Boolean(appSession.userId);
 
   return (
@@ -2593,6 +2645,8 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
             <>
               <div className="grid gap-3">
                 <GuestTournamentBanner tournament={tournament} />
+                {guestTournamentChampion && <TournamentWinnerBanner source="dashboard" team={guestTournamentChampion} tournament={tournament} />}
+                {raffleWinner && <TournamentRaffleWinnerTile winner={raffleWinner} />}
                 {!appSession.userId && <GuestPlayerSignInPrompt />}
               </div>
 

@@ -6219,6 +6219,91 @@ body,
   animation: winner-firework-spark 1.55s cubic-bezier(0.14, 0.7, 0.2, 1) var(--firework-delay) both;
 }
 
+.raffle-wheel {
+  will-change: transform;
+}
+
+.raffle-wheel-is-spinning {
+  transition: transform 8.8s cubic-bezier(0.12, 0.58, 0.08, 1);
+}
+
+.raffle-wheel::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: repeating-conic-gradient(from -90deg, rgba(255, 255, 255, 0.38) 0deg 0.35deg, transparent 0.35deg 10deg);
+  border-radius: inherit;
+  mix-blend-mode: soft-light;
+}
+
+.raffle-wheel-pointer {
+  width: 0;
+  height: 0;
+  filter: drop-shadow(0 7px 9px rgba(var(--brand-deep-rgb), 0.28));
+  border-top: 34px solid var(--accent);
+  border-right: 20px solid transparent;
+  border-left: 20px solid transparent;
+}
+
+.raffle-wheel-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  width: 48%;
+  height: 20px;
+  padding-right: 8%;
+  align-items: center;
+  justify-content: flex-end;
+  color: white;
+  transform: translateY(-50%) rotate(var(--raffle-label-angle));
+  transform-origin: 0 50%;
+}
+
+.raffle-wheel-label strong {
+  max-width: 82%;
+  overflow: hidden;
+  font-size: clamp(6px, 0.72vw, 11px);
+  font-weight: 700;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.72);
+  white-space: nowrap;
+}
+
+.raffle-reveal-confetti {
+  position: fixed;
+  top: -20px;
+  left: 50%;
+  z-index: 1;
+  width: var(--raffle-confetti-size);
+  height: calc(var(--raffle-confetti-size) * 1.7);
+  background: var(--raffle-confetti-color);
+  border-radius: 2px;
+  opacity: 0;
+  animation: raffle-confetti-fall var(--raffle-confetti-duration) cubic-bezier(0.18, 0.7, 0.24, 1) var(--raffle-confetti-delay) both;
+}
+
+@keyframes raffle-confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, -4vh, 0) rotate(0deg) scale(0.5);
+  }
+  10% {
+    opacity: 1;
+  }
+  52% {
+    opacity: 1;
+    transform: translate3d(calc(-50% + var(--raffle-confetti-x)), 46vh, 0) rotate(var(--raffle-confetti-rotation)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(-50% + var(--raffle-confetti-drift)), 108vh, 0) rotate(calc(var(--raffle-confetti-rotation) * 1.65)) scale(0.72);
+  }
+}
+
 @keyframes winner-confetti-burst {
   0% {
     opacity: 0;
@@ -6398,6 +6483,14 @@ body,
 
   .winner-team-pill {
     animation: winner-pill-gentle 2.4s ease both;
+  }
+
+  .raffle-wheel-is-spinning {
+    transition-duration: 1ms;
+  }
+
+  .raffle-reveal-confetti {
+    display: none;
   }
 }
 

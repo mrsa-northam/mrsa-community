@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Crown, Download, Home, ImagePlus, Menu, Pencil, Plus, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Crown, Dices, Download, Home, ImagePlus, Menu, Pencil, Plus, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -8,7 +8,7 @@ import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useState } f
 import { getSupabaseClient } from "../lib/supabase";
 import { MRSA_COLORS } from "../design-tokens";
 
-type AdminTab = "overview" | "tournaments" | "players" | "payments" | "claims";
+type AdminTab = "overview" | "tournaments" | "players" | "payments" | "claims" | "raffle";
 type AdminTournamentWorkspaceSection = "setup" | "content" | "teams" | "players" | "waitlist";
 type AdminTournamentPlayerSection = "registered" | "undrafted" | "interested";
 type AdminTournamentContentSection = "faqs" | "rules";
@@ -387,6 +387,7 @@ export function AdminFrame({ active, children }: { active: AdminTab; children: R
           <AdminNavItem active={active === "players"} href="/admin/players" icon={<UsersRound size={17} />} label="Players" />
           <AdminNavItem active={active === "payments"} href="/admin/payments" icon={<BadgeDollarSign size={17} />} label="Payments" />
           <AdminNavItem active={active === "claims"} href="/admin/claims" icon={<ClipboardCheck size={17} />} label="Claims" />
+          <AdminNavItem active={active === "raffle"} href="/admin/raffle" icon={<Dices size={17} />} label="Raffle" />
         </nav>
         <Link className="tap-card hidden min-h-10 items-center justify-center rounded-[14px] border-hairline border-white/12 bg-white/10 px-4 text-xs font-medium text-white/85 lg:mt-auto lg:inline-flex" href="/dashboard">Player app →</Link>
       </aside>
@@ -499,6 +500,7 @@ export function AdminOverviewScreen() {
         <AdminLinkCard href="/admin/players" title="Manage players" copy="Search player records, claimed status, city, and ratings." />
         <AdminLinkCard href="/admin/payments" title="Manage payments" copy="Track charges, payments, refunds, and adjustments." />
         <AdminLinkCard href="/admin/claims" title="Review claims" copy="Approve or reject profile claim requests." />
+        <AdminLinkCard href="/admin/raffle" title="Tournament raffle" copy="Spin the 36-name wheel and draw the saved raffle winner." />
       </div>
     </AdminFrame>
   );
