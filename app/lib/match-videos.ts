@@ -5,8 +5,11 @@ export const swingVisionMatchLinks: Record<string, string> = {
   "D1-010": "https://swing.vision/matches/sw2-y0TEJP8",
   "D1-019": "https://swing.vision/matches/sw2-tXs3My4",
   "D1-025": "https://swing.vision/matches/sw2-xhvzUEg",
+  "D1-028": "https://swing.vision/matches/sw2-YEcAVDc",
+  "D1-036": "https://swing.vision/matches/sw2-Xv57Cyw",
   "D1-043": "https://swing.vision/matches/sw2-U7xNNac",
-  "D1-044": "https://swing.vision/matches/sw2-VFjwGA8"
+  "D1-044": "https://swing.vision/matches/sw2-VFjwGA8",
+  "D1-045": "https://swing.vision/matches/sw2-112AbSM"
 };
 
 export function getSwingVisionMatchUrl(publicMatchId: string) {
