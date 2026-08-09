@@ -8,6 +8,8 @@ import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useState } f
 import { getSupabaseClient } from "../lib/supabase";
 import { MRSA_COLORS } from "../design-tokens";
 
+const raffleResultNoteTitle = "__MRSA_RAFFLE_RESULT_V1__";
+
 type AdminTab = "overview" | "tournaments" | "players" | "payments" | "claims" | "raffle";
 type AdminTournamentWorkspaceSection = "setup" | "content" | "teams" | "players" | "waitlist";
 type AdminTournamentPlayerSection = "registered" | "undrafted" | "interested";
@@ -1120,6 +1122,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .from("tournament_schedule_notes")
         .select("id, title, body, sort_order, is_published")
         .eq("tournament_id", tournamentId)
+        .neq("title", raffleResultNoteTitle)
         .order("sort_order", { ascending: true })
         .limit(120)
     ]);
@@ -2786,7 +2789,8 @@ async function replaceAdminScheduleNotes(tournamentId: string, notes: AdminSched
   const { error: deleteError } = await supabase
     .from("tournament_schedule_notes")
     .delete()
-    .eq("tournament_id", tournamentId);
+    .eq("tournament_id", tournamentId)
+    .neq("title", raffleResultNoteTitle);
   if (deleteError) return deleteError.message;
 
   if (!notes.length) return "";

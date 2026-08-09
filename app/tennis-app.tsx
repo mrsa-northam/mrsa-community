@@ -12,6 +12,7 @@ import { getMatchVideoBrowserPath, getSwingVisionMatchUrl as getSwingVisionUrlBy
 import { MRSA_COLORS } from "./design-tokens";
 
 const TournamentHeroAmbience = dynamic(() => import("./tournament-hero-ambience").then((mod) => mod.TournamentHeroAmbience), { ssr: false });
+const raffleResultNoteTitle = "__MRSA_RAFFLE_RESULT_V1__";
 
 type Tab = "home" | "schedule" | "leaderboard" | "rosters" | "tournament" | "profile" | "admin";
 type ProfileData = {
@@ -62,6 +63,7 @@ type Tournament = {
 type TournamentFaq = { question: string; answer: string };
 type TournamentRaffleWinner = { id: string; tournamentId: string; name: string; photoUrl: string; kind: "drafted_player" | "volunteer"; playerId: string; drawnAt: string };
 type TournamentRaffleWinnerRow = { id?: string | null; tournament_id?: string | null; winner_name?: string | null; winner_photo_url?: string | null; winner_kind?: string | null; winner_player_id?: string | null; drawn_at?: string | null };
+type TournamentRaffleWinnerNoteRow = { id?: string | null; tournament_id?: string | null; body?: string | null; updated_at?: string | null };
 type RegisteredPlayer = { id: string; name: string; age: string; city: string; rating: string; tennisVideoUrl: string };
 type TournamentProfileReminder = { missingPhoto: boolean; missingJerseyName: boolean; missingJerseySize: boolean };
 type PublishedTeamMember = { id: string; playerId: string; name: string; age: string; city: string; tier: string; rating: string; profilePhotoUrl: string; isCaptain: boolean; draftOrder: number | null };
@@ -703,6 +705,16 @@ function mapTournamentRaffleWinner(row: TournamentRaffleWinnerRow): TournamentRa
     playerId: row.winner_player_id || "",
     drawnAt: row.drawn_at || ""
   };
+}
+
+function mapTournamentRaffleWinnerNote(row: TournamentRaffleWinnerNoteRow): TournamentRaffleWinner | null {
+  if (!row.id || !row.tournament_id || !row.body) return null;
+  try {
+    const stored = JSON.parse(row.body) as TournamentRaffleWinnerRow;
+    return mapTournamentRaffleWinner({ id: row.id, tournament_id: row.tournament_id, ...stored, drawn_at: stored.drawn_at || row.updated_at });
+  } catch {
+    return null;
+  }
 }
 
 function TournamentWinnerCelebration({ tournamentId, team, autoPlay = false }: { tournamentId: string; team: PublishedTeam; autoPlay?: boolean }) {
@@ -2153,12 +2165,13 @@ export function HomeScreen() {
             .eq("tournament_id", tournamentData.id)
             .limit(400),
           supabase
-            .from("tournament_raffles")
-            .select("id,tournament_id,winner_name,winner_photo_url,winner_kind,winner_player_id,drawn_at")
+            .from("tournament_schedule_notes")
+            .select("id,tournament_id,body,updated_at")
             .eq("tournament_id", tournamentData.id)
+            .eq("title", raffleResultNoteTitle)
             .maybeSingle()
         ]);
-        if (!raffleResult.error && raffleResult.data) setHomeRaffleWinner(mapTournamentRaffleWinner(raffleResult.data));
+        if (!raffleResult.error && raffleResult.data) setHomeRaffleWinner(mapTournamentRaffleWinnerNote(raffleResult.data));
         const championScheduleMissing = isScheduleSchemaMissing(championMatchesResult.error?.message || championPlayersResult.error?.message || "");
         const championScoresMissing = isScoreSchemaMissing(championScoresResult.error?.message || "");
         if (!championTeamsResult.error && !championScheduleMissing && !championMatchesResult.error && !championPlayersResult.error) {
@@ -2263,7 +2276,7 @@ export function HomeScreen() {
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_matches" }, loadDashboard)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_match_players" }, loadDashboard)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_match_scores" }, loadDashboard)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_raffles" }, loadDashboard)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_notes" }, loadDashboard)
       .subscribe();
 
     return () => {
@@ -2558,9 +2571,10 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
         .eq("tournament_id", mappedTournament.id)
         .limit(400),
       supabase
-        .from("tournament_raffles")
-        .select("id,tournament_id,winner_name,winner_photo_url,winner_kind,winner_player_id,drawn_at")
+        .from("tournament_schedule_notes")
+        .select("id,tournament_id,body,updated_at")
         .eq("tournament_id", mappedTournament.id)
+        .eq("title", raffleResultNoteTitle)
         .maybeSingle()
     ]);
 
@@ -2578,7 +2592,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
     const mappedScores = scoreSchemaMissing || scoresResult.error ? [] : mapMatchScores(scoresResult.data || []);
     setTeams(mappedTeams);
     setMatches(mapTeamCourtScheduleMatches(matchesResult.data || [], participantsResult.data || [], mappedTeams, mappedScores));
-    setRaffleWinner(!raffleResult.error && raffleResult.data ? mapTournamentRaffleWinner(raffleResult.data) : null);
+    setRaffleWinner(!raffleResult.error && raffleResult.data ? mapTournamentRaffleWinnerNote(raffleResult.data) : null);
     setLoading(false);
   }, []);
 
@@ -2599,7 +2613,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_matches" }, loadGuestHome)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_match_players" }, loadGuestHome)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_match_scores" }, loadGuestHome)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_raffles" }, loadGuestHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_notes" }, loadGuestHome)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -5491,6 +5505,7 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
         .select("id, title, body, sort_order")
         .eq("tournament_id", mappedTournament.id)
         .eq("is_published", true)
+        .neq("title", raffleResultNoteTitle)
         .order("sort_order", { ascending: true })
         .limit(40),
       supabase
@@ -5901,6 +5916,7 @@ export function TournamentScheduleRulesScreen() {
       .select("id, title, body, sort_order")
       .eq("tournament_id", tournamentData.id)
       .eq("is_published", true)
+      .neq("title", raffleResultNoteTitle)
       .order("sort_order", { ascending: true })
       .limit(80);
 

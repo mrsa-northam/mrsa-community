@@ -19,7 +19,20 @@ type TeamMemberRow = {
   players?: { id?: string | null; full_name?: string | null; profile_photo_url?: string | null } | { id?: string | null; full_name?: string | null; profile_photo_url?: string | null }[] | null;
 };
 
+type StoredRaffleResult = {
+  winner_entry_id: string;
+  winner_name: string;
+  winner_photo_url: string | null;
+  winner_kind: "drafted_player" | "volunteer";
+  winner_player_id: string | null;
+  participant_count: number;
+  participant_snapshot: RaffleParticipant[];
+  drawn_by: string | null;
+  drawn_at: string;
+};
+
 const volunteerNames = ["Hasan Yameni", "Mohammed Segval", "Mufaddal Husain", "Zoeb Salehbhai"] as const;
+const raffleResultNoteTitle = "__MRSA_RAFFLE_RESULT_V1__";
 
 function one<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -27,6 +40,27 @@ function one<T>(value: T | T[] | null | undefined) {
 
 function volunteerEntryId(name: string) {
   return `volunteer:${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
+
+function parseStoredRaffleResult(value: unknown): StoredRaffleResult | null {
+  if (typeof value !== "string") return null;
+  try {
+    const parsed = JSON.parse(value) as Partial<StoredRaffleResult>;
+    if (!parsed.winner_entry_id || !parsed.winner_name || !parsed.winner_kind || !parsed.drawn_at) return null;
+    return {
+      winner_entry_id: parsed.winner_entry_id,
+      winner_name: parsed.winner_name,
+      winner_photo_url: parsed.winner_photo_url || null,
+      winner_kind: parsed.winner_kind === "volunteer" ? "volunteer" : "drafted_player",
+      winner_player_id: parsed.winner_player_id || null,
+      participant_count: Number(parsed.participant_count || 36),
+      participant_snapshot: Array.isArray(parsed.participant_snapshot) ? parsed.participant_snapshot : [],
+      drawn_by: parsed.drawn_by || null,
+      drawn_at: parsed.drawn_at
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function authorizeAdmin(request: NextRequest) {
@@ -58,7 +92,7 @@ async function loadRaffle(admin: NonNullable<ReturnType<typeof getSupabaseAdminC
   if (tournamentError) throw tournamentError;
   if (!tournament) return { tournament: null, participants: [] as RaffleParticipant[], result: null };
 
-  const [teamsResult, volunteerProfilesResult, raffleResult] = await Promise.all([
+  const [teamsResult, volunteerProfilesResult, raffleNoteResult] = await Promise.all([
     admin
       .from("tournament_teams")
       .select("id,name,sort_order,tournament_team_members(id,player_id,draft_order,players(id,full_name,profile_photo_url))")
@@ -67,12 +101,13 @@ async function loadRaffle(admin: NonNullable<ReturnType<typeof getSupabaseAdminC
       .order("sort_order", { ascending: true }),
     admin.from("players").select("id,full_name,profile_photo_url").in("full_name", [...volunteerNames]),
     admin
-      .from("tournament_raffles")
-      .select("id,tournament_id,winner_entry_id,winner_name,winner_photo_url,winner_kind,winner_player_id,participant_count,drawn_at")
+      .from("tournament_schedule_notes")
+      .select("id,tournament_id,body,updated_at")
       .eq("tournament_id", tournament.id)
+      .eq("title", raffleResultNoteTitle)
       .maybeSingle()
   ]);
-  const firstError = teamsResult.error || volunteerProfilesResult.error || raffleResult.error;
+  const firstError = teamsResult.error || volunteerProfilesResult.error || raffleNoteResult.error;
   if (firstError) throw firstError;
 
   const draftedPlayers: RaffleParticipant[] = (teamsResult.data || [])
@@ -99,7 +134,13 @@ async function loadRaffle(admin: NonNullable<ReturnType<typeof getSupabaseAdminC
     };
   });
   const participants = [...uniqueDraftedPlayers, ...volunteers];
-  return { tournament, participants, result: raffleResult.data || null };
+  const storedResult = parseStoredRaffleResult(raffleNoteResult.data?.body);
+  const result = raffleNoteResult.data && storedResult ? {
+    id: raffleNoteResult.data.id,
+    tournament_id: raffleNoteResult.data.tournament_id,
+    ...storedResult
+  } : null;
+  return { tournament, participants, result };
 }
 
 function rafflePayload(data: Awaited<ReturnType<typeof loadRaffle>>) {
@@ -152,8 +193,8 @@ export async function POST(request: NextRequest) {
 
     const winnerIndex = randomInt(data.participants.length);
     const winner = data.participants[winnerIndex];
-    const { error: insertError } = await auth.admin.from("tournament_raffles").insert({
-      tournament_id: data.tournament.id,
+    const drawnAt = new Date().toISOString();
+    const storedResult: StoredRaffleResult = {
       winner_entry_id: winner.entryId,
       winner_name: winner.name,
       winner_photo_url: winner.photoUrl || null,
@@ -162,7 +203,15 @@ export async function POST(request: NextRequest) {
       participant_count: data.participants.length,
       participant_snapshot: data.participants,
       drawn_by: auth.adminPlayerId,
-      drawn_at: new Date().toISOString()
+      drawn_at: drawnAt
+    };
+    const { error: insertError } = await auth.admin.from("tournament_schedule_notes").insert({
+      id: data.tournament.id,
+      tournament_id: data.tournament.id,
+      title: raffleResultNoteTitle,
+      body: JSON.stringify(storedResult),
+      sort_order: 100000,
+      is_published: true
     });
     if (insertError) {
       if (insertError.code !== "23505") throw insertError;
