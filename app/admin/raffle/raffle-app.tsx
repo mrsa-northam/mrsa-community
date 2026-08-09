@@ -37,6 +37,9 @@ type RafflePayload = {
   error?: string;
 };
 
+type RaffleMode = "practice" | "official";
+type PendingRaffleResult = { result: RaffleResult; mode: RaffleMode };
+
 const wheelColors = ["#0A2540", "#116466", "#E85D3F", "#2E6F95", "#D6A84B", "#6B4E8A", "#16817A", "#C94C73", "#375A7F"];
 const revealConfetti = Array.from({ length: 108 }, (_, index) => ({
   color: wheelColors[index % wheelColors.length],
@@ -71,13 +74,26 @@ function getAlignedWheelRotation(currentRotation: number, winnerIndex: number, p
   return currentRotation + fullTurns * 360 + alignmentDelta;
 }
 
+function secureRandomIndex(count: number) {
+  if (count <= 0) return -1;
+  const range = 0x100000000;
+  const rejectionLimit = Math.floor(range / count) * count;
+  const values = new Uint32Array(1);
+  do {
+    window.crypto.getRandomValues(values);
+  } while (values[0] >= rejectionLimit);
+  return values[0] % count;
+}
+
 export function AdminRaffleScreen() {
   const [payload, setPayload] = useState<RafflePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
-  const [pendingResult, setPendingResult] = useState<RaffleResult | null>(null);
-  const [showReveal, setShowReveal] = useState(false);
+  const [mode, setMode] = useState<RaffleMode>("practice");
+  const [practiceResult, setPracticeResult] = useState<RaffleResult | null>(null);
+  const [pendingResult, setPendingResult] = useState<PendingRaffleResult | null>(null);
+  const [reveal, setReveal] = useState<PendingRaffleResult | null>(null);
   const [message, setMessage] = useState("");
   const revealTimerRef = useRef<number | null>(null);
 
@@ -99,9 +115,6 @@ export function AdminRaffleScreen() {
     try {
       const nextPayload = await requestRaffle("GET");
       setPayload(nextPayload);
-      if (nextPayload.result?.winnerIndex != null && nextPayload.result.winnerIndex >= 0) {
-        setRotation((current) => getAlignedWheelRotation(current, nextPayload.result?.winnerIndex ?? -1, nextPayload.participants.length, 0));
-      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to load the raffle.");
     } finally {
@@ -122,21 +135,47 @@ export function AdminRaffleScreen() {
     revealTimerRef.current = null;
     setSpinning(false);
     setPendingResult(null);
-    setPayload((current) => current ? { ...current, result: pendingResult } : current);
-    setShowReveal(true);
+    if (pendingResult.mode === "practice") {
+      setPracticeResult(pendingResult.result);
+    } else {
+      setPayload((current) => current ? { ...current, result: pendingResult.result } : current);
+    }
+    setReveal(pendingResult);
   }, [pendingResult, spinning]);
 
   const spin = async () => {
-    if (!payload?.ready || payload.result || spinning) return;
+    if (!payload?.ready || spinning || (mode === "official" && payload.result)) return;
+    if (mode === "official" && !window.confirm("Run the official raffle now? This selects one winner, saves it permanently, and publishes it to the home page.")) return;
     setMessage("");
-    setShowReveal(false);
+    setReveal(null);
     setSpinning(true);
     try {
-      const nextPayload = await requestRaffle("POST");
-      if (!nextPayload.result || nextPayload.result.winnerIndex < 0) throw new Error("The saved winner could not be placed on the wheel.");
-      setPayload({ ...nextPayload, result: null });
-      setPendingResult(nextPayload.result);
-      setRotation((current) => getAlignedWheelRotation(current, nextPayload.result?.winnerIndex ?? -1, nextPayload.participants.length, 9));
+      if (mode === "practice") {
+        const winnerIndex = secureRandomIndex(payload.participants.length);
+        const winner = payload.participants[winnerIndex];
+        if (!winner || winnerIndex < 0) throw new Error("The practice winner could not be placed on the wheel.");
+        const result: RaffleResult = {
+          id: `practice-${Date.now()}`,
+          tournamentId: payload.tournament?.id || "practice",
+          winnerEntryId: winner.entryId,
+          winnerName: winner.name,
+          winnerPhotoUrl: winner.photoUrl,
+          winnerKind: winner.kind,
+          winnerPlayerId: winner.playerId,
+          participantCount: payload.participants.length,
+          drawnAt: new Date().toISOString(),
+          winnerIndex
+        };
+        setPendingResult({ result, mode: "practice" });
+        setRotation((current) => getAlignedWheelRotation(current, winnerIndex, payload.participants.length, 9));
+      } else {
+        const nextPayload = await requestRaffle("POST");
+        if (!nextPayload.result || nextPayload.result.winnerIndex < 0) throw new Error("The saved winner could not be placed on the wheel.");
+        const officialResult = nextPayload.result;
+        setPayload({ ...nextPayload, result: null });
+        setPendingResult({ result: officialResult, mode: "official" });
+        setRotation((current) => getAlignedWheelRotation(current, officialResult.winnerIndex, nextPayload.participants.length, 9));
+      }
     } catch (error) {
       setSpinning(false);
       setPendingResult(null);
@@ -153,6 +192,16 @@ export function AdminRaffleScreen() {
     };
   }, [finishSpin, pendingResult, spinning]);
 
+  const selectMode = (nextMode: RaffleMode) => {
+    if (spinning) return;
+    setMode(nextMode);
+    setReveal(null);
+    const selectedResult = nextMode === "practice" ? practiceResult : payload?.result;
+    if (selectedResult && participants.length) {
+      setRotation((current) => getAlignedWheelRotation(current, selectedResult.winnerIndex, participants.length, 0));
+    }
+  };
+
   const participants = useMemo(() => payload?.participants || [], [payload?.participants]);
   const wheelGradient = useMemo(() => {
     if (!participants.length) return "conic-gradient(#d9e2e8 0deg 360deg)";
@@ -167,7 +216,7 @@ export function AdminRaffleScreen() {
         <span className="relative grid gap-3">
           <em className="inline-flex w-max items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold not-italic uppercase tracking-[0.12em] text-[var(--accent)]"><Dices size={14} /> Organizer raffle</em>
           <h1 className="text-[34px] font-semibold leading-none tracking-[-0.045em] text-white sm:text-[46px]">Spin for the raffle winner</h1>
-          <p className="max-w-[700px] text-[14px] leading-relaxed text-white/72 sm:text-[15px]">One secure random draw from 32 drafted players and four tournament volunteers. The first result is saved and published to everyone.</p>
+          <p className="max-w-[700px] text-[14px] leading-relaxed text-white/72 sm:text-[15px]">Practice the complete experience safely, then switch to the one official draw when the organizers are ready.</p>
         </span>
         <span className="relative mt-5 grid grid-cols-3 gap-2 md:mt-0">
           <RaffleCount label="Drafted" value={payload?.counts.drafted ?? 0} />
@@ -177,6 +226,17 @@ export function AdminRaffleScreen() {
       </section>
 
       {message && <section className="rounded-[16px] border border-[var(--error-line)] bg-[var(--error-surface)] p-4 text-[14px] text-[var(--error)]">{message}</section>}
+
+      <section className="grid gap-2 rounded-[20px] border-hairline border-line bg-white p-3 sm:grid-cols-2" aria-label="Raffle mode">
+        <button className={`${mode === "practice" ? "border-brand-primary bg-brand-primary text-white shadow-[0_10px_24px_rgba(var(--brand-primary-rgb),0.2)]" : "border-line bg-[var(--surface)] text-text-secondary"} tap-card grid min-h-16 gap-0.5 rounded-[15px] border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-55`} type="button" aria-pressed={mode === "practice"} disabled={spinning} onClick={() => selectMode("practice")}>
+          <strong className="text-[14px] font-bold">Practice mode</strong>
+          <span className={`${mode === "practice" ? "text-white/75" : "text-text-muted"} text-[11px]`}>Spins normally, but never saves or publishes a winner.</span>
+        </button>
+        <button className={`${mode === "official" ? "border-[var(--accent)] bg-[var(--accent)] text-brand-deep shadow-[0_10px_24px_rgba(214,168,75,0.22)]" : "border-line bg-[var(--surface)] text-text-secondary"} tap-card grid min-h-16 gap-0.5 rounded-[15px] border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-55`} type="button" aria-pressed={mode === "official"} disabled={spinning} onClick={() => selectMode("official")}>
+          <strong className="text-[14px] font-bold">Official draw</strong>
+          <span className={`${mode === "official" ? "text-brand-deep/70" : "text-text-muted"} text-[11px]`}>Selects once, saves permanently, and publishes the winner.</span>
+        </button>
+      </section>
 
       {loading ? (
         <section className="grid min-h-[520px] place-items-center rounded-[24px] border-hairline border-line bg-white"><span className="inline-flex items-center gap-2 text-[14px] font-semibold text-brand"><LoaderCircle className="animate-spin" size={18} /> Loading the 36-name wheel…</span></section>
@@ -208,24 +268,24 @@ export function AdminRaffleScreen() {
               </div>
             </div>
 
-            <button className="tap-card inline-flex min-h-14 w-full max-w-[430px] items-center justify-center gap-2 rounded-full bg-brand-primary px-7 text-[17px] font-bold text-white shadow-[0_16px_34px_rgba(var(--brand-primary-rgb),0.25)] transition hover:bg-brand-mid disabled:cursor-not-allowed disabled:opacity-55" type="button" onClick={spin} disabled={!payload.ready || Boolean(payload.result) || spinning}>
-              {spinning ? <><LoaderCircle className="animate-spin" size={20} /> Drawing the winner…</> : payload.result ? <><CheckCircle2 size={20} /> Winner selected</> : <><Sparkles size={20} /> Spin the wheel</>}
+            <button className={`${mode === "practice" ? "bg-brand-primary shadow-[0_16px_34px_rgba(var(--brand-primary-rgb),0.25)] hover:bg-brand-mid" : "bg-brand-deep shadow-[0_16px_34px_rgba(var(--brand-deep-rgb),0.25)] hover:bg-brand-mid"} tap-card inline-flex min-h-14 w-full max-w-[430px] items-center justify-center gap-2 rounded-full px-7 text-[17px] font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-55`} type="button" onClick={spin} disabled={!payload.ready || spinning || (mode === "official" && Boolean(payload.result))}>
+              {spinning ? <><LoaderCircle className="animate-spin" size={20} /> {mode === "practice" ? "Running practice spin…" : "Drawing the official winner…"}</> : mode === "practice" ? <><Dices size={20} /> Practice spin</> : payload.result ? <><CheckCircle2 size={20} /> Official winner selected</> : <><Sparkles size={20} /> Run official draw</>}
             </button>
           </div>
 
           <aside className="grid content-start gap-4">
             <section className="grid gap-3 rounded-[20px] border-hairline border-line bg-[var(--surface)] p-4">
               <span className="grid gap-1"><em className="text-[10px] font-semibold not-italic uppercase tracking-[0.1em] text-text-muted">Current tournament</em><strong className="text-[20px] font-semibold leading-tight text-text-primary">{payload.tournament.name}</strong></span>
-              <span className={`${payload.ready ? "border-[var(--accent-line)] bg-accent-tint text-[var(--accent-ink)]" : "border-[var(--error-line)] bg-[var(--error-surface)] text-[var(--error)]"} rounded-[14px] border p-3 text-[13px] font-medium leading-relaxed`}>{payload.ready ? "All 36 names are loaded. The wheel is ready for its one saved draw." : `Not ready: ${payload.counts.drafted}/32 drafted players and ${payload.counts.volunteers}/4 volunteers found.`}</span>
+              <span className={`${payload.ready ? mode === "practice" ? "border-brand-primary/25 bg-[rgba(var(--brand-primary-rgb),0.08)] text-brand" : "border-[var(--accent-line)] bg-accent-tint text-[var(--accent-ink)]" : "border-[var(--error-line)] bg-[var(--error-surface)] text-[var(--error)]"} rounded-[14px] border p-3 text-[13px] font-medium leading-relaxed`}>{payload.ready ? mode === "practice" ? "TEST MODE — all 36 names are loaded. Nothing from this spin will be saved or shown publicly." : "OFFICIAL MODE — the next completed spin will permanently save and publish the winner." : `Not ready: ${payload.counts.drafted}/32 drafted players and ${payload.counts.volunteers}/4 volunteers found.`}</span>
             </section>
-            {payload.result ? <RaffleSavedWinner result={payload.result} onCelebrate={() => setShowReveal(true)} /> : (
-              <section className="grid gap-2 rounded-[20px] border border-dashed border-[var(--hairline-strong)] p-4 text-center"><Gift className="mx-auto text-brand" size={28} /><strong className="text-[17px] font-semibold text-text-primary">Waiting for the draw</strong><p className="text-[13px] leading-relaxed text-text-secondary">After the wheel stops, the winner will appear here and on the public home page.</p></section>
+            {(mode === "practice" ? practiceResult : payload.result) ? <RaffleSavedWinner result={(mode === "practice" ? practiceResult : payload.result)!} isPractice={mode === "practice"} onCelebrate={() => setReveal({ result: (mode === "practice" ? practiceResult : payload.result)!, mode })} /> : (
+              <section className="grid gap-2 rounded-[20px] border border-dashed border-[var(--hairline-strong)] p-4 text-center"><Gift className="mx-auto text-brand" size={28} /><strong className="text-[17px] font-semibold text-text-primary">{mode === "practice" ? "Ready to rehearse" : "Waiting for the official draw"}</strong><p className="text-[13px] leading-relaxed text-text-secondary">{mode === "practice" ? "Practice as many times as needed. These results stay only on this screen." : "After the wheel stops, the saved winner will appear here and on the public home page."}</p></section>
             )}
           </aside>
         </section>
       )}
 
-      {showReveal && payload?.result && <RaffleWinnerReveal result={payload.result} onClose={() => setShowReveal(false)} />}
+      {reveal && <RaffleWinnerReveal result={reveal.result} isPractice={reveal.mode === "practice"} onClose={() => setReveal(null)} />}
     </AdminFrame>
   );
 }
@@ -234,25 +294,25 @@ function RaffleCount({ label, value, highlighted = false }: { label: string; val
   return <span className={`${highlighted ? "bg-[var(--accent)] text-brand-deep" : "bg-white/10 text-white"} grid min-w-[82px] justify-items-center rounded-[14px] px-3 py-2.5`}><strong className="text-[22px] font-bold leading-none tabular-nums">{value}</strong><em className={`${highlighted ? "text-brand-deep/70" : "text-white/60"} mt-1 text-[8px] font-semibold not-italic uppercase tracking-[0.09em]`}>{label}</em></span>;
 }
 
-function RaffleSavedWinner({ result, onCelebrate }: { result: RaffleResult; onCelebrate: () => void }) {
+function RaffleSavedWinner({ result, isPractice, onCelebrate }: { result: RaffleResult; isPractice: boolean; onCelebrate: () => void }) {
   return (
     <section className="grid justify-items-center gap-3 rounded-[20px] border border-[var(--accent-line)] bg-accent-tint p-5 text-center">
       <RaffleAvatar className="relative grid h-20 w-20 place-items-center overflow-hidden rounded-full border-4 border-white bg-brand-deep text-[20px] font-bold text-white shadow-[0_12px_26px_rgba(var(--brand-deep-rgb),0.18)]" name={result.winnerName} photoUrl={result.winnerPhotoUrl} />
-      <span className="grid gap-1"><em className="text-[10px] font-semibold not-italic uppercase tracking-[0.11em] text-[var(--accent-ink)]">Raffle winner</em><strong className="text-[24px] font-bold leading-tight tracking-[-0.03em] text-text-primary">{result.winnerName}</strong><span className="text-[11px] text-text-secondary">{result.winnerKind === "volunteer" ? "Tournament volunteer" : "Drafted player"}</span></span>
+      <span className="grid gap-1"><em className="text-[10px] font-semibold not-italic uppercase tracking-[0.11em] text-[var(--accent-ink)]">{isPractice ? "Practice winner — not saved" : "Raffle winner"}</em><strong className="text-[24px] font-bold leading-tight tracking-[-0.03em] text-text-primary">{result.winnerName}</strong><span className="text-[11px] text-text-secondary">{result.winnerKind === "volunteer" ? "Tournament volunteer" : "Drafted player"}</span></span>
       <button className="tap-card inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-deep px-4 text-[12px] font-semibold text-white" type="button" onClick={onCelebrate}><Sparkles size={14} /> Celebrate again</button>
     </section>
   );
 }
 
-function RaffleWinnerReveal({ result, onClose }: { result: RaffleResult; onClose: () => void }) {
+function RaffleWinnerReveal({ result, isPractice, onClose }: { result: RaffleResult; isPractice: boolean; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center overflow-hidden bg-brand-deep/94 p-5 backdrop-blur-xl" role="dialog" aria-modal="true" aria-labelledby="raffle-winner-name">
       {revealConfetti.map((piece, index) => <span className="raffle-reveal-confetti" style={{ "--raffle-confetti-color": piece.color, "--raffle-confetti-delay": piece.delay, "--raffle-confetti-x": piece.x, "--raffle-confetti-drift": piece.drift, "--raffle-confetti-rotation": piece.rotation, "--raffle-confetti-duration": piece.duration, "--raffle-confetti-size": piece.size } as CSSProperties} key={index} />)}
       <button className="tap-card absolute right-5 top-5 z-20 grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-white/10 text-white" type="button" onClick={onClose} aria-label="Close raffle winner celebration"><X size={20} /></button>
       <section className="relative z-10 grid max-w-[900px] justify-items-center gap-5 text-center text-white">
-        <span className="inline-flex items-center gap-2 rounded-full border border-[var(--accent)]/35 bg-[var(--accent)]/12 px-4 py-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]"><Trophy size={17} fill="currentColor" /> Raffle winner</span>
+        <span className="inline-flex items-center gap-2 rounded-full border border-[var(--accent)]/35 bg-[var(--accent)]/12 px-4 py-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]"><Trophy size={17} fill="currentColor" /> {isPractice ? "Test mode — practice winner" : "Raffle winner"}</span>
         <RaffleAvatar className="relative grid h-[clamp(120px,18vw,220px)] w-[clamp(120px,18vw,220px)] place-items-center overflow-hidden rounded-full border-[8px] border-white bg-white text-[clamp(30px,5vw,60px)] font-bold text-brand shadow-[0_30px_80px_rgba(0,0,0,0.35)]" name={result.winnerName} photoUrl={result.winnerPhotoUrl} sizes="220px" />
-        <span className="grid gap-2"><em className="text-[clamp(14px,1.7vw,24px)] font-semibold not-italic uppercase tracking-[0.16em] text-white/70">Congratulations</em><h2 className="text-[clamp(46px,8vw,118px)] font-bold leading-[0.9] tracking-[-0.065em] text-white" id="raffle-winner-name">{result.winnerName}</h2><p className="text-[clamp(15px,1.5vw,22px)] text-[var(--accent)]">You are the tournament raffle winner!</p></span>
+        <span className="grid gap-2"><em className="text-[clamp(14px,1.7vw,24px)] font-semibold not-italic uppercase tracking-[0.16em] text-white/70">{isPractice ? "Practice result" : "Congratulations"}</em><h2 className="text-[clamp(46px,8vw,118px)] font-bold leading-[0.9] tracking-[-0.065em] text-white" id="raffle-winner-name">{result.winnerName}</h2><p className="text-[clamp(15px,1.5vw,22px)] text-[var(--accent)]">{isPractice ? "Nothing was saved or published — spin again anytime." : "You are the tournament raffle winner!"}</p></span>
       </section>
     </div>
   );
