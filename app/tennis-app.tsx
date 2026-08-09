@@ -2647,9 +2647,10 @@ function GuestPlayerSignInPrompt() {
 }
 
 const tournamentLiveStreams = [
-  { label: "Stream 1", href: "https://youtube.com/live/qiyN3c7DHAI?feature=share" },
-  { label: "Stream 2", href: "https://youtube.com/live/uTJmQhUsCfc?feature=share" },
-  { label: "Stream 3", href: "https://youtube.com/live/BfNllNOVRsA?feature=share" }
+  { label: "Stream 1", href: "https://youtube.com/live/RcSS568U5qk?feature=share" },
+  { label: "Stream 2", href: "https://youtube.com/live/_6W9-29m_oE?feature=share" },
+  { label: "Stream 3", href: "https://youtube.com/live/C2L7CwSzVXc?feature=share" },
+  { label: "Stream 4", href: "https://youtube.com/live/FsLLrDqggfk?feature=share" }
 ] as const;
 
 function YouTubeLiveStreamLink({ label, href, className = "" }: { label: string; href: string; className?: string }) {
@@ -2691,7 +2692,7 @@ function GuestTournamentBanner({ tournament }: { tournament: Tournament }) {
         </div>
         <div className="grid gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-[0.09em] text-white/60">Choose a live stream</span>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
             {tournamentLiveStreams.map((stream) => <YouTubeLiveStreamLink href={stream.href} label={stream.label} key={stream.label} />)}
             <Link className="tap-card col-span-2 inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full border-hairline border-white/20 bg-white/10 px-3 text-center text-[13px] font-semibold text-white backdrop-blur transition hover:bg-white/15 sm:col-span-1 sm:text-[14px]" href="/tournaments/bracket">
               View bracket <ArrowRight size={14} />
@@ -4903,20 +4904,23 @@ function TvNextMatchRow({ match, teams }: { match: TeamCourtScheduleMatch; teams
 function TvTeamLeaderboardScene({ standings }: { standings: TeamStanding[] }) {
   const leaders = standings.slice(0, 3);
   return (
-    <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-[clamp(14px,1.7vh,26px)] overflow-hidden" aria-label="Top three team leaderboard">
+    <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-[clamp(12px,1.4vh,22px)] overflow-hidden" aria-label="Team leaderboard">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-6 px-1">
         <span className="grid gap-1">
           <em className="text-[clamp(10px,0.64vw,14px)] font-semibold not-italic uppercase tracking-[0.13em] text-[var(--accent-ink)]">Live team standings</em>
-          <h2 className="text-[clamp(28px,2vw,44px)] font-bold leading-tight tracking-[-0.03em] text-text-primary">The leading three teams</h2>
+          <h2 className="text-[clamp(28px,2vw,44px)] font-bold leading-tight tracking-[-0.03em] text-text-primary">Team podium &amp; full standings</h2>
         </span>
         <p className="max-w-[520px] text-right text-[clamp(10px,0.68vw,15px)] leading-relaxed text-text-secondary">Teams are ranked by match wins. Equal records are separated by set percentage, then game percentage.</p>
       </header>
-      <div className="grid min-h-0 grid-cols-3 items-stretch gap-[clamp(14px,1.5vw,30px)]">
-        {leaders.map((standing) => {
-          const showTieBreak = standings.some((candidate) => candidate.team.id !== standing.team.id && candidate.matchWins === standing.matchWins && candidate.matchLosses === standing.matchLosses);
-          return <TvTeamPodiumCard showTieBreak={showTieBreak} standing={standing} key={standing.team.id} />;
-        })}
-        {!leaders.length && <p className="col-span-3 grid place-items-center rounded-[24px] border border-dashed border-[var(--hairline-strong)] bg-white p-8 text-[clamp(18px,1.2vw,28px)] font-semibold text-text-secondary">Team standings will appear when the schedule is available.</p>}
+      <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_clamp(270px,20vw,360px)] items-stretch gap-[clamp(12px,1.25vw,24px)]">
+        <div className="grid min-h-0 grid-cols-3 items-stretch gap-[clamp(10px,1vw,20px)]">
+          {leaders.map((standing) => {
+            const showTieBreak = standings.some((candidate) => candidate.team.id !== standing.team.id && candidate.matchWins === standing.matchWins && candidate.matchLosses === standing.matchLosses);
+            return <TvTeamPodiumCard showTieBreak={showTieBreak} standing={standing} key={standing.team.id} />;
+          })}
+          {!leaders.length && <p className="col-span-3 grid place-items-center rounded-[24px] border border-dashed border-[var(--hairline-strong)] bg-white p-8 text-[clamp(18px,1.2vw,28px)] font-semibold text-text-secondary">Team standings will appear when the schedule is available.</p>}
+        </div>
+        <TvTeamRankingRail standings={standings} />
       </div>
     </section>
   );
@@ -4931,16 +4935,17 @@ function TvTeamPodiumCard({ standing, showTieBreak }: { standing: TeamStanding; 
     : third
       ? "border-[var(--medal-bronze-line)] bg-[var(--avatar-peach)] text-[var(--medal-bronze-ink)]"
       : "border-[var(--hairline-strong)] bg-[var(--surface-subtle)] text-brand";
+  const teamTone = getTeamBrandTone(teamAccent);
   return (
-    <article className={`${first ? "border-[var(--medal-gold-line)] shadow-[0_24px_55px_rgba(var(--brand-deep-rgb),0.15)]" : "border-[var(--hairline-strong)] shadow-[0_16px_38px_rgba(var(--brand-deep-rgb),0.09)]"} relative grid h-full min-h-0 grid-rows-[auto_auto_auto_minmax(0,1fr)] gap-[clamp(10px,1.2vh,18px)] overflow-hidden rounded-[clamp(20px,1.5vw,28px)] border bg-white px-[clamp(18px,1.5vw,30px)] py-[clamp(16px,1.8vh,28px)] text-text-primary`}>
-      <span className="absolute inset-x-0 top-0 h-[clamp(5px,0.45vw,8px)]" style={{ background: teamAccent }} aria-hidden="true" />
+    <article className={`${first ? "shadow-[0_24px_55px_rgba(var(--brand-deep-rgb),0.15)]" : "shadow-[0_16px_38px_rgba(var(--brand-deep-rgb),0.09)]"} relative grid h-full min-h-0 grid-rows-[auto_auto_auto_minmax(0,1fr)] gap-[clamp(8px,0.9vh,14px)] overflow-hidden rounded-[clamp(20px,1.5vw,28px)] border px-[clamp(12px,1vw,20px)] py-[clamp(13px,1.4vh,22px)] text-text-primary`} style={{ background: `linear-gradient(155deg, ${getTeamColorRgba(teamAccent, 0.30)} 0%, ${getTeamColorRgba(teamAccent, 0.10)} 50%, #ffffff 100%)`, borderColor: first ? "var(--medal-gold-line)" : teamTone.borderColor }}>
+      <span className="pointer-events-none absolute -right-[18%] top-[11%] aspect-square w-[68%] rounded-full border-[clamp(14px,1.3vw,24px)] opacity-[0.08]" style={{ borderColor: teamAccent }} aria-hidden="true" />
       <span className="flex w-full items-center justify-between gap-3">
         <strong className={`${rankTone} grid h-[clamp(34px,2.3vw,46px)] w-[clamp(34px,2.3vw,46px)] place-items-center rounded-full border text-[clamp(16px,1.05vw,23px)] font-bold shadow-[0_6px_14px_rgba(var(--brand-deep-rgb),0.08)]`}>{standing.seed}</strong>
-        <span className="rounded-full bg-brand-deep px-3 py-1.5 text-[clamp(11px,0.72vw,16px)] font-semibold uppercase tracking-[0.05em] text-white">{standing.matchWins}W · {standing.matchLosses}L</span>
+        <span className="rounded-full px-3 py-1.5 text-[clamp(11px,0.72vw,16px)] font-semibold uppercase tracking-[0.05em] shadow-[0_6px_14px_rgba(var(--brand-deep-rgb),0.10)]" style={{ background: teamTone.background, color: teamTone.textColor }}>{standing.matchWins}W · {standing.matchLosses}L</span>
       </span>
-      <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-[clamp(12px,1vw,20px)]">
+      <span className="relative grid min-w-0 justify-items-center gap-2 text-center">
         <TvTeamMark large team={standing.team} />
-        <span className="grid min-w-0 gap-1"><strong className="truncate text-[clamp(22px,1.55vw,34px)] font-bold tracking-[-0.025em] text-text-primary">{standing.team.name}</strong><em className="text-[clamp(9px,0.58vw,13px)] font-semibold not-italic uppercase tracking-[0.08em] text-text-muted">{first ? "Current leader" : `Position ${standing.seed}`}</em></span>
+        <span className="grid min-w-0 gap-0.5"><strong className="line-clamp-2 text-[clamp(20px,1.35vw,30px)] font-bold leading-tight tracking-[-0.025em] text-text-primary">{standing.team.name}</strong><em className="text-[clamp(8px,0.52vw,12px)] font-semibold not-italic uppercase tracking-[0.09em] text-text-secondary">{first ? "Current leader" : `Position ${standing.seed}`}</em></span>
       </span>
       <span className={`grid w-full ${showTieBreak ? "grid-cols-4" : "grid-cols-2"} gap-2`}>
         <TvTeamCardMetric label="Wins" value={String(standing.matchWins)} />
@@ -4948,13 +4953,35 @@ function TvTeamPodiumCard({ standing, showTieBreak }: { standing: TeamStanding; 
         {showTieBreak && <TvTeamCardMetric label="Set %" value={`${formatBracketPercentage(standing.setWinPercentage)}%`} highlighted />}
         {showTieBreak && <TvTeamCardMetric label="Game %" value={`${formatBracketPercentage(standing.gameWinPercentage)}%`} highlighted />}
       </span>
-      <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-[clamp(13px,1vw,18px)] border border-[var(--hairline)] bg-[var(--surface)] p-[clamp(9px,0.8vw,14px)]" aria-label={`${standing.team.name} players`}>
+      <section className="relative grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-[clamp(13px,1vw,18px)] border border-white/80 bg-white/75 p-[clamp(8px,0.7vw,12px)] shadow-[inset_0_0_0_1px_rgba(var(--brand-deep-rgb),0.04)] backdrop-blur" aria-label={`${standing.team.name} players`}>
         <span className="flex items-center justify-between gap-3"><strong className="text-[clamp(9px,0.58vw,13px)] font-semibold uppercase tracking-[0.09em] text-text-secondary">Team players</strong>{showTieBreak && <em className="rounded-full bg-[var(--accent-tint)] px-2 py-1 text-[clamp(7px,0.44vw,10px)] font-semibold not-italic uppercase tracking-[0.05em] text-[var(--accent-ink)]">Tie-break shown</em>}</span>
-        <div className="grid min-h-0 grid-cols-2 content-center gap-2">
-          {standing.team.members.map((member) => <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[10px] bg-white px-2 py-[clamp(5px,0.55vh,9px)]" key={member.id}><Avatar className="relative grid h-[clamp(28px,2vw,38px)] w-[clamp(28px,2vw,38px)] place-items-center overflow-hidden rounded-full bg-brand-deep text-[8px] font-semibold text-white" name={member.name} photoUrl={member.profilePhotoUrl || undefined} sizes="38px" /><span className="grid min-w-0"><strong className="truncate text-[clamp(10px,0.68vw,15px)] font-semibold text-text-primary">{member.name}</strong><em className="truncate text-[clamp(7px,0.44vw,10px)] font-medium not-italic text-text-muted">{member.tier}{member.isCaptain ? " · Captain" : ""}</em></span></span>)}
+        <div className="grid min-h-0 content-center gap-[clamp(4px,0.45vh,7px)]">
+          {standing.team.members.map((member) => <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5 rounded-[11px] border border-white bg-white/90 px-2 py-[clamp(4px,0.45vh,7px)] shadow-[0_5px_13px_rgba(var(--brand-deep-rgb),0.05)]" key={member.id}><Avatar className="relative grid h-[clamp(34px,2.25vw,46px)] w-[clamp(34px,2.25vw,46px)] place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-deep text-[9px] font-semibold text-white shadow-[0_5px_12px_rgba(var(--brand-deep-rgb),0.12)]" name={member.name} photoUrl={member.profilePhotoUrl || undefined} sizes="46px" /><span className="grid min-w-0"><strong className="truncate text-[clamp(10px,0.68vw,15px)] font-semibold text-text-primary">{member.name}</strong><em className="truncate text-[clamp(7px,0.44vw,10px)] font-medium not-italic text-text-muted">{member.tier}{member.isCaptain ? " · Captain" : ""}</em></span></span>)}
         </div>
       </section>
     </article>
+  );
+}
+
+function TvTeamRankingRail({ standings }: { standings: TeamStanding[] }) {
+  return (
+    <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2.5 overflow-hidden rounded-[clamp(18px,1.4vw,26px)] border border-[var(--hairline-strong)] bg-white p-[clamp(10px,0.85vw,16px)] shadow-[0_18px_44px_rgba(var(--brand-deep-rgb),0.10)]" aria-label="All eight teams in ranking order">
+      <span className="flex items-end justify-between gap-3 border-b border-[var(--hairline)] pb-2"><span className="grid gap-0.5"><em className="text-[clamp(8px,0.5vw,11px)] font-semibold not-italic uppercase tracking-[0.1em] text-[var(--accent-ink)]">Full table</em><strong className="text-[clamp(16px,1.05vw,23px)] font-bold text-text-primary">All 8 teams</strong></span><em className="text-[clamp(8px,0.5vw,11px)] font-semibold not-italic uppercase tracking-[0.08em] text-text-muted">W–L</em></span>
+      <ol className="grid min-h-0 grid-rows-[repeat(8,minmax(0,1fr))] gap-[clamp(4px,0.45vh,8px)]">
+        {standings.slice(0, 8).map((standing) => {
+          const teamAccent = getSourceTeamColor(standing.team.jerseyColor);
+          const teamTone = getTeamBrandTone(teamAccent);
+          return (
+            <li className="grid min-h-0 grid-cols-[28px_auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[clamp(10px,0.7vw,13px)] border px-2 py-1" style={{ background: getHexLuminance(teamAccent) >= 0.88 ? "var(--surface)" : getTeamColorRgba(teamAccent, 0.10), borderColor: teamTone.borderColor }} key={standing.team.id}>
+              <strong className="grid h-7 w-7 place-items-center rounded-full border text-[clamp(10px,0.66vw,14px)] font-bold" style={{ background: teamTone.background, borderColor: teamTone.borderColor, color: teamTone.textColor }}>{standing.seed}</strong>
+              <TvTeamMark compact team={standing.team} />
+              <span className="grid min-w-0"><strong className="truncate text-[clamp(10px,0.7vw,15px)] font-semibold leading-tight text-text-primary">{standing.team.name}</strong><em className="truncate text-[clamp(7px,0.44vw,10px)] font-medium not-italic text-text-secondary">Set {formatBracketPercentage(standing.setWinPercentage)}% · Game {formatBracketPercentage(standing.gameWinPercentage)}%</em></span>
+              <strong className="text-[clamp(12px,0.78vw,17px)] font-bold tabular-nums text-brand">{standing.matchWins}–{standing.matchLosses}</strong>
+            </li>
+          );
+        })}
+      </ol>
+    </aside>
   );
 }
 
@@ -4970,7 +4997,7 @@ function TvTeamMark({ team, large = false, compact = false }: { team: PublishedT
       ? "h-[clamp(30px,3.6vh,46px)] w-[clamp(30px,3.6vh,46px)]"
       : "h-[clamp(40px,2.8vw,54px)] w-[clamp(40px,2.8vw,54px)]";
   return (
-    <span className={`${sizeClass} relative grid shrink-0 place-items-center overflow-hidden rounded-[28%] border shadow-[0_9px_24px_rgba(var(--brand-deep-rgb),0.12)]`} style={{ background: team.logoUrl ? "var(--card)" : teamTone.background, borderColor: teamTone.borderColor, color: teamTone.textColor }} role="img" aria-label={`${team.name} logo`}>
+    <span className={`${sizeClass} relative grid shrink-0 place-items-center overflow-hidden rounded-full border-2 shadow-[0_9px_24px_rgba(var(--brand-deep-rgb),0.12)]`} style={{ background: team.logoUrl ? "var(--card)" : teamTone.background, borderColor: teamTone.borderColor, color: teamTone.textColor }} role="img" aria-label={`${team.name} logo`}>
       {team.logoUrl
         ? <NextImage src={team.logoUrl} alt="" fill sizes={large ? "82px" : compact ? "46px" : "54px"} className="object-contain p-[10%]" />
         : <strong className={`${large ? "text-[clamp(16px,1.15vw,24px)]" : compact ? "text-[clamp(9px,0.65vw,13px)]" : "text-[clamp(11px,0.78vw,16px)]"} text-current`}>{getInitials(team.name)}</strong>}
@@ -4995,26 +5022,27 @@ function TvPlayerLeaderboardScene({ standings }: { standings: PlayerStanding[] }
 }
 
 function TvPlayerTierLeaderCard({ standing }: { standing: PlayerStanding }) {
-  const playerAccent = normalizeTeamColor(standing.team.jerseyColor);
+  const playerAccent = getSourceTeamColor(standing.team.jerseyColor);
+  const teamTone = getTeamBrandTone(playerAccent);
   const played = standing.matchWins + standing.matchLosses;
   const winPercentage = played ? (standing.matchWins / played) * 100 : 0;
   return (
-    <article className="relative grid h-full min-h-0 min-w-0 grid-rows-[auto_auto_auto_auto_minmax(0,1fr)] gap-[clamp(9px,1vh,16px)] overflow-hidden rounded-[clamp(20px,1.5vw,28px)] border border-[var(--hairline-strong)] bg-white px-[clamp(16px,1.35vw,26px)] py-[clamp(16px,1.7vh,28px)] text-text-primary shadow-[0_18px_44px_rgba(var(--brand-deep-rgb),0.11)]">
-      <span className="absolute inset-x-0 top-0 h-[clamp(5px,0.45vw,8px)]" style={{ background: playerAccent }} aria-hidden="true" />
+    <article className="relative grid h-full min-h-0 min-w-0 grid-rows-[auto_auto_auto_auto_minmax(0,1fr)] gap-[clamp(8px,0.9vh,14px)] overflow-hidden rounded-[clamp(20px,1.5vw,28px)] border px-[clamp(14px,1.15vw,23px)] py-[clamp(14px,1.5vh,24px)] text-text-primary shadow-[0_18px_44px_rgba(var(--brand-deep-rgb),0.11)]" style={{ background: `linear-gradient(155deg, ${getTeamColorRgba(playerAccent, 0.28)} 0%, ${getTeamColorRgba(playerAccent, 0.08)} 48%, #ffffff 100%)`, borderColor: teamTone.borderColor }}>
+      <span className="pointer-events-none absolute -right-[22%] top-[6%] aspect-square w-[76%] rounded-full border-[clamp(16px,1.5vw,28px)] opacity-[0.07]" style={{ borderColor: playerAccent }} aria-hidden="true" />
       <span className="flex w-full items-center justify-between gap-2">
-        <strong className="grid h-[clamp(42px,3vw,58px)] w-[clamp(42px,3vw,58px)] place-items-center rounded-[clamp(12px,0.9vw,17px)] bg-brand-deep text-[clamp(18px,1.35vw,29px)] font-bold text-white">T{standing.tierNumber}</strong>
-        <span className="grid justify-items-end"><em className="text-[clamp(8px,0.5vw,11px)] font-semibold not-italic uppercase tracking-[0.1em] text-text-muted">Tier leader</em><strong className="text-[clamp(15px,1vw,22px)] font-bold tabular-nums text-brand">{standing.matchWins}–{standing.matchLosses}</strong></span>
+        <strong className="grid h-[clamp(42px,3vw,58px)] w-[clamp(42px,3vw,58px)] place-items-center rounded-full text-[clamp(17px,1.25vw,27px)] font-bold shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.12)]" style={{ background: teamTone.background, color: teamTone.textColor }}>T{standing.tierNumber}</strong>
+        <span className="rounded-full border border-white/80 bg-white/78 px-3 py-1.5 text-[clamp(8px,0.52vw,12px)] font-semibold uppercase tracking-[0.1em] text-text-secondary shadow-[0_6px_14px_rgba(var(--brand-deep-rgb),0.06)]">Tier leader</span>
       </span>
-      <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-[clamp(11px,1vw,18px)]">
-        <Avatar className="relative grid h-[clamp(72px,5.5vw,108px)] w-[clamp(72px,5.5vw,108px)] shrink-0 place-items-center overflow-hidden rounded-full border-[4px] border-white bg-brand-deep text-[clamp(18px,1.35vw,28px)] font-semibold text-white shadow-[0_12px_30px_rgba(var(--brand-deep-rgb),0.18)]" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="108px" />
-        <span className="grid min-w-0 gap-1"><strong className="line-clamp-2 text-[clamp(20px,1.45vw,31px)] font-bold leading-[1.05] tracking-[-0.025em] text-text-primary">{standing.player.name}</strong><em className="truncate text-[clamp(9px,0.58vw,13px)] not-italic text-text-secondary">{standing.player.city || "MRSA player"}</em></span>
+      <span className="relative grid min-w-0 justify-items-center gap-2 text-center">
+        <Avatar className="relative grid h-[clamp(94px,7vw,138px)] w-[clamp(94px,7vw,138px)] shrink-0 place-items-center overflow-hidden rounded-full border-[5px] border-white bg-brand-deep text-[clamp(20px,1.45vw,31px)] font-semibold text-white shadow-[0_16px_38px_rgba(var(--brand-deep-rgb),0.20)]" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl || undefined} sizes="138px" />
+        <span className="grid min-w-0 gap-0.5"><strong className="line-clamp-2 text-[clamp(19px,1.35vw,29px)] font-bold leading-[1.05] tracking-[-0.025em] text-text-primary">{standing.player.name}</strong><em className="truncate text-[clamp(9px,0.58vw,13px)] not-italic text-text-secondary">{standing.player.city || "MRSA player"}</em></span>
       </span>
-      <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--hairline)] bg-[var(--surface)] px-3 py-2">
+      <span className="relative mx-auto inline-flex max-w-full items-center gap-2 rounded-full border border-white/80 bg-white/80 px-3 py-1.5 shadow-[0_6px_16px_rgba(var(--brand-deep-rgb),0.06)]">
           <TvTeamMark compact team={standing.team} />
           <strong className="truncate text-left text-[clamp(11px,0.78vw,17px)] font-semibold leading-tight text-brand">{standing.team.name}</strong>
       </span>
-      <span className="rounded-[clamp(13px,1vw,18px)] border border-[var(--accent-line)] bg-[var(--accent-tint)] px-3 py-[clamp(8px,0.9vh,14px)] text-center"><em className="block text-[clamp(8px,0.5vw,11px)] font-semibold not-italic uppercase tracking-[0.09em] text-[var(--accent-ink)]">Match record</em><strong className="mt-0.5 block text-[clamp(25px,1.8vw,39px)] font-bold leading-none tabular-nums text-brand">{standing.matchWins}W <span className="text-text-muted">·</span> {standing.matchLosses}L</strong></span>
-      <span className="grid min-h-0 grid-cols-3 content-end gap-2">
+      <span className="relative rounded-[clamp(13px,1vw,18px)] border px-3 py-[clamp(7px,0.75vh,12px)] text-center shadow-[0_7px_18px_rgba(var(--brand-deep-rgb),0.06)]" style={{ background: getTeamColorRgba(playerAccent, 0.12), borderColor: getTeamColorRgba(playerAccent, 0.38) }}><em className="block text-[clamp(8px,0.5vw,11px)] font-semibold not-italic uppercase tracking-[0.09em] text-text-secondary">Match record</em><strong className="mt-0.5 block text-[clamp(24px,1.7vw,37px)] font-bold leading-none tabular-nums text-brand">{standing.matchWins}W <span className="text-text-muted">·</span> {standing.matchLosses}L</strong></span>
+      <span className="relative grid min-h-0 grid-cols-3 content-end gap-2">
         <TvPlayerLeaderMetric label="Set %" value={`${formatBracketPercentage(standing.setWinPercentage)}%`} />
         <TvPlayerLeaderMetric label="Game %" value={`${formatBracketPercentage(standing.gameWinPercentage)}%`} />
         <TvPlayerLeaderMetric label="Win rate" value={`${formatBracketPercentage(winPercentage)}%`} />
@@ -7557,6 +7585,14 @@ function getSourceTeamColor(value: unknown) {
   return /^#[0-9a-f]{6}$/i.test(text) ? text.toLowerCase() : DEFAULT_TEAM_COLOR;
 }
 
+function getTeamColorRgba(value: unknown, alpha: number) {
+  const hex = getSourceTeamColor(value).slice(1);
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${Math.max(0, Math.min(1, alpha))})`;
+}
+
 function getHexLuminance(value: string) {
   const hex = getSourceTeamColor(value).slice(1);
   const [red, green, blue] = [0, 2, 4].map((index) => parseInt(hex.slice(index, index + 2), 16) / 255);
@@ -7926,8 +7962,8 @@ function HomeTournamentOverviewCard({ tournament, countdown, registered }: { tou
 
       <div className="relative z-10 grid gap-2" aria-label="Choose a live stream">
         <span className="text-[10px] font-semibold uppercase tracking-[0.09em] text-text-secondary">Choose a live stream</span>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-          {tournamentLiveStreams.map((stream, index) => <YouTubeLiveStreamLink className={index === tournamentLiveStreams.length - 1 ? "col-span-2 sm:col-span-1" : ""} href={stream.href} label={stream.label} key={stream.label} />)}
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          {tournamentLiveStreams.map((stream) => <YouTubeLiveStreamLink href={stream.href} label={stream.label} key={stream.label} />)}
         </div>
       </div>
     </section>
@@ -8931,6 +8967,8 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessS
   const rightProfiles = showSideBOnLeft ? profilesA : profilesB;
   const leftTeam = showSideBOnLeft ? match.teamBName : match.teamAName;
   const rightTeam = showSideBOnLeft ? match.teamAName : match.teamBName;
+  const leftPlayerNames = formatBracketPlayerNames(leftProfiles.map((player) => player.name), leftTeam);
+  const rightPlayerNames = formatBracketPlayerNames(rightProfiles.map((player) => player.name), rightTeam);
   const leftColor = showSideBOnLeft ? match.teamBColor : match.teamAColor;
   const rightColor = showSideBOnLeft ? match.teamAColor : match.teamBColor;
   const leftSide: "A" | "B" = showSideBOnLeft ? "B" : "A";
@@ -8970,7 +9008,7 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessS
 
             {match.dayNumber === 2 && <div className="flex justify-center"><BallTeamBadge teamName={ballTeamName} pending={!ballTeamName} /></div>}
 
-            <MatchSetScoreboard leftColor={leftColor} leftSide={leftSide} leftTeam={leftTeam} leftToneVariant={leftToneVariant} rightColor={rightColor} rightSide={rightSide} rightTeam={rightTeam} rightToneVariant={rightToneVariant} score={match.score} />
+            <MatchSetScoreboard leftColor={leftColor} leftLabel={leftPlayerNames} leftSide={leftSide} leftToneVariant={leftToneVariant} rightColor={rightColor} rightLabel={rightPlayerNames} rightSide={rightSide} rightToneVariant={rightToneVariant} score={match.score} />
           </div>
         </div>
       </article>
@@ -8990,14 +9028,14 @@ function MatchDetailPageCard({ match, ballTeamName, draft, canSubmit, canAccessS
           <div className="match-detail-entry-form grid gap-2.5">
             <div className="grid grid-cols-[52px_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-2">
               <span aria-hidden="true" />
-              <ScoreSideLabel playerNames={leftTeam} color={leftColor} />
+              <ScoreSideLabel playerNames={leftPlayerNames} color={leftColor} />
               <span className="text-center text-[12px] font-medium text-text-muted">vs</span>
-              <ScoreSideLabel playerNames={rightTeam} color={rightColor} />
+              <ScoreSideLabel playerNames={rightPlayerNames} color={rightColor} />
             </div>
             <div className="grid gap-2">
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={updateScoreDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={1} />
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftTeam} leftSide={leftSide} onChange={updateScoreDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={2} />
-              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving || straightSetsComplete} leftLabel={leftTeam} leftSide={leftSide} onChange={updateScoreDraft} rightLabel={rightTeam} rightSide={rightSide} setNumber={3} optional />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftPlayerNames} leftSide={leftSide} onChange={updateScoreDraft} rightLabel={rightPlayerNames} rightSide={rightSide} setNumber={1} />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving} leftLabel={leftPlayerNames} leftSide={leftSide} onChange={updateScoreDraft} rightLabel={rightPlayerNames} rightSide={rightSide} setNumber={2} />
+              <ScoreSetInputs draft={draft} disabled={!canSubmit || saving || straightSetsComplete} leftLabel={leftPlayerNames} leftSide={leftSide} onChange={updateScoreDraft} rightLabel={rightPlayerNames} rightSide={rightSide} setNumber={3} optional />
             </div>
             {saving && (
               <p className="inline-flex items-center gap-2 rounded-[14px] border-hairline border-[var(--brand-primary-tint)] bg-[var(--accent-tint)] p-3 text-[13px] font-medium text-brand" role="status" aria-live="polite">
@@ -9067,7 +9105,7 @@ function isFallbackPlayerProfileId(playerId: string) {
   return !playerId || /^(a|b)-\d+$/.test(playerId) || playerId === "team-a" || playerId === "team-b";
 }
 
-function MatchSetScoreboard({ score, leftSide, rightSide, leftTeam, rightTeam, leftColor, rightColor, leftToneVariant, rightToneVariant }: { score: MatchScore | null; leftSide: "A" | "B"; rightSide: "A" | "B"; leftTeam: string; rightTeam: string; leftColor: string; rightColor: string; leftToneVariant: TeamToneVariant; rightToneVariant: TeamToneVariant }) {
+function MatchSetScoreboard({ score, leftSide, rightSide, leftLabel, rightLabel, leftColor, rightColor, leftToneVariant, rightToneVariant }: { score: MatchScore | null; leftSide: "A" | "B"; rightSide: "A" | "B"; leftLabel: string; rightLabel: string; leftColor: string; rightColor: string; leftToneVariant: TeamToneVariant; rightToneVariant: TeamToneVariant }) {
   const scoresForSide = (side: "A" | "B") => side === "A"
     ? [score?.sideASet1, score?.sideASet2, score?.sideASet3]
     : [score?.sideBSet1, score?.sideBSet2, score?.sideBSet3];
@@ -9083,8 +9121,8 @@ function MatchSetScoreboard({ score, leftSide, rightSide, leftTeam, rightTeam, l
         <span>3</span>
       </div>
       {[
-        { team: leftTeam, color: leftColor, side: leftSide, values: leftScores, toneVariant: leftToneVariant },
-        { team: rightTeam, color: rightColor, side: rightSide, values: rightScores, toneVariant: rightToneVariant }
+        { label: leftLabel, color: leftColor, side: leftSide, values: leftScores, toneVariant: leftToneVariant },
+        { label: rightLabel, color: rightColor, side: rightSide, values: rightScores, toneVariant: rightToneVariant }
       ].map((row) => {
         const winner = score?.winnerSide === row.side;
         const tone = getTeamCardTone(row.color, row.toneVariant);
@@ -9092,8 +9130,8 @@ function MatchSetScoreboard({ score, leftSide, rightSide, leftTeam, rightTeam, l
           <div className={winner ? "grid min-h-10 grid-cols-[minmax(0,1fr)_36px_36px_36px] items-center gap-1 rounded-[11px] bg-white/16 px-2 sm:grid-cols-[minmax(0,1fr)_44px_44px_44px]" : "grid min-h-10 grid-cols-[minmax(0,1fr)_36px_36px_36px] items-center gap-1 rounded-[11px] bg-white/[0.07] px-2 sm:grid-cols-[minmax(0,1fr)_44px_44px_44px]"} key={row.side}>
             <span className="flex min-w-0 items-center gap-2">
               <span className={tone.isOutlined ? "h-2 w-2 shrink-0 rounded-full bg-white" : "h-2 w-2 shrink-0 rounded-full bg-[var(--blue-300)]"} />
-              <strong className="truncate text-[11px] font-medium text-white/82 sm:text-[12px]">{row.team}</strong>
-              {winner && <Trophy className="shrink-0 text-[var(--accent)]" size={12} aria-label="Winner" />}
+              <strong className="truncate text-[11px] font-medium text-white sm:text-[12px]">{row.label}</strong>
+              {winner && <Trophy className="shrink-0 text-[var(--medal-gold)] drop-shadow-[0_2px_4px_rgba(0,0,0,0.22)]" size={14} aria-label="Winner" />}
             </span>
             {row.values.map((value, index) => (
               <strong className={value == null ? "text-center text-[15px] font-medium text-white/72" : "text-center text-[17px] font-medium text-white"} key={index}>{renderScore(value)}</strong>
