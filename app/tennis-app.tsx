@@ -4003,6 +4003,7 @@ export function TournamentTvDayScreen() {
   const appSession = useProtectedRoute("/tournaments/tv", true);
   const router = useRouter();
   const initializedDayRef = useRef(false);
+  const dayTwoSyncRef = useRef("");
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [teams, setTeams] = useState<PublishedTeam[]>([]);
   const [items, setItems] = useState<ScheduleItem[]>([]);
@@ -4184,6 +4185,22 @@ export function TournamentTvDayScreen() {
       supabase.removeChannel(channel);
     };
   }, [appSession.isAdmin, appSession.ready, loadTvSchedule]);
+
+  useEffect(() => {
+    if (!appSession.ready || !appSession.isAdmin || !tournament?.id || loading) return;
+    const pendingSignature = getPendingDayTwoSyncSignature(teams, matches);
+    if (!pendingSignature) {
+      dayTwoSyncRef.current = "";
+      return;
+    }
+    const syncKey = `${tournament.id}:${pendingSignature}`;
+    if (dayTwoSyncRef.current === syncKey) return;
+    dayTwoSyncRef.current = syncKey;
+    requestDayTwoSync(tournament.id).then((result) => {
+      if (result.ok) loadTvSchedule();
+      else dayTwoSyncRef.current = "";
+    });
+  }, [appSession.isAdmin, appSession.ready, loadTvSchedule, loading, matches, teams, tournament?.id]);
 
   if (!appSession.ready || !appSession.isAdmin) return null;
 
@@ -4440,7 +4457,7 @@ function TvDayTwoBracketScene({ stages, currentMinutes, isToday }: { stages: Liv
   const expectedMatches = nodes.reduce((total, node) => total + (node.phase === "Final" ? 6 : 3), 0);
   const completedMatches = nodes.flatMap((node) => node.result.matches).filter((match) => match.score?.winnerSide).length;
   const liveNodeIds = new Set(nodes.filter((node) => getTvBracketNodeState(node, currentMinutes, isToday) === "live").map((node) => node.id));
-  const activeStageIndex = Math.max(0, stages.reduce((latest, stage, index) => stage.nodes.some((node) => node.result.matches.length || liveNodeIds.has(node.id)) ? index : latest, 0));
+  const activeStageIndex = Math.max(0, stages.reduce((latest, stage, index) => stage.nodes.some((node) => node.result.matches.length || liveNodeIds.has(node.id) || (node.sideA.team && node.sideB.team)) ? index : latest, 0));
 
   const scrollToStage = (index: number, behavior: ScrollBehavior = "smooth") => {
     const scroller = scrollerRef.current;
@@ -4500,14 +4517,21 @@ function getTvBracketNodeState(node: LiveBracketNode, currentMinutes: number, is
   return isToday && currentMinutes >= start && currentMinutes < end ? "live" : "upcoming";
 }
 
-function getTvBracketExpectedCourts(node: LiveBracketNode) {
+function getDayTwoBracketExpectedCourts(node: LiveBracketNode) {
   if (node.phase === "Final") return ["Court 6", "Court 7", "Court 6", "Court 7", "Court 8", "Court 9"];
   return node.id.endsWith("2") || node.id === "qf4" ? ["Court 9", "Court 10", "Court 11"] : ["Court 6", "Court 7", "Court 8"];
 }
 
+function formatDayTwoBracketCourts(node: LiveBracketNode) {
+  const courtNumbers = [...new Set(getDayTwoBracketExpectedCourts(node).map((court) => Number(formatCourtNumber(court))).filter(Number.isFinite))];
+  if (!courtNumbers.length) return "Courts TBD";
+  if (courtNumbers.length > 1 && courtNumbers.every((court, index) => !index || court === courtNumbers[index - 1] + 1)) return `Courts ${courtNumbers[0]}–${courtNumbers[courtNumbers.length - 1]}`;
+  return `Courts ${courtNumbers.join(", ")}`;
+}
+
 function TvDayTwoBracketNodeCard({ node, currentMinutes, isToday }: { node: LiveBracketNode; currentMinutes: number; isToday: boolean }) {
   const state = getTvBracketNodeState(node, currentMinutes, isToday);
-  const expectedCourts = getTvBracketExpectedCourts(node);
+  const expectedCourts = getDayTwoBracketExpectedCourts(node);
   const matches = Array.from({ length: expectedCourts.length }, (_, index) => node.result.matches[index] || null);
   const sideAWon = node.result.winnerTeamId === node.sideA.team?.id;
   const sideBWon = node.result.winnerTeamId === node.sideB.team?.id;
@@ -5180,7 +5204,7 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [scheduleNow, setScheduleNow] = useState(() => new Date());
-  const dayTwoInitialSyncRef = useRef("");
+  const dayTwoSyncRef = useRef("");
 
   useEffect(() => {
     const interval = window.setInterval(() => setScheduleNow(new Date()), 30000);
@@ -5357,16 +5381,37 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
   }, [loadSchedule]);
 
   useEffect(() => {
-    if (view !== "bracket" || !tournament?.id || !appSession.session?.access_token || loading) return;
-    const dayOneMatches = teamCourtMatches.filter((match) => match.dayNumber === 1);
-    const dayTwoMatches = teamCourtMatches.filter((match) => match.dayNumber === 2);
-    if (!dayOneMatches.length || dayTwoMatches.length || !dayOneMatches.every((match) => Boolean(match.score?.winnerSide))) return;
-    if (dayTwoInitialSyncRef.current === tournament.id) return;
-    dayTwoInitialSyncRef.current = tournament.id;
+    if (!appSession.ready || !tournament?.id) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const filter = `tournament_id=eq.${tournament.id}`;
+    const channel = supabase
+      .channel(`tournament-schedule-${tournament.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_matches", filter }, loadSchedule)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_match_players", filter }, loadSchedule)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_match_scores", filter }, loadSchedule)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_day2_coin_tosses", filter }, loadSchedule)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [appSession.ready, loadSchedule, tournament?.id]);
+
+  useEffect(() => {
+    if (!tournament?.id || !appSession.session?.access_token || loading) return;
+    const pendingSignature = getPendingDayTwoSyncSignature(teams, teamCourtMatches, coinTossDecisions);
+    if (!pendingSignature) {
+      dayTwoSyncRef.current = "";
+      return;
+    }
+    const syncKey = `${tournament.id}:${pendingSignature}`;
+    if (dayTwoSyncRef.current === syncKey) return;
+    dayTwoSyncRef.current = syncKey;
     requestDayTwoSync(tournament.id).then((result) => {
       if (result.ok) loadSchedule();
+      else dayTwoSyncRef.current = "";
     });
-  }, [appSession.session?.access_token, loadSchedule, loading, teamCourtMatches, tournament?.id, view]);
+  }, [appSession.session?.access_token, coinTossDecisions, loadSchedule, loading, teamCourtMatches, teams, tournament?.id]);
 
   const saveCoinToss = useCallback(async (nodeKey: DayTwoCoinTossNodeKey, winningTeamId: string, formatChoice: DayTwoFormatChoice) => {
     if (!tournament?.id) return "Tournament not found.";
@@ -8486,6 +8531,9 @@ function ScheduleFullBracketBoard({ day, dayOneNodes, dayTwoStages, coinTossDeci
     : dayTwoStages.map((stage) => ({ key: stage.key, label: stage.label, eyebrow: "Championship round", nodes: stage.nodes }));
   const totalPlayerMatches = columns.flatMap((column) => column.nodes).flatMap((node) => node.result.matches);
   const completedPlayerMatches = totalPlayerMatches.filter((match) => Boolean(match.score?.winnerSide)).length;
+  const preferredColumn = day === 2
+    ? Math.max(0, columns.reduce((latest, column, index) => column.nodes.some((node) => node.result.matches.length || (node.sideA.team && node.sideB.team)) ? index : latest, 0))
+    : 0;
   const centerRoundTab = (index: number) => {
     const tabRail = roundTabsRef.current;
     const tab = tabRail?.children[index] as HTMLElement | undefined;
@@ -8510,10 +8558,14 @@ function ScheduleFullBracketBoard({ day, dayOneNodes, dayTwoStages, coinTossDeci
   };
 
   useEffect(() => {
-    setActiveColumn(0);
-    bracketScrollerRef.current?.scrollTo({ left: 0, behavior: "auto" });
-    roundTabsRef.current?.scrollTo({ left: 0, behavior: "auto" });
-  }, [day]);
+    setActiveColumn(preferredColumn);
+    const scroller = bracketScrollerRef.current;
+    const column = boardRef.current?.children[preferredColumn] as HTMLElement | undefined;
+    if (scroller && column) scroller.scrollTo({ left: Math.max(0, column.offsetLeft), behavior: "auto" });
+    const tabRail = roundTabsRef.current;
+    const tab = tabRail?.children[preferredColumn] as HTMLElement | undefined;
+    if (tabRail && tab) tabRail.scrollTo({ left: Math.max(0, tab.offsetLeft - (tabRail.clientWidth - tab.clientWidth) / 2), behavior: "auto" });
+  }, [day, preferredColumn]);
 
   return (
     <section className="overflow-hidden rounded-[24px] border-hairline border-[var(--hairline-strong)] bg-white shadow-[0_20px_48px_rgba(var(--brand-deep-rgb), 0.11)]" aria-label={`Day ${day} full bracket`}>
@@ -8611,7 +8663,7 @@ function ScheduleBracketNodeCard({ node, isOpen, hasConnector, hasIncoming, coin
         <span className="flex items-center justify-between gap-2 border-b-hairline border-line px-3 py-2">
           <span className="min-w-0">
             <strong className="block truncate text-[9px] font-semibold uppercase tracking-[0.06em] text-brand">{node.label}</strong>
-            <em className="block truncate text-[8px] not-italic text-text-muted">{node.timeLabel}</em>
+            <em className="block truncate text-[8px] not-italic text-text-muted">{node.timeLabel}{node.phase === "Day 1" ? "" : ` · ${formatDayTwoBracketCourts(node)}`}</em>
           </span>
           <span className="inline-flex items-center gap-1.5">
             <em className={`${statusClass} rounded-full px-2 py-1 text-[8px] font-semibold not-italic uppercase`}>{status}</em>
@@ -8801,7 +8853,7 @@ function getProjectedTierDefinitions(node: LiveBracketNode, formatChoice: DayTwo
     { label: "Tier 4", tiers: [4], format: "Singles", court: "Court 9" }
   ];
   if (!formatChoice) return [];
-  return formatChoice === "tiers_1_2_singles"
+  const definitions = formatChoice === "tiers_1_2_singles"
     ? [
         { label: "Tier 1", tiers: [1], format: "Singles" },
         { label: "Tier 2", tiers: [2], format: "Singles" },
@@ -8812,6 +8864,8 @@ function getProjectedTierDefinitions(node: LiveBracketNode, formatChoice: DayTwo
         { label: "Tier 3", tiers: [3], format: "Singles" },
         { label: "Tier 4", tiers: [4], format: "Singles" }
       ];
+  const courts = getDayTwoBracketExpectedCourts(node);
+  return definitions.map((definition, index) => ({ ...definition, court: courts[index] || "Court TBD" }));
 }
 
 function DayTwoProjectedMatchups({ node, formatChoice }: { node: LiveBracketNode; formatChoice: DayTwoFormatChoice | null }) {
@@ -8831,7 +8885,7 @@ function DayTwoProjectedMatchups({ node, formatChoice }: { node: LiveBracketNode
           <article className="grid gap-1 rounded-[9px] border-hairline border-line/70 bg-white px-2 py-2">
             <span className="flex items-center justify-between gap-2">
               <strong className="text-[8px] font-semibold uppercase tracking-[0.05em] text-brand">{definition.label} · {definition.format}</strong>
-              <em className="text-[7px] not-italic text-text-muted">{node.phase === "Final" ? `${"court" in definition ? definition.court : ""}` : node.timeLabel}</em>
+              <em className="text-[7px] not-italic text-text-muted">{definition.court}</em>
             </span>
             <span className="grid grid-cols-[minmax(0,1fr)_18px_minmax(0,1fr)] items-center gap-1.5 text-[9px] leading-tight">
               <span className="grid min-w-0 gap-0.5">
@@ -9823,7 +9877,7 @@ function buildLiveTeamBracket(standings: TeamStanding[], dayTwoMatches: TeamCour
     return { team: revealProjectedTeams ? standing?.team || null : null, seed: standing?.seed || seed, fallbackLabel: `Seed ${seed}` };
   };
   const makeNode = (id: string, label: string, phase: string, timeLabel: string, timeMinutes: number[], sideA: BracketSlot, sideB: BracketSlot): LiveBracketNode => {
-    const nodeMatches = findBracketNodeMatches(dayTwoMatches, sideA.team?.id || "", sideB.team?.id || "", timeMinutes);
+    const nodeMatches = findBracketNodeMatches(dayTwoMatches, id, sideA.team?.id || "", sideB.team?.id || "", timeMinutes);
     return { id, label, phase, timeLabel, timeMinutes, sideA, sideB, result: getTeamTieResult(sideA, sideB, nodeMatches, phase === "Final" ? 6 : 3) };
   };
   const outcomeSlot = (node: LiveBracketNode, outcome: "winner" | "loser", fallbackLabel: string): BracketSlot => {
@@ -9855,12 +9909,36 @@ function buildLiveTeamBracket(standings: TeamStanding[], dayTwoMatches: TeamCour
   ];
 }
 
-function findBracketNodeMatches(matches: TeamCourtScheduleMatch[], teamAId: string, teamBId: string, timeMinutes: number[]) {
+function getPendingDayTwoSyncSignature(teams: PublishedTeam[], matches: TeamCourtScheduleMatch[], decisions: DayTwoCoinTossDecision[] = []) {
+  const dayOneMatches = matches.filter((match) => match.dayNumber === 1);
+  if (!dayOneMatches.length || dayOneMatches.some((match) => !match.score?.winnerSide)) return "";
+  const standings = getLiveTeamStandings(teams, dayOneMatches);
+  if (standings.some((standing) => standing.requiresReview)) return "";
+  const decisionByNode = new Map(decisions.map((decision) => [decision.nodeKey, decision]));
+  const nodes = buildLiveTeamBracket(standings, matches.filter((match) => match.dayNumber === 2), true).flatMap((stage) => stage.nodes);
+  const pendingNodes = nodes.filter((node) => {
+    const knownTeamIds = [node.sideA.team?.id, node.sideB.team?.id].filter(Boolean) as string[];
+    if (knownTeamIds.length !== 2) return false;
+    const fixedFormat = node.phase === "Quarterfinal" || node.phase === "Advantage" || node.phase === "Survival" || node.phase === "Final";
+    const decision = decisionByNode.get(node.id as DayTwoCoinTossNodeKey);
+    const hasValidDecision = Boolean(decision && knownTeamIds.includes(decision.winningTeamId));
+    if (!fixedFormat && !hasValidDecision) return false;
+    const expectedMatches = node.phase === "Final" ? 6 : 3;
+    const hasWrongPairing = node.result.matches.some((match) => !knownTeamIds.includes(match.teamAId) || !knownTeamIds.includes(match.teamBId) || match.teamAId === match.teamBId);
+    return node.result.matches.length < expectedMatches || hasWrongPairing || node.result.matches.some((match) => !match.courtLabel);
+  });
+  return pendingNodes.map((node) => `${node.id}:${node.sideA.team?.id}:${node.sideB.team?.id}`).join("|");
+}
+
+function findBracketNodeMatches(matches: TeamCourtScheduleMatch[], nodeKey: string, teamAId: string, teamBId: string, timeMinutes: number[]) {
   if (!teamAId || !teamBId) return [];
-  return matches.filter((match) => {
+  const stableNodeMatches = matches.filter((match) => match.matchId.startsWith(`day2:${nodeKey}:`));
+  const nodeMatches = stableNodeMatches.length ? stableNodeMatches : matches.filter((match) => {
+    if (match.matchId.startsWith("day2:")) return false;
     const samePair = (match.teamAId === teamAId && match.teamBId === teamBId) || (match.teamAId === teamBId && match.teamBId === teamAId);
     return samePair && timeMinutes.includes(getScheduleTimeSortValue(match.timeLabel));
-  }).sort((left, right) => left.sortOrder - right.sortOrder || left.courtLabel.localeCompare(right.courtLabel));
+  });
+  return nodeMatches.sort((left, right) => left.sortOrder - right.sortOrder || left.courtLabel.localeCompare(right.courtLabel));
 }
 
 function getTeamTieResult(sideA: BracketSlot, sideB: BracketSlot, matches: TeamCourtScheduleMatch[], expectedMatches = 3): TeamTieResult {
