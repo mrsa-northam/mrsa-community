@@ -13,6 +13,7 @@ import { MRSA_COLORS } from "./design-tokens";
 
 const TournamentHeroAmbience = dynamic(() => import("./tournament-hero-ambience").then((mod) => mod.TournamentHeroAmbience), { ssr: false });
 const raffleResultNoteTitle = "__MRSA_RAFFLE_RESULT_V1__";
+const initialCelebrationCount = 500;
 
 type Tab = "home" | "schedule" | "leaderboard" | "rosters" | "tournament" | "profile" | "admin";
 type ProfileData = {
@@ -681,15 +682,41 @@ function TournamentWinnerBanner({ tournament, team, source }: { tournament: Tour
 
 function TournamentRaffleWinnerTile({ winner }: { winner: TournamentRaffleWinner }) {
   return (
-    <section className="relative mx-auto grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-[20px] border border-[var(--accent-line)] bg-accent-tint p-3.5 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.06)] sm:p-4" aria-labelledby={`raffle-winner-${winner.id}`}>
-      <span className="pointer-events-none absolute -right-8 -top-12 h-32 w-32 rounded-full bg-[var(--accent)]/20 blur-2xl" aria-hidden="true" />
-      <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-brand-deep text-[var(--accent)]"><Gift size={20} /></span>
-      <span className="relative grid min-w-0 gap-0.5">
-        <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.12em] text-[var(--accent-ink)]">Tournament raffle winner</em>
-        <strong className="truncate text-[18px] font-bold leading-tight tracking-[-0.02em] text-text-primary sm:text-[21px]" id={`raffle-winner-${winner.id}`}>{winner.name}</strong>
-        <span className="text-[10px] font-medium text-text-secondary">{winner.kind === "volunteer" ? "Tournament volunteer" : "Drafted player"}</span>
+    <section className="mx-auto grid min-h-12 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[16px] border border-[var(--accent-line)] bg-accent-tint px-3 py-2 shadow-[0_8px_20px_rgba(var(--brand-deep-rgb),0.05)]" aria-labelledby={`raffle-winner-${winner.id}`}>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-brand-deep text-[var(--accent)]"><Gift size={15} /></span>
+      <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <em className="text-[9px] font-semibold not-italic uppercase tracking-[0.1em] text-[var(--accent-ink)]">Raffle winner</em>
+        <strong className="truncate text-[14px] font-bold leading-tight text-text-primary sm:text-[15px]" id={`raffle-winner-${winner.id}`}>{winner.name}</strong>
+        <span className="text-[9px] font-medium text-text-secondary">{winner.kind === "volunteer" ? "Volunteer" : "Drafted player"}</span>
       </span>
-      <Avatar className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border-[3px] border-white bg-brand-deep text-[11px] font-bold text-white shadow-[0_8px_18px_rgba(var(--brand-deep-rgb),0.16)]" name={winner.name} photoUrl={winner.photoUrl} sizes="48px" />
+      <Avatar className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-deep text-[9px] font-bold text-white" name={winner.name} photoUrl={winner.photoUrl} sizes="32px" />
+    </section>
+  );
+}
+
+function TournamentTierWinners({ standings }: { standings: PlayerStanding[] }) {
+  if (!standings.length) return null;
+  return (
+    <section className="grid gap-3 rounded-[20px] border-hairline border-line bg-card p-3.5 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.05)] sm:p-4" aria-labelledby="tournament-tier-winners-title">
+      <div className="flex items-center justify-between gap-3">
+        <span className="inline-flex items-center gap-2">
+          <Trophy className="text-[var(--rank-gold)]" size={16} fill="currentColor" />
+          <strong className="text-[14px] font-bold text-text-primary" id="tournament-tier-winners-title">Tier winners</strong>
+        </span>
+        <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-text-muted">Final leaders</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        {standings.map((standing) => (
+          <Link className="tap-card grid min-w-0 grid-cols-[36px_minmax(0,1fr)] items-center gap-2 rounded-[14px] bg-[var(--surface)] p-2.5 transition hover:bg-accent-tint" href={`/tournaments/players/${standing.player.playerId}?from=dashboard`} key={`${standing.tierNumber}:${standing.player.id}`}>
+            <Avatar className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-brand-deep text-[9px] font-semibold text-white" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl} sizes="36px" />
+            <span className="grid min-w-0 gap-0.5">
+              <em className="text-[9px] font-bold not-italic uppercase tracking-[0.08em] text-[var(--accent-ink)]">Tier {standing.tierNumber} winner</em>
+              <strong className="truncate text-[12px] font-semibold leading-tight text-text-primary sm:text-[13px]">{standing.player.name}</strong>
+              <span className="truncate text-[9px] text-text-secondary">{standing.team.name} · {standing.matchWins}–{standing.matchLosses}</span>
+            </span>
+          </Link>
+        ))}
+      </div>
     </section>
   );
 }
@@ -720,9 +747,10 @@ function mapTournamentRaffleWinnerNote(row: TournamentRaffleWinnerNoteRow): Tour
 function TournamentWinnerCelebration({ tournamentId, team, autoPlay = false }: { tournamentId: string; team: PublishedTeam; autoPlay?: boolean }) {
   const [burstId, setBurstId] = useState(0);
   const [celebrating, setCelebrating] = useState(false);
+  const [celebrationCount, setCelebrationCount] = useState(initialCelebrationCount);
   const stopTimerRef = useRef<number | null>(null);
   const winnerPillTone = getTeamBrandTone(team.jerseyColor);
-  const celebrate = useCallback(() => {
+  const playCelebration = useCallback(() => {
     if (stopTimerRef.current) window.clearTimeout(stopTimerRef.current);
     setBurstId((current) => current + 1);
     setCelebrating(true);
@@ -735,8 +763,38 @@ function TournamentWinnerCelebration({ tournamentId, team, autoPlay = false }: {
 
   useEffect(() => {
     if (!autoPlay || !tournamentId || !team.id) return;
-    celebrate();
-  }, [autoPlay, celebrate, team.id, tournamentId]);
+    playCelebration();
+  }, [autoPlay, playCelebration, team.id, tournamentId]);
+
+  useEffect(() => {
+    if (!tournamentId) return;
+    const controller = new AbortController();
+    fetch(`/api/tournaments/celebrations?tournamentId=${encodeURIComponent(tournamentId)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json() as { count?: number };
+        if (response.ok && Number.isFinite(payload.count)) {
+          setCelebrationCount((current) => Math.max(current, Number(payload.count)));
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [tournamentId]);
+
+  const celebrate = useCallback(() => {
+    playCelebration();
+    setCelebrationCount((current) => current + 1);
+    fetch("/api/tournaments/celebrations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tournamentId })
+    }).then(async (response) => {
+      const payload = await response.json() as { count?: number };
+      if (!response.ok || !Number.isFinite(payload.count)) throw new Error("Celebration count was not saved.");
+      setCelebrationCount((current) => Math.max(current, Number(payload.count)));
+    }).catch(() => {
+      setCelebrationCount((current) => Math.max(initialCelebrationCount, current - 1));
+    });
+  }, [playCelebration, tournamentId]);
 
   return (
     <>
@@ -792,9 +850,16 @@ function TournamentWinnerCelebration({ tournamentId, team, autoPlay = false }: {
       >
         <Trophy size={16} fill="currentColor" />
         <span className="truncate">Celebrate {team.name}</span>
+        <span className="rounded-full border border-current/20 bg-white/35 px-2 py-0.5 text-[11px] font-bold tabular-nums">{formatCompactCelebrationCount(celebrationCount)}</span>
       </button>
     </>
   );
+}
+
+function formatCompactCelebrationCount(count: number) {
+  if (count < 1000) return Math.max(initialCelebrationCount, Math.round(count)).toLocaleString("en-US");
+  const compact = (count / 1000).toFixed(count < 10000 ? 1 : 0).replace(/\.0$/, "");
+  return `${compact}k`;
 }
 
 function getChicagoDateKey(date = new Date()) {
@@ -2065,6 +2130,7 @@ export function HomeScreen() {
   const [homeRegistrationResolutionKey, setHomeRegistrationResolutionKey] = useState("");
   const [homeUpcomingMatches, setHomeUpcomingMatches] = useState<PlayerScheduleMatch[]>([]);
   const [homeTournamentChampion, setHomeTournamentChampion] = useState<PublishedTeam | null>(null);
+  const [homeTierWinners, setHomeTierWinners] = useState<PlayerStanding[]>([]);
   const [homeRaffleWinner, setHomeRaffleWinner] = useState<TournamentRaffleWinner | null>(null);
   const homeWeatherDate = getHomeTournamentWeatherDate(upcomingTournament);
 
@@ -2135,6 +2201,7 @@ export function HomeScreen() {
           profilePhotoUrl: row.profile_photo_url || ""
       })));
       setHomeTournamentChampion(null);
+      setHomeTierWinners([]);
       setHomeRaffleWinner(null);
       if (tournamentData) {
         const [championTeamsResult, championMatchesResult, championPlayersResult, championScoresResult, raffleResult] = await Promise.all([
@@ -2179,6 +2246,7 @@ export function HomeScreen() {
           const championScores = championScoresMissing || championScoresResult.error ? [] : mapMatchScores(championScoresResult.data || []);
           const championMatches = mapTeamCourtScheduleMatches(championMatchesResult.data || [], championPlayersResult.data || [], championTeams, championScores);
           setHomeTournamentChampion(getTournamentChampion(championTeams, championMatches));
+          setHomeTierWinners(getTvTierLeaders(getLivePlayerStandings(championTeams, championMatches)));
         }
       }
       if (profileData) {
@@ -2321,7 +2389,6 @@ export function HomeScreen() {
     setDashboardUstaMessage("");
   };
 
-  const homeTournamentCountdown = useTournamentCountdown(upcomingTournament?.startsOn || null);
   const homeIncompleteMatches = homeUpcomingMatches.filter((match) => !match.score?.winnerSide);
   const homeVideoMatches = homeUpcomingMatches.filter((match) => match.swingVisionUrl);
   const homePrimaryMatch = homeIncompleteMatches[0] || null;
@@ -2350,6 +2417,8 @@ export function HomeScreen() {
           {upcomingTournament && homeTournamentChampion && (
             <TournamentWinnerBanner source="dashboard" team={homeTournamentChampion} tournament={upcomingTournament} />
           )}
+
+          {homeTournamentChampion && <TournamentTierWinners standings={homeTierWinners} />}
 
           {upcomingTournament && homeRaffleWinner && <TournamentRaffleWinnerTile winner={homeRaffleWinner} />}
 
@@ -2385,15 +2454,6 @@ export function HomeScreen() {
               </section>
             )}
 
-            {upcomingTournament ? homeRegistrationResolved ? (
-              <HomeTournamentOverviewCard countdown={homeTournamentCountdown} registered={homeCanViewSchedule} tournament={upcomingTournament} />
-            ) : (
-              <HomeTournamentOverviewSkeleton />
-            ) : homeRegistrationResolved ? (
-              <div className="mx-auto w-full max-w-[600px]"><StatusMessage tone="info">No live tournament found.</StatusMessage></div>
-            ) : (
-              <HomeTournamentOverviewSkeleton />
-            )}
           </div>
 
           <section className="home-dashboard-performers mx-auto grid w-full max-w-[960px] gap-4">
@@ -2637,6 +2697,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
       || right.sortOrder - left.sortOrder;
   }).slice(0, 5);
   const guestTournamentChampion = getTournamentChampion(teams, matches);
+  const guestTierWinners = getTvTierLeaders(getLivePlayerStandings(teams, matches));
   const showMemberNav = Boolean(appSession.userId);
 
   return (
@@ -2658,8 +2719,8 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
           {!loading && tournament && (
             <>
               <div className="grid gap-3">
-                <GuestTournamentBanner tournament={tournament} />
                 {guestTournamentChampion && <TournamentWinnerBanner source="dashboard" team={guestTournamentChampion} tournament={tournament} />}
+                {guestTournamentChampion && <TournamentTierWinners standings={guestTierWinners} />}
                 {raffleWinner && <TournamentRaffleWinnerTile winner={raffleWinner} />}
                 {!appSession.userId && <GuestPlayerSignInPrompt />}
               </div>
@@ -2709,6 +2770,9 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
             </>
           )}
         </main>
+        {tournament && guestTournamentChampion && (
+          <TournamentWinnerCelebration autoPlay team={guestTournamentChampion} tournamentId={tournament.id} />
+        )}
       </div>
     </AppFrame>
   );
@@ -2727,64 +2791,6 @@ function GuestPlayerSignInPrompt() {
         Player sign in
         <ArrowRight size={14} />
       </Link>
-    </section>
-  );
-}
-
-const tournamentLiveStreams = [
-  { label: "Stream 1", href: "https://youtube.com/live/RcSS568U5qk?feature=share" },
-  { label: "Stream 2", href: "https://youtube.com/live/_6W9-29m_oE?feature=share" },
-  { label: "Stream 3", href: "https://youtube.com/live/C2L7CwSzVXc?feature=share" },
-  { label: "Stream 4", href: "https://youtube.com/live/FsLLrDqggfk?feature=share" }
-] as const;
-
-function YouTubeLiveStreamLink({ label, href, className = "" }: { label: string; href: string; className?: string }) {
-  return (
-    <a className={`tap-card inline-flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-full bg-brand-primary px-3 text-center text-[13px] font-medium leading-tight text-white transition hover:bg-brand-mid sm:text-[14px] ${className}`} href={href} target="_blank" rel="noreferrer" aria-label={`Watch ${label} on YouTube`}>
-      <span className="relative grid h-4 w-[23px] shrink-0 place-items-center rounded-[5px] bg-[#FF0000]" aria-hidden="true">
-        <span className="ml-0.5 h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-white" />
-      </span>
-      <span className="truncate">{label}</span>
-    </a>
-  );
-}
-
-function GuestTournamentBanner({ tournament }: { tournament: Tournament }) {
-  const venueText = `${tournament.venueName} ${tournament.venueAddress}`;
-  const venueLabel = /chicago/i.test(venueText) ? "Chicago" : tournament.venueName || "Venue TBD";
-  const titleHasYear = tournament.seasonYear && tournament.name.includes(String(tournament.seasonYear));
-  const title = tournament.seasonYear && !titleHasYear ? `${tournament.name} - ${tournament.seasonYear}` : tournament.name;
-
-  return (
-    <section className={`${tournamentLiveBannerClass} p-5 sm:p-7`} aria-labelledby="guest-tournament-title">
-      <TournamentHeroAmbience />
-      <div className="relative z-10 grid gap-5">
-        <div className="grid gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/72">MRSA tournament</span>
-            <span className="inline-flex min-h-8 items-center gap-2 rounded-full border-hairline border-[var(--accent)]/35 bg-[var(--accent)]/10 px-3 text-[11px] font-semibold text-[var(--accent)] backdrop-blur">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" aria-hidden="true" />
-              {getGuestTournamentStatus(tournament)}
-            </span>
-          </div>
-          <span className="grid gap-2">
-            <h1 className="max-w-[760px] text-[27px] font-semibold leading-[1.05] tracking-[-0.55px] text-white sm:text-[36px]" id="guest-tournament-title">{title}</h1>
-            <span className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-white/72 sm:text-[14px]">
-              <span className="inline-flex items-center gap-1.5"><Calendar size={15} />{formatTournamentDates(tournament)}</span>
-              <span className="inline-flex items-center gap-1.5"><MapPin size={15} />{venueLabel}</span>
-            </span>
-          </span>
-        </div>
-        <div className="grid gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.09em] text-white/60">Choose a live stream</span>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
-            {tournamentLiveStreams.map((stream) => <YouTubeLiveStreamLink href={stream.href} label={stream.label} key={stream.label} />)}
-            <Link className="tap-card col-span-2 inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full border-hairline border-white/20 bg-white/10 px-3 text-center text-[13px] font-semibold text-white backdrop-blur transition hover:bg-white/15 sm:col-span-1 sm:text-[14px]" href="/tournaments/bracket">
-              View bracket <ArrowRight size={14} />
-            </Link>
-          </div>
-        </div>
-      </div>
     </section>
   );
 }
@@ -2836,13 +2842,6 @@ function GuestPlayerLeadersCard({ standings }: { standings: PlayerStanding[] }) 
       </div>
     </article>
   );
-}
-
-function getGuestTournamentStatus(tournament: Tournament) {
-  if (tournament.status !== "live") return formatTournamentStatus(tournament.status);
-  const today = getChicagoDateKey();
-  const day = today === getTournamentDayDateKey(tournament, 2) ? 2 : 1;
-  return `Day ${day} · Live`;
 }
 
 export function DrawScreen() {
@@ -8001,17 +8000,6 @@ function formatPaymentHistoryLine(payment: PaymentHistoryItem) {
   return `${date} · ${payment.entryType}`;
 }
 
-function formatTournamentDates(tournament: Tournament) {
-  if (!tournament.startsOn) return "Dates TBD";
-  const start = new Date(`${tournament.startsOn}T00:00:00`);
-  const end = tournament.endsOn ? new Date(`${tournament.endsOn}T00:00:00`) : null;
-  const month = start.toLocaleString("en-US", { month: "short" });
-  if (!end || tournament.startsOn === tournament.endsOn) {
-    return `${month} ${start.getDate()}`;
-  }
-  return `${month} ${start.getDate()}-${end.getDate()}`;
-}
-
 function useTournamentCountdown(startsOn: string | null) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -8186,172 +8174,6 @@ function HomePrimaryMatchCard({ match, tournament }: { match: PlayerScheduleMatc
         </span>
       </div>
     </article>
-  );
-}
-
-function HomeTournamentOverviewSkeleton() {
-  return (
-    <section className="mx-auto grid min-h-[218px] w-full max-w-[600px] animate-pulse gap-2.5 rounded-[22px] border-hairline border-white/80 bg-white/70 p-3.5 shadow-[0_14px_36px_rgba(var(--brand-deep-rgb),0.05)] backdrop-blur-xl sm:min-h-[238px] sm:p-4 lg:max-w-none" role="status" aria-label="Loading your tournament registration">
-      <span className="flex items-start justify-between gap-4">
-        <span className="grid w-full max-w-[330px] gap-2">
-          <span className="h-5 w-4/5 rounded-full bg-[var(--hairline-strong)]" />
-          <span className="h-3 w-2/5 rounded-full bg-[var(--surface)]" />
-        </span>
-        <span className="h-7 w-20 rounded-full bg-[var(--hairline-strong)]" />
-      </span>
-      <span className="grid grid-cols-4 gap-2">
-        {Array.from({ length: 4 }).map((_, index) => <span className="h-14 rounded-[13px] bg-[var(--surface)] sm:h-16" key={index} />)}
-      </span>
-      <span className="grid grid-cols-2 gap-2.5">
-        <span className="h-16 rounded-[15px] bg-[var(--surface)] sm:h-[72px]" />
-        <span className="h-16 rounded-[15px] bg-[var(--surface)] sm:h-[72px]" />
-      </span>
-      <span className="h-5 w-44 justify-self-center rounded-full bg-[var(--hairline-strong)]" />
-      <span className="sr-only">Checking your tournament registration…</span>
-    </section>
-  );
-}
-
-function HomeTournamentOverviewCard({ tournament, countdown, registered }: { tournament: Tournament; countdown: TournamentCountdown; registered: boolean }) {
-  const statusLabel = tournament.status === "registration_open" ? "Reg. open" : tournament.status === "registration_closed" ? "Reg. closed" : formatTournamentStatus(tournament.status);
-  const venueText = `${tournament.venueName} ${tournament.venueAddress}`;
-  const venueLabel = /chicago/i.test(venueText) ? "Chicago" : tournament.venueName || "Venue TBD";
-  const mapsUrl = tournament.venueMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournament.venueAddress || tournament.venueName || "")}`;
-
-  if (!registered) {
-    return <HomeTournamentDiscoveryCard countdown={countdown} mapsUrl={mapsUrl} statusLabel={statusLabel} tournament={tournament} venueLabel={venueLabel} />;
-  }
-
-  return (
-    <section className="home-dashboard-tournament-card relative mx-auto grid w-full max-w-[600px] gap-5 overflow-hidden rounded-[28px] border border-line bg-card p-5 sm:p-7 lg:max-w-none" style={homeTournamentCardBackground} aria-labelledby="home-tournament-title">
-      <div className="relative z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-        <span className="grid min-w-0">
-          <h2 className="break-words text-[18px] font-extrabold leading-tight tracking-[-0.4px] text-text-primary sm:text-[22px] lg:text-[24px]" id="home-tournament-title">{tournament.name}</h2>
-        </span>
-        <span className="rounded-full border border-brand-primary bg-brand-primary px-3 py-2 text-[12px] font-bold text-white sm:px-4 sm:text-[14px]">Live</span>
-      </div>
-
-      <div className="home-dashboard-meta relative z-10 grid grid-cols-2 gap-2.5">
-        <HomeTournamentMetaTile icon={<Calendar size={16} />} label="Dates">
-          <strong className="text-[15px] font-semibold leading-tight text-text-primary sm:text-[16px]">{formatTournamentDates(tournament)}</strong>
-        </HomeTournamentMetaTile>
-        <HomeTournamentMetaTile href={mapsUrl} icon={<MapPin size={16} />} label="Venue">
-          <strong className="truncate text-[15px] font-semibold leading-tight text-text-primary sm:text-[16px]">{venueLabel}</strong>
-          <span className="home-dashboard-meta-action inline-flex min-h-6 w-max items-center gap-1 text-[11px] font-extrabold text-brand-deep">Open in maps ↗</span>
-        </HomeTournamentMetaTile>
-      </div>
-
-      <div className="relative z-10 grid gap-2" aria-label="Choose a live stream">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.09em] text-text-secondary">Choose a live stream</span>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          {tournamentLiveStreams.map((stream) => <YouTubeLiveStreamLink href={stream.href} label={stream.label} key={stream.label} />)}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-const homeTournamentCardBackground = {
-  backgroundImage: "none"
-} satisfies CSSProperties;
-
-function HomeTournamentMetaTile({ children, href, icon, label }: { children: ReactNode; href?: string; icon: ReactNode; label: string }) {
-  const content = (
-    <>
-      <span className="grid h-[30px] w-[30px] place-items-center rounded-[10px] border border-[var(--brand-primary-line)] bg-[var(--brand-primary-tint)] text-brand sm:h-[32px] sm:w-[32px]" aria-hidden="true">{icon}</span>
-      <span className="grid min-w-0 gap-1">
-        <em className="text-[11px] font-semibold not-italic uppercase tracking-[0.08em] text-text-secondary sm:text-[14px]">{label}</em>
-        {children}
-      </span>
-    </>
-  );
-
-  if (href) {
-    return <a className="home-dashboard-meta-tile home-dashboard-venue-button tap-card grid min-h-[82px] grid-cols-[30px_minmax(0,1fr)] items-center gap-2 rounded-[20px] border-0 bg-brand-light px-4 py-3 transition hover:bg-[var(--blue-100)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-[104px] sm:px-5" href={href} target="_blank" rel="noreferrer" aria-label={`Open ${label} in maps`}>{content}</a>;
-  }
-
-  return <span className="home-dashboard-meta-tile grid min-h-[82px] grid-cols-[30px_minmax(0,1fr)] items-center gap-2 rounded-[20px] border-0 bg-brand-light px-4 py-3 sm:min-h-[104px] sm:px-5">{content}</span>;
-}
-
-function HomeTournamentDiscoveryCard({ tournament, countdown, mapsUrl, statusLabel, venueLabel }: { tournament: Tournament; countdown: TournamentCountdown; mapsUrl: string; statusLabel: string; venueLabel: string }) {
-  const registrationOpen = tournament.status === "registration_open";
-  const tournamentLive = tournament.status === "live";
-  const description = registrationOpen
-    ? "You’re not on the player list yet. Join the tournament and get your personal match schedule right here."
-    : tournamentLive
-      ? "The tournament is underway. Follow every court, score and bracket update from one place."
-      : "Registration is closed, but you can still follow the teams, schedule, bracket and live results.";
-  const actionLabel = registrationOpen ? "Register for tournament" : tournamentLive ? "Follow live tournament" : "Explore tournament";
-
-  return (
-    <section
-      className="relative mx-auto grid w-full max-w-[600px] gap-4 overflow-hidden rounded-[24px] border-hairline border-white/10 bg-brand-deep p-4 text-white sm:p-5 lg:max-w-none lg:gap-5 lg:p-6"
-      style={{
-        backgroundImage: "linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)",
-        backgroundSize: "52px 52px"
-      }}
-      aria-labelledby="home-tournament-title"
-    >
-      <div className="relative z-10 grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)] lg:items-center">
-        <div className="grid min-w-0 gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex min-h-8 items-center gap-2 rounded-full bg-[var(--accent)]/15 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)] backdrop-blur">
-              <span className="h-2 w-2 rounded-full bg-[var(--accent)]" aria-hidden="true" />
-              Tournament central
-            </span>
-            <span className="rounded-full border-hairline border-white/10 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/80 backdrop-blur">{statusLabel}</span>
-          </div>
-          <span className="grid gap-2">
-            <h2 className="max-w-[720px] break-words text-[23px] font-semibold leading-[1.08] tracking-[-0.45px] text-white sm:text-[28px] lg:text-[32px]" id="home-tournament-title">{tournament.name}</h2>
-            <p className="max-w-[720px] text-[13px] leading-relaxed text-white/72 sm:text-[15px]">{description}</p>
-          </span>
-        </div>
-
-        <div className="grid gap-2.5 rounded-[20px] border-hairline border-white/10 bg-white/10 p-3 backdrop-blur-sm sm:p-4">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/72">{countdown.state === "countdown" ? "Tournament starts in" : "Tournament status"}</span>
-          {countdown.state === "countdown" ? (
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <HomeDiscoveryCountdownUnit label="Days" value={countdown.days} />
-              <HomeDiscoveryCountdownUnit label="Hrs" value={countdown.hours} />
-              <HomeDiscoveryCountdownUnit label="Min" value={countdown.minutes} />
-              <HomeDiscoveryCountdownUnit label="Sec" value={countdown.seconds} />
-            </div>
-          ) : (
-            <strong className="text-[20px] font-semibold text-[var(--accent)]">{countdown.label}</strong>
-          )}
-        </div>
-      </div>
-
-      <div className="relative z-10 grid grid-cols-2 gap-2.5 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,0.9fr)_minmax(260px,1.2fr)]">
-        <span className="grid min-h-[76px] content-center gap-1 rounded-[18px] border-hairline border-white/10 bg-white/10 px-4 py-3 backdrop-blur">
-          <em className="text-[10px] font-semibold not-italic uppercase tracking-[0.1em] text-white/72">Dates</em>
-          <strong className="text-[16px] font-semibold text-white">{formatTournamentDates(tournament)}</strong>
-        </span>
-        <span className="grid min-h-[76px] content-center gap-1 rounded-[18px] border-hairline border-white/10 bg-white/10 px-4 py-3 backdrop-blur">
-          <em className="text-[10px] font-semibold not-italic uppercase tracking-[0.1em] text-white/72">Venue</em>
-          <strong className="truncate text-[16px] font-semibold text-white">{venueLabel}</strong>
-          <a className="tap-card inline-flex min-h-6 w-max items-center text-[11px] font-semibold text-[var(--accent)]" href={mapsUrl} target="_blank" rel="noreferrer">Open in maps ↗</a>
-        </span>
-        <Link className="tap-card col-span-2 inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-5 text-[15px] font-semibold text-[var(--accent-on)] transition hover:bg-brand-mid hover:text-white lg:col-span-1" href="/tournaments">
-          {actionLabel} <ArrowRight size={16} />
-        </Link>
-      </div>
-
-      <nav className="relative z-10 grid grid-cols-3 gap-2" aria-label="Tournament shortcuts">
-        <Link className="tap-card inline-flex min-h-11 items-center justify-center rounded-full border-hairline border-white/10 bg-white/[0.07] px-2 text-[11px] font-semibold text-white/75 backdrop-blur transition hover:bg-white/12 hover:text-white sm:text-[12px]" href="/tournaments/schedule">Schedule</Link>
-        <Link className="tap-card inline-flex min-h-11 items-center justify-center rounded-full border-hairline border-white/10 bg-white/[0.07] px-2 text-[11px] font-semibold text-white/75 backdrop-blur transition hover:bg-white/12 hover:text-white sm:text-[12px]" href="/tournaments/teams">Teams</Link>
-        <Link className="tap-card inline-flex min-h-11 items-center justify-center rounded-full border-hairline border-white/10 bg-white/[0.07] px-2 text-[11px] font-semibold text-white/75 backdrop-blur transition hover:bg-white/12 hover:text-white sm:text-[12px]" href="/tournaments/bracket">Bracket</Link>
-      </nav>
-    </section>
-  );
-}
-
-function HomeDiscoveryCountdownUnit({ value, label }: { value: number; label: string }) {
-  return (
-    <span className="grid min-w-0 gap-1 rounded-[14px] bg-white/10 px-1 py-3">
-      <strong className="text-[19px] font-semibold leading-none tabular-nums text-white sm:text-[23px]">{formatCountdownValue(value)}</strong>
-      <em className="text-[8px] font-semibold not-italic uppercase tracking-[0.08em] text-white/72 sm:text-[9px]">{label}</em>
-    </span>
   );
 }
 
@@ -11799,16 +11621,6 @@ function isScoreSchemaMissing(message: string) {
   return normalized.includes("tournament_match_scores")
     || normalized.includes("could not find the table")
     || normalized.includes("schema cache");
-}
-
-function formatTournamentStatus(status: string) {
-  if (status === "registration_open") return "Registration is live";
-  if (status === "registration_closed") return "Registration closed";
-  if (status === "live") return "Tournament live";
-  if (status === "completed") return "Tournament completed";
-  if (status === "cancelled") return "Tournament cancelled";
-  if (status === "draft") return "Draft tournament";
-  return "Tournament status";
 }
 
 function getFriendlyError(error: { message?: string; code?: string } | null) {

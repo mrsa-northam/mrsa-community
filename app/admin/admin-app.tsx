@@ -9,6 +9,7 @@ import { getSupabaseClient } from "../lib/supabase";
 import { MRSA_COLORS } from "../design-tokens";
 
 const raffleResultNoteTitle = "__MRSA_RAFFLE_RESULT_V1__";
+const celebrationCountNoteTitle = "__MRSA_CHAMPION_CELEBRATION_COUNT_V1__";
 
 type AdminTab = "overview" | "tournaments" | "players" | "payments" | "claims" | "raffle";
 type AdminTournamentWorkspaceSection = "setup" | "content" | "teams" | "players" | "waitlist";
@@ -1123,6 +1124,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .select("id, title, body, sort_order, is_published")
         .eq("tournament_id", tournamentId)
         .neq("title", raffleResultNoteTitle)
+        .neq("title", celebrationCountNoteTitle)
         .order("sort_order", { ascending: true })
         .limit(120)
     ]);
@@ -2790,7 +2792,8 @@ async function replaceAdminScheduleNotes(tournamentId: string, notes: AdminSched
     .from("tournament_schedule_notes")
     .delete()
     .eq("tournament_id", tournamentId)
-    .neq("title", raffleResultNoteTitle);
+    .neq("title", raffleResultNoteTitle)
+    .neq("title", celebrationCountNoteTitle);
   if (deleteError) return deleteError.message;
 
   if (!notes.length) return "";
