@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BadgeDollarSign, CheckCircle2, ChevronDown, ClipboardCheck, Crown, Dices, Download, Home, ImagePlus, Menu, Pencil, Plus, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, ClipboardCheck, Crown, Dices, Download, Home, ImagePlus, Menu, Pencil, Plus, Shield, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -10,6 +10,7 @@ import { MRSA_COLORS } from "../design-tokens";
 
 const raffleResultNoteTitle = "__MRSA_RAFFLE_RESULT_V1__";
 const celebrationCountNoteTitle = "__MRSA_CHAMPION_CELEBRATION_COUNT_V1__";
+const saveTheDateNoteTitle = "__MRSA_2027_INTEREST_RSVPS_V1__";
 
 type AdminTab = "overview" | "tournaments" | "players" | "payments" | "claims" | "raffle";
 type AdminTournamentWorkspaceSection = "setup" | "content" | "teams" | "players" | "waitlist";
@@ -76,6 +77,7 @@ type AdminRegisteredPlayer = {
   phone: string;
   email: string;
   dateOfBirth: string;
+  ustaNumber: string;
   dominantHand: string;
   jerseySize: string;
   shirtName: string;
@@ -149,6 +151,14 @@ type AdminWaitlistedPlayer = {
   selfEvaluation: string;
   waitlistStatus: string;
   joinedAt: string;
+};
+
+type AdminSaveTheDateRsvp = {
+  id: string;
+  fullName: string;
+  email: string;
+  jamaatCity: string;
+  submittedAt: string;
 };
 
 type AdminPayment = {
@@ -424,12 +434,13 @@ function AdminNavItem({
 export function AdminOverviewScreen() {
   const [counts, setCounts] = useState<CountMap>({ players: 0, tournaments: 0, payments: 0, claims: 0 });
   const [currentTournament, setCurrentTournament] = useState<Pick<AdminTournament, "id" | "name"> | null>(null);
+  const [saveTheDateRsvps, setSaveTheDateRsvps] = useState<AdminSaveTheDateRsvp[]>([]);
 
   const loadCounts = useCallback(async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    const [players, tournaments, payments, claims, currentTournamentResult] = await Promise.all([
+    const [players, tournaments, payments, claims, currentTournamentResult, saveTheDateResult] = await Promise.all([
       supabase.from("players").select("id", { count: "exact", head: true }),
       supabase.from("tournaments").select("id", { count: "exact", head: true }),
       supabase.from("payment_ledger").select("id", { count: "exact", head: true }).eq("status", "pending"),
@@ -439,6 +450,13 @@ export function AdminOverviewScreen() {
         .select("id, name")
         .in("status", ["registration_open", "registration_closed", "live", "draft"])
         .order("starts_on", { ascending: true, nullsFirst: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("tournament_schedule_notes")
+        .select("body, updated_at")
+        .eq("title", saveTheDateNoteTitle)
+        .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle()
     ]);
@@ -450,6 +468,7 @@ export function AdminOverviewScreen() {
       claims: claims.count || 0
     });
     setCurrentTournament((currentTournamentResult.data as Pick<AdminTournament, "id" | "name"> | null) || null);
+    setSaveTheDateRsvps(parseAdminSaveTheDateRsvps(saveTheDateResult.data?.body));
   }, []);
 
   useEffect(() => {
@@ -462,6 +481,18 @@ export function AdminOverviewScreen() {
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [loadCounts]);
+
+  const downloadSaveTheDateRsvpsCsv = () => {
+    const headers = ["Full name", "Email", "Jamaat / city", "Interested on", "Event dates"];
+    const rows = saveTheDateRsvps.map((rsvp) => [
+      rsvp.fullName,
+      rsvp.email,
+      rsvp.jamaatCity,
+      formatAdminDateTime(rsvp.submittedAt),
+      "August 7-8, 2027"
+    ]);
+    downloadAdminCsv("mrsa-2027-save-the-date-rsvps.csv", [headers, ...rows]);
+  };
 
   return (
     <AdminFrame active="overview">
@@ -498,6 +529,19 @@ export function AdminOverviewScreen() {
         <AdminStat label="Pending payments" value={counts.payments} />
         <AdminStat label="Pending claims" value={counts.claims} />
       </div>
+      <section className="grid gap-4 rounded-[20px] border border-[var(--accent-line)] bg-accent-tint p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5" aria-labelledby="admin-save-date-title">
+        <span className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-brand-deep text-[var(--accent)]"><Calendar size={19} /></span>
+          <span className="grid gap-1">
+            <span className="text-[11px] font-medium uppercase tracking-[0.09em] text-[var(--accent-ink)]">August 7–8, 2027</span>
+            <strong className="text-[20px] font-medium text-text-primary" id="admin-save-date-title">{saveTheDateRsvps.length} save-the-date {saveTheDateRsvps.length === 1 ? "RSVP" : "RSVPs"}</strong>
+            <em className="text-[13px] not-italic text-text-secondary">Interest responses collected from the public and member home pages.</em>
+          </span>
+        </span>
+        <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-brand-deep px-4 text-[13px] font-medium text-white disabled:opacity-50" type="button" onClick={downloadSaveTheDateRsvpsCsv} disabled={!saveTheDateRsvps.length}>
+          <Download size={15} /> Download RSVP CSV
+        </button>
+      </section>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <AdminLinkCard href="/admin/tournaments" title="Manage tournaments" copy="Review live, upcoming, and past tournament setup." />
         <AdminLinkCard href="/admin/players" title="Manage players" copy="Search player records, claimed status, city, and ratings." />
@@ -1073,6 +1117,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
   const [interestedPlayers, setInterestedPlayers] = useState<AdminInterestedPlayer[]>([]);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [exportingUstaScores, setExportingUstaScores] = useState(false);
   const [teamActionKey, setTeamActionKey] = useState<string | null>(null);
   const [reviewingVideoPlayerId, setReviewingVideoPlayerId] = useState<string | null>(null);
   const [removingPlayerKey, setRemovingPlayerKey] = useState<string | null>(null);
@@ -1090,7 +1135,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .maybeSingle(),
       supabase
         .from("tournament_registrations")
-        .select("id, tournament_id, payment_status, players(id, full_name, email, phone, jamaat_city, age, date_of_birth, dominant_hand, jersey_size, jersey_name, profile_photo_url, tennis_video_url, tennis_video_status, self_assessment, tier, rating)")
+        .select("id, tournament_id, payment_status, players(id, full_name, email, phone, jamaat_city, age, date_of_birth, dominant_hand, jersey_size, jersey_name, profile_photo_url, tennis_video_url, tennis_video_status, self_assessment, usta_number, tier, rating)")
         .eq("tournament_id", tournamentId)
         .in("status", ["registered", "checked_in", "cancelled"])
         .in("payment_status", ["paid", "waived", "refunded"])
@@ -1125,6 +1170,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .eq("tournament_id", tournamentId)
         .neq("title", raffleResultNoteTitle)
         .neq("title", celebrationCountNoteTitle)
+        .neq("title", saveTheDateNoteTitle)
         .order("sort_order", { ascending: true })
         .limit(120)
     ]);
@@ -1207,6 +1253,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         phone: player.phone || "",
         email: player.email || "",
         dateOfBirth: player.date_of_birth || "",
+        ustaNumber: player.usta_number || "",
         dominantHand: player.dominant_hand || "",
         jerseySize: player.jersey_size || "",
         shirtName: shirtNamesByRegistration.get(row.id) || player.jersey_name || player.full_name || "",
@@ -1935,6 +1982,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       "Jamaat / city",
       "Age",
       "Date of birth",
+      "USTA number",
       "Self evaluation",
       "Dominant hand",
       "Shirt name",
@@ -1956,6 +2004,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       player.jamaatCity,
       player.age.replace(/^Age\s*/i, ""),
       player.dateOfBirth,
+      player.ustaNumber,
       player.selfEvaluation,
       player.dominantHand,
       player.shirtName,
@@ -2030,6 +2079,160 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     URL.revokeObjectURL(url);
   };
 
+  const downloadUstaScoresCsv = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+    setExportingUstaScores(true);
+    setNotice(null);
+    const [matchesResult, participantsResult, scoresResult] = await Promise.all([
+      supabase
+        .from("tournament_schedule_matches")
+        .select("id, day_number, day_label, time_label, court_label, format, match_type, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
+        .eq("tournament_id", tournament.id)
+        .order("day_number", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .limit(400),
+      supabase
+        .from("tournament_schedule_match_players")
+        .select("id, schedule_match_id, player_id, side, slot, source_player_name")
+        .eq("tournament_id", tournament.id)
+        .order("slot", { ascending: true })
+        .limit(1600),
+      supabase
+        .from("tournament_match_scores")
+        .select("schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+        .eq("tournament_id", tournament.id)
+        .limit(500)
+    ]);
+    setExportingUstaScores(false);
+
+    const exportError = matchesResult.error || participantsResult.error || scoresResult.error;
+    if (exportError) {
+      setNotice({ type: "error", text: exportError.message || "Could not prepare the USTA scores CSV." });
+      return;
+    }
+
+    const playerById = new Map(registeredPlayers.map((player) => [player.id, player]));
+    const teamNameById = new Map(teams.map((team) => [team.id, team.name]));
+    const participantsByMatch = new Map<string, NonNullable<typeof participantsResult.data>>();
+    (participantsResult.data || []).forEach((participant) => {
+      participantsByMatch.set(participant.schedule_match_id, [...(participantsByMatch.get(participant.schedule_match_id) || []), participant]);
+    });
+    const scoreByMatch = new Map((scoresResult.data || []).filter((score) => score.winner_side).map((score) => [score.schedule_match_id, score]));
+    const headers = [
+      "Tournament",
+      "Match date",
+      "Match ID",
+      "Day",
+      "Round / phase",
+      "Format",
+      "Court",
+      "Winner 1 name",
+      "Winner 1 USTA number",
+      "Winner 1 date of birth",
+      "Winner 2 name",
+      "Winner 2 USTA number",
+      "Winner 2 date of birth",
+      "Loser 1 name",
+      "Loser 1 USTA number",
+      "Loser 1 date of birth",
+      "Loser 2 name",
+      "Loser 2 USTA number",
+      "Loser 2 date of birth",
+      "Set 1 winner games",
+      "Set 1 loser games",
+      "Set 2 winner games",
+      "Set 2 loser games",
+      "Set 3 winner games",
+      "Set 3 loser games",
+      "Final score (winner first)",
+      "Winning team",
+      "Losing team",
+      "Completed at",
+      "USTA number status"
+    ];
+    let missingUstaCount = 0;
+    const rows = (matchesResult.data || []).flatMap((match) => {
+      const score = scoreByMatch.get(match.id);
+      if (!score || (score.winner_side !== "A" && score.winner_side !== "B")) return [];
+      const participants = participantsByMatch.get(match.id) || [];
+      const winnerSide = score.winner_side;
+      const loserSide = winnerSide === "A" ? "B" : "A";
+      const sidePlayers = (side: "A" | "B") => participants
+        .filter((participant) => participant.side === side)
+        .sort((left, right) => Number(left.slot || 0) - Number(right.slot || 0))
+        .map((participant) => {
+          const profile = participant.player_id ? playerById.get(participant.player_id) : null;
+          return {
+            name: profile?.fullName || participant.source_player_name || "Unknown player",
+            ustaNumber: profile?.ustaNumber || "",
+            dateOfBirth: profile?.dateOfBirth || ""
+          };
+        });
+      const winners = sidePlayers(winnerSide);
+      const losers = sidePlayers(loserSide);
+      const allPlayers = [...winners, ...losers];
+      const missingUstaNames = allPlayers.filter((player) => !player.ustaNumber).map((player) => player.name);
+      missingUstaCount += missingUstaNames.length;
+      const setPairs = [
+        [score.side_a_set1, score.side_b_set1],
+        [score.side_a_set2, score.side_b_set2],
+        [score.side_a_set3, score.side_b_set3]
+      ].map(([sideA, sideB]) => winnerSide === "A" ? [sideA, sideB] : [sideB, sideA]);
+      const finalScore = setPairs
+        .filter(([winnerGames, loserGames]) => winnerGames !== null && winnerGames !== undefined && loserGames !== null && loserGames !== undefined)
+        .map(([winnerGames, loserGames]) => `${winnerGames}-${loserGames}`)
+        .join(" ");
+      const winningTeamId = winnerSide === "A" ? match.team_a_id : match.team_b_id;
+      const losingTeamId = winnerSide === "A" ? match.team_b_id : match.team_a_id;
+      const winningTeamLabel = winnerSide === "A" ? match.team_a_label : match.team_b_label;
+      const losingTeamLabel = winnerSide === "A" ? match.team_b_label : match.team_a_label;
+      return [[
+        tournament.name,
+        getAdminTournamentMatchDate(tournament.starts_on, match.day_number || 1),
+        formatAdminPublicMatchId(match),
+        match.day_label || `Day ${match.day_number || 1}`,
+        match.match_type || "",
+        match.format || "",
+        match.court_label || "",
+        winners[0]?.name || "",
+        winners[0]?.ustaNumber || "",
+        winners[0]?.dateOfBirth || "",
+        winners[1]?.name || "",
+        winners[1]?.ustaNumber || "",
+        winners[1]?.dateOfBirth || "",
+        losers[0]?.name || "",
+        losers[0]?.ustaNumber || "",
+        losers[0]?.dateOfBirth || "",
+        losers[1]?.name || "",
+        losers[1]?.ustaNumber || "",
+        losers[1]?.dateOfBirth || "",
+        setPairs[0]?.[0] ?? "",
+        setPairs[0]?.[1] ?? "",
+        setPairs[1]?.[0] ?? "",
+        setPairs[1]?.[1] ?? "",
+        setPairs[2]?.[0] ?? "",
+        setPairs[2]?.[1] ?? "",
+        finalScore,
+        (winningTeamId && teamNameById.get(winningTeamId)) || winningTeamLabel || "",
+        (losingTeamId && teamNameById.get(losingTeamId)) || losingTeamLabel || "",
+        score.submitted_at || "",
+        missingUstaNames.length ? `Missing: ${missingUstaNames.join(" / ")}` : "Complete"
+      ]];
+    });
+
+    if (!rows.length) {
+      setNotice({ type: "error", text: "No finalized match scores are available to export." });
+      return;
+    }
+
+    downloadAdminCsv(`${slugifyAdminFileName(tournament.name)}-usta-match-results.csv`, [headers, ...rows]);
+    setNotice({
+      type: "success",
+      text: `${rows.length} finalized matches exported for USTA${missingUstaCount ? ` · ${missingUstaCount} player entries are missing a USTA number and are flagged in the CSV.` : "."}`
+    });
+  };
+
   const assignedRegistrationIds = new Set(teams.flatMap((team) => team.members.map((member) => member.registrationId)));
   const unassignedPlayers = registeredPlayers.filter((player) => !assignedRegistrationIds.has(player.registrationId));
   const undraftedPlayers = registeredPlayers.filter((player) => player.draftStatus === "not_drafted");
@@ -2083,6 +2286,15 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
           </div>
           {tournament && (
             <div className="grid grid-cols-2 gap-2">
+              <button
+                className="tap-card col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-[var(--accent-line)] bg-accent-tint px-3 text-center text-xs font-medium text-[var(--accent-ink)] disabled:opacity-50 sm:px-4"
+                type="button"
+                onClick={downloadUstaScoresCsv}
+                disabled={exportingUstaScores}
+              >
+                <Download size={15} />
+                {exportingUstaScores ? "Preparing USTA scores..." : "Download finalized scores for USTA"}
+              </button>
               <button
                 className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-3 text-center text-xs font-medium text-brand disabled:opacity-50 sm:px-4"
                 type="button"
@@ -2793,7 +3005,8 @@ async function replaceAdminScheduleNotes(tournamentId: string, notes: AdminSched
     .delete()
     .eq("tournament_id", tournamentId)
     .neq("title", raffleResultNoteTitle)
-    .neq("title", celebrationCountNoteTitle);
+    .neq("title", celebrationCountNoteTitle)
+    .neq("title", saveTheDateNoteTitle);
   if (deleteError) return deleteError.message;
 
   if (!notes.length) return "";
@@ -3323,6 +3536,37 @@ function formatAdminVideoStatus(status: string | null) {
   return "Pending";
 }
 
+function getAdminTournamentMatchDate(startsOn: string | null, dayNumber: number) {
+  if (!startsOn) return "";
+  const matchDate = new Date(`${startsOn}T00:00:00Z`);
+  if (Number.isNaN(matchDate.getTime())) return startsOn;
+  matchDate.setUTCDate(matchDate.getUTCDate() + Math.max(0, dayNumber - 1));
+  return matchDate.toISOString().slice(0, 10);
+}
+
+function formatAdminPublicMatchId(match: { id: string; day_number: number | null; external_match_id: string | null }) {
+  const dayNumber = match.day_number || 1;
+  const externalId = (match.external_match_id || "").trim();
+  if (/^\d+$/.test(externalId)) return `D${dayNumber}-${externalId.padStart(3, "0")}`;
+
+  const dayTwoMatch = externalId.match(/^day2:([a-z0-9]+):(\d+)$/i);
+  if (dayTwoMatch) {
+    const phaseCode: Record<string, string> = {
+      qualifier1: "Q1",
+      qualifier2: "Q2",
+      reentry1: "R1",
+      reentry2: "R2",
+      semifinal1: "SF1",
+      semifinal2: "SF2",
+      final: "F"
+    };
+    const phase = phaseCode[dayTwoMatch[1].toLowerCase()] || dayTwoMatch[1].toUpperCase();
+    return `D${dayNumber}-${phase}-${dayTwoMatch[2].padStart(2, "0")}`;
+  }
+
+  return externalId || `D${dayNumber}-${match.id.slice(0, 6).toUpperCase()}`;
+}
+
 function getAdminVideoStatusClass(status: string | null) {
   if (status === "approved") return "inline-flex h-7 w-max items-center rounded-full bg-accent-tint px-2.5 text-[12px] font-medium text-[var(--accent-ink)]";
   if (status === "rejected") return "inline-flex h-7 w-max items-center rounded-full bg-[var(--error-tint)] px-2.5 text-[12px] font-medium text-[var(--error)]";
@@ -3768,6 +4012,35 @@ function AdminEditableField({
 function escapeAdminCsvValue(value: string | number | null | undefined) {
   const text = String(value ?? "");
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadAdminCsv(fileName: string, rows: Array<Array<string | number | null | undefined>>) {
+  const csv = `\uFEFF${rows.map((row) => row.map(escapeAdminCsvValue).join(",")).join("\n")}`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function parseAdminSaveTheDateRsvps(value: unknown): AdminSaveTheDateRsvp[] {
+  if (typeof value !== "string" || !value) return [];
+  try {
+    const parsed = JSON.parse(value) as { responses?: unknown };
+    if (!Array.isArray(parsed.responses)) return [];
+    return parsed.responses.flatMap((response) => {
+      if (!response || typeof response !== "object") return [];
+      const item = response as Partial<AdminSaveTheDateRsvp>;
+      if (!item.id || !item.fullName || !item.email || !item.submittedAt) return [];
+      return [{ id: item.id, fullName: item.fullName, email: item.email, jamaatCity: item.jamaatCity || "", submittedAt: item.submittedAt }];
+    }).sort((left, right) => (Date.parse(right.submittedAt) || 0) - (Date.parse(left.submittedAt) || 0));
+  } catch {
+    return [];
+  }
 }
 
 function slugifyAdminFileName(value: string) {

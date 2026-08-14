@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, ChevronRight, Clock, Dumbbell, ExternalLink, Gift, House, Info, LogIn, LogOut, Mail, MapPin, MonitorUp, Pencil, RefreshCw, Search, Shield, Shirt, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, ChevronRight, Clock, Dumbbell, ExternalLink, Gift, Heart, House, Images, Info, LogIn, LogOut, Mail, MapPin, MonitorUp, Pencil, RefreshCw, Search, Shield, Shirt, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -14,6 +14,7 @@ import { MRSA_COLORS } from "./design-tokens";
 const TournamentHeroAmbience = dynamic(() => import("./tournament-hero-ambience").then((mod) => mod.TournamentHeroAmbience), { ssr: false });
 const raffleResultNoteTitle = "__MRSA_RAFFLE_RESULT_V1__";
 const initialCelebrationCount = 500;
+const tournamentPhotoAlbumUrl = "https://photos.app.goo.gl/2SgoggYh2eQEWvQ47?v=2";
 
 type Tab = "home" | "schedule" | "leaderboard" | "rosters" | "tournament" | "profile" | "admin";
 type ProfileData = {
@@ -691,6 +692,124 @@ function TournamentRaffleWinnerTile({ winner }: { winner: TournamentRaffleWinner
       </span>
       <Avatar className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white bg-brand-deep text-[9px] font-bold text-white" name={winner.name} photoUrl={winner.photoUrl} sizes="32px" />
     </section>
+  );
+}
+
+function TournamentPostEventCards() {
+  return (
+    <section className="grid gap-3 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]" aria-label="Tournament memories and next year">
+      <a className="tap-card group relative grid min-h-[210px] content-between overflow-hidden rounded-[22px] border-hairline border-white/15 bg-brand-deep p-5 text-white shadow-[0_16px_36px_rgba(var(--brand-deep-rgb),0.14)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(var(--brand-deep-rgb),0.18)]" href={tournamentPhotoAlbumUrl} target="_blank" rel="noreferrer">
+        <span className="pointer-events-none absolute inset-0 opacity-35 court-lines" aria-hidden="true" />
+        <span className="pointer-events-none absolute -right-12 -top-16 h-52 w-52 rounded-full bg-[var(--accent)]/25 blur-3xl" aria-hidden="true" />
+        <span className="relative grid gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-white/12 text-[var(--accent)]"><Images size={21} /></span>
+          <span className="grid gap-1.5">
+            <em className="text-[10px] font-semibold not-italic uppercase tracking-[0.12em] text-white/62">2026 tournament memories</em>
+            <strong className="text-[23px] font-bold leading-tight tracking-[-0.4px] text-white">View the photo album</strong>
+            <span className="text-[13px] leading-relaxed text-white/70">MRSA Tennis Tournament · August 2026</span>
+          </span>
+        </span>
+        <span className="relative inline-flex min-h-11 w-max items-center gap-2 rounded-full bg-white px-4 text-[13px] font-bold text-brand-deep transition group-hover:bg-[var(--accent)]">
+          Open Google Photos <ExternalLink size={14} />
+        </span>
+      </a>
+      <SaveTheDateInterestCard />
+    </section>
+  );
+}
+
+function SaveTheDateInterestCard() {
+  const appSession = useAppSession();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [jamaatCity, setJamaatCity] = useState("");
+  const [interestCount, setInterestCount] = useState(0);
+  const [savingInterest, setSavingInterest] = useState(false);
+  const [interestMessage, setInterestMessage] = useState("");
+  const [interestSaved, setInterestSaved] = useState(false);
+
+  useEffect(() => {
+    if (!fullName && appSession.player?.full_name) setFullName(appSession.player.full_name);
+    if (!email && appSession.user?.email) setEmail(appSession.user.email);
+    if (!jamaatCity && appSession.player?.jamaat_city) setJamaatCity(appSession.player.jamaat_city);
+  }, [appSession.player?.full_name, appSession.player?.jamaat_city, appSession.user?.email, email, fullName, jamaatCity]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/tournaments/save-the-date", { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json() as { count?: number };
+        if (response.ok && Number.isFinite(payload.count)) setInterestCount(Number(payload.count));
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
+  const saveInterest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSavingInterest(true);
+    setInterestMessage("");
+    setInterestSaved(false);
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/tournaments/save-the-date", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName,
+          email,
+          jamaatCity,
+          website: String(form.get("website") || "")
+        })
+      });
+      const payload = await response.json() as { error?: string; count?: number };
+      if (!response.ok) throw new Error(payload.error || "Unable to save your interest.");
+      if (Number.isFinite(payload.count)) setInterestCount(Number(payload.count));
+      setInterestSaved(true);
+      setInterestMessage("You’re on the 2027 interest list. We’ll share details when registration opens.");
+    } catch (error) {
+      setInterestMessage(error instanceof Error ? error.message : "Unable to save your interest.");
+    } finally {
+      setSavingInterest(false);
+    }
+  };
+
+  return (
+    <article className="relative grid gap-4 overflow-hidden rounded-[22px] border border-[var(--accent-line)] bg-accent-tint p-4 shadow-[0_12px_30px_rgba(var(--brand-deep-rgb),0.06)] sm:p-5" aria-labelledby="save-the-date-title">
+      <span className="pointer-events-none absolute -right-14 -top-20 h-56 w-56 rounded-full bg-[var(--accent)]/20 blur-3xl" aria-hidden="true" />
+      <div className="relative grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start">
+        <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-brand-deep text-[var(--accent)]"><Calendar size={20} /></span>
+        <span className="grid gap-1">
+          <em className="text-[10px] font-bold not-italic uppercase tracking-[0.12em] text-[var(--accent-ink)]">Save the date · 2027</em>
+          <strong className="text-[24px] font-extrabold leading-none tracking-[-0.6px] text-text-primary sm:text-[28px]" id="save-the-date-title">August 7 &amp; 8</strong>
+          <span className="text-[12px] leading-relaxed text-text-secondary">Interested in joining us next year? RSVP now—this is not a registration or payment.</span>
+        </span>
+        {interestCount > 0 && <span className="w-max rounded-full bg-white/75 px-3 py-1.5 text-[10px] font-bold text-brand-deep">{interestCount} interested</span>}
+      </div>
+      {interestSaved ? (
+        <div className="relative grid min-h-[92px] grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-[16px] border border-[var(--accent-line)] bg-white/75 p-4">
+          <span className="grid h-10 w-10 place-items-center rounded-full bg-brand-deep text-[var(--accent)]"><CheckCircle2 size={19} /></span>
+          <span className="grid gap-1">
+            <strong className="text-[15px] font-bold text-text-primary">Interest saved</strong>
+            <span className="text-[12px] leading-relaxed text-text-secondary">{interestMessage}</span>
+          </span>
+        </div>
+      ) : (
+        <form className="relative grid gap-2.5 sm:grid-cols-2" onSubmit={saveInterest}>
+          <input className="min-h-11 rounded-[13px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Full name" aria-label="Full name" required />
+          <input className="min-h-11 rounded-[13px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email address" aria-label="Email address" type="email" required />
+          <select className="min-h-11 rounded-[13px] border-hairline border-line bg-white px-3 text-[15px] text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand-light" value={jamaatCity} onChange={(event) => setJamaatCity(event.target.value)} aria-label="Jamaat or city">
+            <option value="">Jamaat / city (optional)</option>
+            {jamaatCityOptions.map((city) => <option value={city} key={city}>{city}</option>)}
+          </select>
+          <input className="hidden" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+          <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[13px] bg-brand-deep px-4 text-[13px] font-bold text-white disabled:opacity-60" type="submit" disabled={savingInterest}>
+            <Heart size={15} fill="currentColor" /> {savingInterest ? "Saving..." : "RSVP my interest"}
+          </button>
+          {interestMessage && <p className="sm:col-span-2 text-[12px] font-medium text-[var(--error)]" role="status">{interestMessage}</p>}
+        </form>
+      )}
+    </article>
   );
 }
 
@@ -2422,6 +2541,8 @@ export function HomeScreen() {
 
           {upcomingTournament && homeRaffleWinner && <TournamentRaffleWinnerTile winner={homeRaffleWinner} />}
 
+          <TournamentPostEventCards />
+
           <div className="home-dashboard-focus grid gap-6 lg:gap-7">
             {upcomingTournament && homeCanViewSchedule && homePrimaryMatch && (
               <section className="home-dashboard-upcoming mx-auto grid w-full max-w-[600px] gap-3 lg:max-w-none" aria-labelledby="home-upcoming-matches-title">
@@ -2722,6 +2843,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
                 {guestTournamentChampion && <TournamentWinnerBanner source="dashboard" team={guestTournamentChampion} tournament={tournament} />}
                 {guestTournamentChampion && <TournamentTierWinners standings={guestTierWinners} />}
                 {raffleWinner && <TournamentRaffleWinnerTile winner={raffleWinner} />}
+                <TournamentPostEventCards />
                 {!appSession.userId && <GuestPlayerSignInPrompt />}
               </div>
 
