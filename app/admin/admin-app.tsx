@@ -482,18 +482,6 @@ export function AdminOverviewScreen() {
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [loadCounts]);
 
-  const downloadSaveTheDateRsvpsCsv = () => {
-    const headers = ["Full name", "Email", "Jamaat / city", "Interested on", "Event dates"];
-    const rows = saveTheDateRsvps.map((rsvp) => [
-      rsvp.fullName,
-      rsvp.email,
-      rsvp.jamaatCity,
-      formatAdminDateTime(rsvp.submittedAt),
-      "August 7-8, 2027"
-    ]);
-    downloadAdminCsv("mrsa-2027-save-the-date-rsvps.csv", [headers, ...rows]);
-  };
-
   return (
     <AdminFrame active="overview">
       {currentTournament && (
@@ -529,7 +517,7 @@ export function AdminOverviewScreen() {
         <AdminStat label="Pending payments" value={counts.payments} />
         <AdminStat label="Pending claims" value={counts.claims} />
       </div>
-      <section className="grid gap-4 rounded-[20px] border border-[var(--accent-line)] bg-accent-tint p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5" aria-labelledby="admin-save-date-title">
+      <section className="grid gap-4 rounded-[20px] border border-[var(--accent-line)] bg-accent-tint p-4 md:items-center md:p-5" aria-labelledby="admin-save-date-title">
         <span className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
           <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-brand-deep text-[var(--accent)]"><Calendar size={19} /></span>
           <span className="grid gap-1">
@@ -538,9 +526,6 @@ export function AdminOverviewScreen() {
             <em className="text-[13px] not-italic text-text-secondary">Interest responses collected from the public and member home pages.</em>
           </span>
         </span>
-        <button className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-brand-deep px-4 text-[13px] font-medium text-white disabled:opacity-50" type="button" onClick={downloadSaveTheDateRsvpsCsv} disabled={!saveTheDateRsvps.length}>
-          <Download size={15} /> Download RSVP CSV
-        </button>
       </section>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <AdminLinkCard href="/admin/tournaments" title="Manage tournaments" copy="Review live, upcoming, and past tournament setup." />
@@ -1117,7 +1102,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
   const [interestedPlayers, setInterestedPlayers] = useState<AdminInterestedPlayer[]>([]);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [exportingUstaScores, setExportingUstaScores] = useState(false);
+  const [exportingTournamentCsv, setExportingTournamentCsv] = useState(false);
   const [teamActionKey, setTeamActionKey] = useState<string | null>(null);
   const [reviewingVideoPlayerId, setReviewingVideoPlayerId] = useState<string | null>(null);
   const [removingPlayerKey, setRemovingPlayerKey] = useState<string | null>(null);
@@ -2079,36 +2064,36 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     URL.revokeObjectURL(url);
   };
 
-  const downloadUstaScoresCsv = async () => {
+  const downloadFullTournamentCsv = async () => {
     const supabase = getSupabaseClient();
     if (!supabase || !tournament) return;
-    setExportingUstaScores(true);
+    setExportingTournamentCsv(true);
     setNotice(null);
     const [matchesResult, participantsResult, scoresResult] = await Promise.all([
       supabase
         .from("tournament_schedule_matches")
-        .select("id, day_number, day_label, time_label, court_label, format, match_type, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
+        .select("id, schedule_item_id, day_number, day_label, start_time, end_time, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_sort_order, team_b_sort_order, team_a_label, team_b_label, external_match_id, status, sort_order, is_published, created_at, updated_at")
         .eq("tournament_id", tournament.id)
         .order("day_number", { ascending: true })
         .order("sort_order", { ascending: true })
         .limit(400),
       supabase
         .from("tournament_schedule_match_players")
-        .select("id, schedule_match_id, player_id, side, slot, source_player_name")
+        .select("id, schedule_match_id, team_id, player_id, side, slot, tier_at_match, source_player_name")
         .eq("tournament_id", tournament.id)
         .order("slot", { ascending: true })
         .limit(1600),
       supabase
         .from("tournament_match_scores")
-        .select("schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
+        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_by, submitted_at, created_at, updated_at")
         .eq("tournament_id", tournament.id)
         .limit(500)
     ]);
-    setExportingUstaScores(false);
+    setExportingTournamentCsv(false);
 
     const exportError = matchesResult.error || participantsResult.error || scoresResult.error;
     if (exportError) {
-      setNotice({ type: "error", text: exportError.message || "Could not prepare the USTA scores CSV." });
+      setNotice({ type: "error", text: exportError.message || "Could not prepare the full tournament CSV." });
       return;
     }
 
@@ -2118,46 +2103,97 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     (participantsResult.data || []).forEach((participant) => {
       participantsByMatch.set(participant.schedule_match_id, [...(participantsByMatch.get(participant.schedule_match_id) || []), participant]);
     });
-    const scoreByMatch = new Map((scoresResult.data || []).filter((score) => score.winner_side).map((score) => [score.schedule_match_id, score]));
+    const scoreByMatch = new Map((scoresResult.data || []).map((score) => [score.schedule_match_id, score]));
     const headers = [
       "Tournament",
+      "Tournament ID",
+      "Tournament status",
+      "Tournament starts",
+      "Tournament ends",
+      "Venue",
       "Match date",
       "Match ID",
-      "Day",
+      "External match ID",
+      "Match database ID",
+      "Schedule item ID",
+      "Day number",
+      "Day label",
+      "Start time",
+      "End time",
+      "Time label",
+      "Court",
+      "Pod",
       "Round / phase",
       "Format",
-      "Court",
-      "Winner 1 name",
-      "Winner 1 USTA number",
-      "Winner 1 date of birth",
-      "Winner 2 name",
-      "Winner 2 USTA number",
-      "Winner 2 date of birth",
-      "Loser 1 name",
-      "Loser 1 USTA number",
-      "Loser 1 date of birth",
-      "Loser 2 name",
-      "Loser 2 USTA number",
-      "Loser 2 date of birth",
-      "Set 1 winner games",
-      "Set 1 loser games",
-      "Set 2 winner games",
-      "Set 2 loser games",
-      "Set 3 winner games",
-      "Set 3 loser games",
-      "Final score (winner first)",
+      "Match color",
+      "Tier rule",
+      "Schedule status",
+      "Published",
+      "Team A",
+      "Team A ID",
+      "Team A sort order",
+      "Team B",
+      "Team B ID",
+      "Team B sort order",
+      "Side A player 1 name",
+      "Side A player 1 ID",
+      "Side A player 1 USTA number",
+      "Side A player 1 date of birth",
+      "Side A player 1 jamaat / city",
+      "Side A player 1 tier",
+      "Side A player 1 rating",
+      "Side A player 1 dominant hand",
+      "Side A player 2 name",
+      "Side A player 2 ID",
+      "Side A player 2 USTA number",
+      "Side A player 2 date of birth",
+      "Side A player 2 jamaat / city",
+      "Side A player 2 tier",
+      "Side A player 2 rating",
+      "Side A player 2 dominant hand",
+      "Side B player 1 name",
+      "Side B player 1 ID",
+      "Side B player 1 USTA number",
+      "Side B player 1 date of birth",
+      "Side B player 1 jamaat / city",
+      "Side B player 1 tier",
+      "Side B player 1 rating",
+      "Side B player 1 dominant hand",
+      "Side B player 2 name",
+      "Side B player 2 ID",
+      "Side B player 2 USTA number",
+      "Side B player 2 date of birth",
+      "Side B player 2 jamaat / city",
+      "Side B player 2 tier",
+      "Side B player 2 rating",
+      "Side B player 2 dominant hand",
+      "Set 1 side A games",
+      "Set 1 side B games",
+      "Set 2 side A games",
+      "Set 2 side B games",
+      "Set 3 side A games",
+      "Set 3 side B games",
+      "Final score (side A first)",
+      "Winner side",
       "Winning team",
+      "Winning player(s)",
       "Losing team",
-      "Completed at",
-      "USTA number status"
+      "Losing player(s)",
+      "Result status",
+      "Score database ID",
+      "Score submitted by player ID",
+      "Score submitted at",
+      "Score created at",
+      "Score updated at",
+      "USTA number status",
+      "Schedule sort order",
+      "Match created at",
+      "Match updated at"
     ];
     let missingUstaCount = 0;
-    const rows = (matchesResult.data || []).flatMap((match) => {
+    const rows = (matchesResult.data || []).map((match) => {
       const score = scoreByMatch.get(match.id);
-      if (!score || (score.winner_side !== "A" && score.winner_side !== "B")) return [];
       const participants = participantsByMatch.get(match.id) || [];
-      const winnerSide = score.winner_side;
-      const loserSide = winnerSide === "A" ? "B" : "A";
       const sidePlayers = (side: "A" | "B") => participants
         .filter((participant) => participant.side === side)
         .sort((left, right) => Number(left.slot || 0) - Number(right.slot || 0))
@@ -2165,48 +2201,81 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
           const profile = participant.player_id ? playerById.get(participant.player_id) : null;
           return {
             name: profile?.fullName || participant.source_player_name || "Unknown player",
+            playerId: participant.player_id || "",
             ustaNumber: profile?.ustaNumber || "",
-            dateOfBirth: profile?.dateOfBirth || ""
+            dateOfBirth: profile?.dateOfBirth || "",
+            jamaatCity: profile?.jamaatCity || "",
+            tier: participant.tier_at_match || profile?.tier || "",
+            rating: profile?.rating ?? "",
+            dominantHand: profile?.dominantHand || ""
           };
         });
-      const winners = sidePlayers(winnerSide);
-      const losers = sidePlayers(loserSide);
-      const allPlayers = [...winners, ...losers];
+      const sideAPlayers = sidePlayers("A");
+      const sideBPlayers = sidePlayers("B");
+      const allPlayers = [...sideAPlayers, ...sideBPlayers];
       const missingUstaNames = allPlayers.filter((player) => !player.ustaNumber).map((player) => player.name);
       missingUstaCount += missingUstaNames.length;
       const setPairs = [
-        [score.side_a_set1, score.side_b_set1],
-        [score.side_a_set2, score.side_b_set2],
-        [score.side_a_set3, score.side_b_set3]
-      ].map(([sideA, sideB]) => winnerSide === "A" ? [sideA, sideB] : [sideB, sideA]);
+        [score?.side_a_set1, score?.side_b_set1],
+        [score?.side_a_set2, score?.side_b_set2],
+        [score?.side_a_set3, score?.side_b_set3]
+      ];
       const finalScore = setPairs
-        .filter(([winnerGames, loserGames]) => winnerGames !== null && winnerGames !== undefined && loserGames !== null && loserGames !== undefined)
-        .map(([winnerGames, loserGames]) => `${winnerGames}-${loserGames}`)
+        .filter(([sideAGames, sideBGames]) => sideAGames !== null && sideAGames !== undefined && sideBGames !== null && sideBGames !== undefined)
+        .map(([sideAGames, sideBGames]) => `${sideAGames}-${sideBGames}`)
         .join(" ");
-      const winningTeamId = winnerSide === "A" ? match.team_a_id : match.team_b_id;
-      const losingTeamId = winnerSide === "A" ? match.team_b_id : match.team_a_id;
-      const winningTeamLabel = winnerSide === "A" ? match.team_a_label : match.team_b_label;
-      const losingTeamLabel = winnerSide === "A" ? match.team_b_label : match.team_a_label;
-      return [[
+      const teamA = (match.team_a_id && teamNameById.get(match.team_a_id)) || match.team_a_label || "";
+      const teamB = (match.team_b_id && teamNameById.get(match.team_b_id)) || match.team_b_label || "";
+      const winnerSide = score?.winner_side === "A" || score?.winner_side === "B" ? score.winner_side : "";
+      const winningTeam = winnerSide === "A" ? teamA : winnerSide === "B" ? teamB : "";
+      const winningPlayers = winnerSide === "A" ? sideAPlayers : winnerSide === "B" ? sideBPlayers : [];
+      const losingTeam = winnerSide === "A" ? teamB : winnerSide === "B" ? teamA : "";
+      const losingPlayers = winnerSide === "A" ? sideBPlayers : winnerSide === "B" ? sideAPlayers : [];
+      const playerFields = (player: (typeof sideAPlayers)[number] | undefined) => [
+        player?.name || "",
+        player?.playerId || "",
+        player?.ustaNumber || "",
+        player?.dateOfBirth || "",
+        player?.jamaatCity || "",
+        player?.tier || "",
+        player?.rating === "" ? "" : player?.rating ?? "",
+        player?.dominantHand || ""
+      ];
+      return [
         tournament.name,
+        tournament.id,
+        tournament.status,
+        tournament.starts_on || "",
+        tournament.ends_on || "",
+        tournament.venue_name || "",
         getAdminTournamentMatchDate(tournament.starts_on, match.day_number || 1),
         formatAdminPublicMatchId(match),
+        match.external_match_id || "",
+        match.id,
+        match.schedule_item_id || "",
+        match.day_number || 1,
         match.day_label || `Day ${match.day_number || 1}`,
+        match.start_time || "",
+        match.end_time || "",
+        match.time_label || "",
+        match.court_label || "",
+        match.pod_label || "",
         match.match_type || "",
         match.format || "",
-        match.court_label || "",
-        winners[0]?.name || "",
-        winners[0]?.ustaNumber || "",
-        winners[0]?.dateOfBirth || "",
-        winners[1]?.name || "",
-        winners[1]?.ustaNumber || "",
-        winners[1]?.dateOfBirth || "",
-        losers[0]?.name || "",
-        losers[0]?.ustaNumber || "",
-        losers[0]?.dateOfBirth || "",
-        losers[1]?.name || "",
-        losers[1]?.ustaNumber || "",
-        losers[1]?.dateOfBirth || "",
+        match.match_color || "",
+        match.tier_rule || "",
+        match.status || "",
+        match.is_published ? "Yes" : "No",
+        teamA,
+        match.team_a_id || "",
+        match.team_a_sort_order ?? "",
+        teamB,
+        match.team_b_id || "",
+        match.team_b_sort_order ?? "",
+        ...playerFields(sideAPlayers[0]),
+        ...playerFields(sideAPlayers[1]),
+        ...playerFields(sideBPlayers[0]),
+        ...playerFields(sideBPlayers[1]),
         setPairs[0]?.[0] ?? "",
         setPairs[0]?.[1] ?? "",
         setPairs[1]?.[0] ?? "",
@@ -2214,22 +2283,33 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         setPairs[2]?.[0] ?? "",
         setPairs[2]?.[1] ?? "",
         finalScore,
-        (winningTeamId && teamNameById.get(winningTeamId)) || winningTeamLabel || "",
-        (losingTeamId && teamNameById.get(losingTeamId)) || losingTeamLabel || "",
-        score.submitted_at || "",
-        missingUstaNames.length ? `Missing: ${missingUstaNames.join(" / ")}` : "Complete"
-      ]];
+        winnerSide,
+        winningTeam,
+        winningPlayers.map((player) => player.name).join(" / "),
+        losingTeam,
+        losingPlayers.map((player) => player.name).join(" / "),
+        winnerSide ? "Final" : score ? "Score entered - winner not finalized" : "No score entered",
+        score?.id || "",
+        score?.submitted_by || "",
+        score?.submitted_at || "",
+        score?.created_at || "",
+        score?.updated_at || "",
+        missingUstaNames.length ? `Missing: ${missingUstaNames.join(" / ")}` : allPlayers.length ? "Complete" : "No players assigned",
+        match.sort_order || 0,
+        match.created_at || "",
+        match.updated_at || ""
+      ];
     });
 
     if (!rows.length) {
-      setNotice({ type: "error", text: "No finalized match scores are available to export." });
+      setNotice({ type: "error", text: "No tournament matches are available to export." });
       return;
     }
 
-    downloadAdminCsv(`${slugifyAdminFileName(tournament.name)}-usta-match-results.csv`, [headers, ...rows]);
+    downloadAdminCsv(`${slugifyAdminFileName(tournament.name)}-full-tournament.csv`, [headers, ...rows]);
     setNotice({
       type: "success",
-      text: `${rows.length} finalized matches exported for USTA${missingUstaCount ? ` · ${missingUstaCount} player entries are missing a USTA number and are flagged in the CSV.` : "."}`
+      text: `${rows.length} tournament matches exported with schedules, players, teams, sets and scores${missingUstaCount ? ` · ${missingUstaCount} player entries are missing a USTA number and are flagged in the CSV.` : "."}`
     });
   };
 
@@ -2289,11 +2369,11 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
               <button
                 className="tap-card col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-[var(--accent-line)] bg-accent-tint px-3 text-center text-xs font-medium text-[var(--accent-ink)] disabled:opacity-50 sm:px-4"
                 type="button"
-                onClick={downloadUstaScoresCsv}
-                disabled={exportingUstaScores}
+                onClick={downloadFullTournamentCsv}
+                disabled={exportingTournamentCsv}
               >
                 <Download size={15} />
-                {exportingUstaScores ? "Preparing USTA scores..." : "Download finalized scores for USTA"}
+                {exportingTournamentCsv ? "Preparing full tournament CSV..." : "Download full tournament CSV"}
               </button>
               <button
                 className="tap-card inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-white px-3 text-center text-xs font-medium text-brand disabled:opacity-50 sm:px-4"
