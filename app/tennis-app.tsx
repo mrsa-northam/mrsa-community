@@ -2590,7 +2590,7 @@ export function HomeScreen() {
           <section className="home-dashboard-performers mx-auto grid w-full max-w-[960px] gap-4">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
               <strong className="text-[22px] font-extrabold leading-tight tracking-[-0.5px] text-text-primary sm:text-[25px]">Top performers</strong>
-              <Link className="home-dashboard-view-all tap-card inline-flex min-h-10 items-center justify-self-end gap-1 rounded-full bg-[var(--surface-subtle)] px-4 py-2 text-[13px] font-bold text-brand-deep" href="/players">
+              <Link className="home-dashboard-view-all inline-flex min-h-10 w-auto shrink-0 items-center justify-self-end gap-1 whitespace-nowrap rounded-full bg-[var(--surface-subtle)] px-4 py-2 text-[13px] font-bold text-brand-deep transition active:scale-[0.97]" href="/players">
                 View all <ArrowRight size={14} />
               </Link>
             </div>
@@ -2794,7 +2794,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
                     <em className="text-[10px] font-bold not-italic uppercase tracking-[0.1em] text-text-muted">MRSA rankings</em>
                     <h2 className="text-[23px] font-extrabold tracking-[-0.5px] text-text-primary sm:text-[26px]" id="guest-top-players-title">Top players</h2>
                   </span>
-                  <Link className="tap-card inline-flex min-h-9 items-center gap-1 text-[12px] font-bold text-brand" href="/players">View all <ArrowRight size={13} /></Link>
+                  <Link className="inline-flex min-h-9 w-auto shrink-0 items-center gap-1 whitespace-nowrap text-[12px] font-bold text-brand transition active:scale-[0.97]" href="/players">View all <ArrowRight size={13} /></Link>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
                   {topPlayers.map((player, index) => (
