@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CheckCircle2, ChevronDown, ChevronRight, Clock, Dumbbell, ExternalLink, Gift, Heart, House, Images, Info, LogIn, LogOut, Mail, MapPin, MonitorUp, Pencil, RefreshCw, Search, Shield, Shirt, Trash2, Trophy, UsersRound, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeDollarSign, Calendar, CalendarPlus, CheckCircle2, ChevronDown, ChevronRight, Clock, Download, Dumbbell, ExternalLink, Gift, Heart, House, Images, Info, LogIn, LogOut, Mail, MapPin, MonitorUp, Pencil, RefreshCw, Search, Shield, Shirt, Trash2, Trophy, UsersRound, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -14,7 +14,6 @@ import { MRSA_COLORS } from "./design-tokens";
 const TournamentHeroAmbience = dynamic(() => import("./tournament-hero-ambience").then((mod) => mod.TournamentHeroAmbience), { ssr: false });
 const raffleResultNoteTitle = "__MRSA_RAFFLE_RESULT_V1__";
 const initialCelebrationCount = 500;
-const tournamentPhotoAlbumUrl = "https://photos.app.goo.gl/2SgoggYh2eQEWvQ47?v=2";
 
 type Tab = "home" | "schedule" | "leaderboard" | "rosters" | "tournament" | "profile" | "admin";
 type ProfileData = {
@@ -60,9 +59,13 @@ type Tournament = {
   registrationFeeCents: number;
   maxPlayers: number | null;
   notes: string | null;
+  photoAlbumUrl: string;
   faqs: TournamentFaq[];
 };
 type TournamentFaq = { question: string; answer: string };
+type TournamentInterestEvent = { id: string; name: string; startsOn: string; endsOn: string; timezone: string; locationName: string; description: string; isAllDay: boolean; count: number };
+type TournamentInterestAttendee = { id: string; fullName: string; jamaatCity: string; submittedAt: string };
+type TournamentArchiveItem = { id: string; name: string; seasonYear: number | null; status: string; venueName: string; startsOn: string | null; endsOn: string | null; photoAlbumUrl: string };
 type TournamentRaffleWinner = { id: string; tournamentId: string; name: string; photoUrl: string; kind: "drafted_player" | "volunteer"; playerId: string; drawnAt: string };
 type TournamentRaffleWinnerRow = { id?: string | null; tournament_id?: string | null; winner_name?: string | null; winner_photo_url?: string | null; winner_kind?: string | null; winner_player_id?: string | null; drawn_at?: string | null };
 type TournamentRaffleWinnerNoteRow = { id?: string | null; tournament_id?: string | null; body?: string | null; updated_at?: string | null };
@@ -432,6 +435,7 @@ type DbTournamentRow = {
   registration_fee_cents: number | null;
   max_players: number | null;
   notes?: string | null;
+  photo_album_url?: string | null;
   faqs?: unknown;
 };
 
@@ -695,24 +699,31 @@ function TournamentRaffleWinnerTile({ winner }: { winner: TournamentRaffleWinner
   );
 }
 
-function TournamentPostEventCards() {
+function TournamentPhotoAlbumCard({ tournament }: { tournament: Tournament }) {
+  if (!tournament.photoAlbumUrl) return null;
   return (
-    <section className="grid gap-3 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]" aria-label="Tournament memories and next year">
-      <a className="tap-card group relative grid min-h-[210px] content-between overflow-hidden rounded-[22px] border-hairline border-white/15 bg-brand-deep p-5 text-white shadow-[0_16px_36px_rgba(var(--brand-deep-rgb),0.14)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(var(--brand-deep-rgb),0.18)]" href={tournamentPhotoAlbumUrl} target="_blank" rel="noreferrer">
-        <span className="pointer-events-none absolute inset-0 opacity-35 court-lines" aria-hidden="true" />
-        <span className="pointer-events-none absolute -right-12 -top-16 h-52 w-52 rounded-full bg-[var(--accent)]/25 blur-3xl" aria-hidden="true" />
-        <span className="relative grid gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-white/12 text-[var(--accent)]"><Images size={21} /></span>
-          <span className="grid gap-1.5">
-            <em className="text-[10px] font-semibold not-italic uppercase tracking-[0.12em] text-white/62">2026 tournament memories</em>
-            <strong className="text-[23px] font-bold leading-tight tracking-[-0.4px] text-white">View the photo album</strong>
-            <span className="text-[13px] leading-relaxed text-white/70">MRSA Tennis Tournament · August 2026</span>
-          </span>
+    <a className="tap-card group relative grid min-h-[210px] content-between overflow-hidden rounded-[22px] border-hairline border-white/15 bg-brand-deep p-5 text-white shadow-[0_16px_36px_rgba(var(--brand-deep-rgb),0.14)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(var(--brand-deep-rgb),0.18)]" href={tournament.photoAlbumUrl} target="_blank" rel="noreferrer">
+      <span className="pointer-events-none absolute inset-0 opacity-35 court-lines" aria-hidden="true" />
+      <span className="pointer-events-none absolute -right-12 -top-16 h-52 w-52 rounded-full bg-[var(--accent)]/25 blur-3xl" aria-hidden="true" />
+      <span className="relative grid gap-3">
+        <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-white/12 text-[var(--accent)]"><Images size={21} /></span>
+        <span className="grid gap-1.5">
+          <em className="text-[10px] font-semibold not-italic uppercase tracking-[0.12em] text-white/62">{tournament.seasonYear || "Tournament"} memories</em>
+          <strong className="text-[23px] font-bold leading-tight tracking-[-0.4px] text-white">View the photo album</strong>
+          <span className="text-[13px] leading-relaxed text-white/70">{tournament.name}</span>
         </span>
-        <span className="relative inline-flex min-h-11 w-max items-center gap-2 rounded-full bg-white px-4 text-[13px] font-bold text-brand-deep transition group-hover:bg-[var(--accent)]">
-          Open Google Photos <ExternalLink size={14} />
-        </span>
-      </a>
+      </span>
+      <span className="relative inline-flex min-h-11 w-max items-center gap-2 rounded-full bg-white px-4 text-[13px] font-bold text-brand-deep transition group-hover:bg-[var(--accent)]">
+        Open Google Photos <ExternalLink size={14} />
+      </span>
+    </a>
+  );
+}
+
+function TournamentPostEventCards({ tournament }: { tournament: Tournament }) {
+  return (
+    <section className={tournament.photoAlbumUrl ? "grid gap-3 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]" : "grid gap-3"} aria-label="Tournament memories and next year">
+      <TournamentPhotoAlbumCard tournament={tournament} />
       <SaveTheDateInterestCard />
     </section>
   );
@@ -724,9 +735,12 @@ function SaveTheDateInterestCard() {
   const [email, setEmail] = useState("");
   const [jamaatCity, setJamaatCity] = useState("");
   const [interestCount, setInterestCount] = useState(0);
+  const [interestEvent, setInterestEvent] = useState<TournamentInterestEvent | null>(null);
+  const [loadingInterestEvent, setLoadingInterestEvent] = useState(true);
   const [savingInterest, setSavingInterest] = useState(false);
   const [interestMessage, setInterestMessage] = useState("");
   const [interestSaved, setInterestSaved] = useState(false);
+  const [calendarPromptOpen, setCalendarPromptOpen] = useState(false);
 
   useEffect(() => {
     if (!fullName && appSession.player?.full_name) setFullName(appSession.player.full_name);
@@ -738,10 +752,14 @@ function SaveTheDateInterestCard() {
     const controller = new AbortController();
     fetch("/api/tournaments/save-the-date", { signal: controller.signal })
       .then(async (response) => {
-        const payload = await response.json() as { count?: number };
-        if (response.ok && Number.isFinite(payload.count)) setInterestCount(Number(payload.count));
+        const payload = await response.json() as { event?: TournamentInterestEvent | null };
+        if (response.ok && payload.event) {
+          setInterestEvent(payload.event);
+          setInterestCount(Number(payload.event.count || 0));
+        }
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => setLoadingInterestEvent(false));
     return () => controller.abort();
   }, []);
 
@@ -756,17 +774,22 @@ function SaveTheDateInterestCard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          eventId: interestEvent?.id || "",
           fullName,
           email,
           jamaatCity,
           website: String(form.get("website") || "")
         })
       });
-      const payload = await response.json() as { error?: string; count?: number };
+      const payload = await response.json() as { error?: string; event?: TournamentInterestEvent };
       if (!response.ok) throw new Error(payload.error || "Unable to save your interest.");
-      if (Number.isFinite(payload.count)) setInterestCount(Number(payload.count));
+      if (payload.event) {
+        setInterestEvent(payload.event);
+        setInterestCount(Number(payload.event.count || 0));
+      }
       setInterestSaved(true);
-      setInterestMessage("You’re on the 2027 interest list. We’ll share details when registration opens.");
+      setCalendarPromptOpen(true);
+      setInterestMessage(`You’re on the ${interestEvent?.startsOn.slice(0, 4) || "next tournament"} interest list. We’ll share details when registration opens.`);
     } catch (error) {
       setInterestMessage(error instanceof Error ? error.message : "Unable to save your interest.");
     } finally {
@@ -774,14 +797,21 @@ function SaveTheDateInterestCard() {
     }
   };
 
+  if (loadingInterestEvent) {
+    return <article className="min-h-[230px] animate-pulse rounded-[22px] border border-[var(--accent-line)] bg-accent-tint" aria-label="Loading next tournament save the date" />;
+  }
+  if (!interestEvent) return null;
+  const eventDateLabel = formatInterestEventDateRange(interestEvent.startsOn, interestEvent.endsOn);
+  const googleCalendarUrl = buildGoogleCalendarUrl(interestEvent);
+
   return (
     <article className="relative grid gap-4 overflow-hidden rounded-[22px] border border-[var(--accent-line)] bg-accent-tint p-4 shadow-[0_12px_30px_rgba(var(--brand-deep-rgb),0.06)] sm:p-5" aria-labelledby="save-the-date-title">
       <span className="pointer-events-none absolute -right-14 -top-20 h-56 w-56 rounded-full bg-[var(--accent)]/20 blur-3xl" aria-hidden="true" />
       <div className="relative grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start">
         <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-brand-deep text-[var(--accent)]"><Calendar size={20} /></span>
         <span className="grid gap-1">
-          <em className="text-[10px] font-bold not-italic uppercase tracking-[0.12em] text-[var(--accent-ink)]">Save the date · 2027</em>
-          <strong className="text-[24px] font-extrabold leading-none tracking-[-0.6px] text-text-primary sm:text-[28px]" id="save-the-date-title">August 7 &amp; 8</strong>
+          <em className="text-[10px] font-bold not-italic uppercase tracking-[0.12em] text-[var(--accent-ink)]">Save the date · {interestEvent.startsOn.slice(0, 4)}</em>
+          <strong className="text-[24px] font-extrabold leading-none tracking-[-0.6px] text-text-primary sm:text-[28px]" id="save-the-date-title">{eventDateLabel}</strong>
           <span className="text-[12px] leading-relaxed text-text-secondary">Interested in joining us next year? RSVP now—this is not a registration or payment.</span>
         </span>
         {interestCount > 0 && <span className="w-max rounded-full bg-white/75 px-3 py-1.5 text-[10px] font-bold text-brand-deep">{interestCount} interested</span>}
@@ -792,6 +822,7 @@ function SaveTheDateInterestCard() {
           <span className="grid gap-1">
             <strong className="text-[15px] font-bold text-text-primary">Interest saved</strong>
             <span className="text-[12px] leading-relaxed text-text-secondary">{interestMessage}</span>
+            <Link className="mt-1 inline-flex w-max items-center gap-1 text-[12px] font-bold text-brand" href="/tournaments/rsvps">See who else RSVP’d <ArrowRight size={12} /></Link>
           </span>
         </div>
       ) : (
@@ -808,6 +839,31 @@ function SaveTheDateInterestCard() {
           </button>
           {interestMessage && <p className="sm:col-span-2 text-[12px] font-medium text-[var(--error)]" role="status">{interestMessage}</p>}
         </form>
+      )}
+      {!interestSaved && interestCount > 0 && <Link className="relative inline-flex w-max items-center gap-1 text-[12px] font-bold text-brand" href="/tournaments/rsvps">View the RSVP list <ArrowRight size={12} /></Link>}
+      {calendarPromptOpen && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-brand-deep/65 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => {
+          if (event.currentTarget === event.target) setCalendarPromptOpen(false);
+        }}>
+          <section className="relative grid w-full max-w-[470px] gap-5 rounded-[24px] border border-white/30 bg-white p-5 shadow-[0_28px_80px_rgba(var(--brand-deep-rgb),0.35)] sm:p-6" role="dialog" aria-modal="true" aria-labelledby="calendar-prompt-title">
+            <button className="tap-card absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-[var(--surface)] text-text-secondary" type="button" onClick={() => setCalendarPromptOpen(false)} aria-label="Close calendar prompt"><X size={17} /></button>
+            <span className="grid h-13 w-13 place-items-center rounded-[17px] bg-brand-deep text-[var(--accent)]"><CalendarPlus size={24} /></span>
+            <span className="grid gap-2 pr-10">
+              <em className="text-[10px] font-bold not-italic uppercase tracking-[0.12em] text-[var(--accent-ink)]">RSVP confirmed</em>
+              <h2 className="text-[26px] font-extrabold leading-tight tracking-[-0.6px] text-text-primary" id="calendar-prompt-title">Add {eventDateLabel} to your calendar</h2>
+              <p className="text-[13px] leading-relaxed text-text-secondary">Block the full tournament weekend now. Registration details will be shared separately.</p>
+            </span>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <a className="tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] bg-brand-deep px-4 text-[13px] font-bold text-white" href={googleCalendarUrl} target="_blank" rel="noreferrer" onClick={() => setCalendarPromptOpen(false)}>
+                <CalendarPlus size={16} /> Google Calendar
+              </a>
+              <a className="tap-card inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] border-hairline border-line bg-[var(--surface)] px-4 text-[13px] font-bold text-brand-deep" href={`/api/tournaments/save-the-date?format=ics&eventId=${encodeURIComponent(interestEvent.id)}`} onClick={() => setCalendarPromptOpen(false)}>
+                <Download size={16} /> Other calendars
+              </a>
+            </div>
+            <Link className="inline-flex min-h-10 items-center justify-center gap-1 text-[12px] font-bold text-brand" href="/tournaments/rsvps" onClick={() => setCalendarPromptOpen(false)}>View everyone who RSVP’d <ArrowRight size={12} /></Link>
+          </section>
+        </div>
       )}
     </article>
   );
@@ -2248,8 +2304,6 @@ export function HomeScreen() {
   const [homeCanViewSchedule, setHomeCanViewSchedule] = useState(false);
   const [homeRegistrationResolutionKey, setHomeRegistrationResolutionKey] = useState("");
   const [homeUpcomingMatches, setHomeUpcomingMatches] = useState<PlayerScheduleMatch[]>([]);
-  const [homeTournamentChampion, setHomeTournamentChampion] = useState<PublishedTeam | null>(null);
-  const [homeTierWinners, setHomeTierWinners] = useState<PlayerStanding[]>([]);
   const [homeRaffleWinner, setHomeRaffleWinner] = useState<TournamentRaffleWinner | null>(null);
   const homeWeatherDate = getHomeTournamentWeatherDate(upcomingTournament);
 
@@ -2319,54 +2373,15 @@ export function HomeScreen() {
           city: row.jamaat_city || "City not added",
           profilePhotoUrl: row.profile_photo_url || ""
       })));
-      setHomeTournamentChampion(null);
-      setHomeTierWinners([]);
       setHomeRaffleWinner(null);
       if (tournamentData) {
-        const [championTeamsResult, championMatchesResult, championPlayersResult, championScoresResult, raffleResult] = await Promise.all([
-          supabase
-            .from("tournament_teams")
-            .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
-            .eq("tournament_id", tournamentData.id)
-            .eq("is_published", true)
-            .order("sort_order", { ascending: true })
-            .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
-            .limit(40),
-          supabase
-            .from("tournament_schedule_matches")
-            .select("id, tournament_id, day_number, day_label, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
-            .eq("tournament_id", tournamentData.id)
-            .eq("is_published", true)
-            .order("day_number", { ascending: true })
-            .order("sort_order", { ascending: true })
-            .limit(300),
-          supabase
-            .from("tournament_schedule_match_players")
-            .select("id, schedule_match_id, team_id, player_id, side, slot, source_player_name")
-            .eq("tournament_id", tournamentData.id)
-            .limit(1200),
-          supabase
-            .from("tournament_match_scores")
-            .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_at")
-            .eq("tournament_id", tournamentData.id)
-            .limit(400),
-          supabase
-            .from("tournament_schedule_notes")
-            .select("id,tournament_id,body,updated_at")
-            .eq("tournament_id", tournamentData.id)
-            .eq("title", raffleResultNoteTitle)
-            .maybeSingle()
-        ]);
+        const raffleResult = await supabase
+          .from("tournament_schedule_notes")
+          .select("id,tournament_id,body,updated_at")
+          .eq("tournament_id", tournamentData.id)
+          .eq("title", raffleResultNoteTitle)
+          .maybeSingle();
         if (!raffleResult.error && raffleResult.data) setHomeRaffleWinner(mapTournamentRaffleWinnerNote(raffleResult.data));
-        const championScheduleMissing = isScheduleSchemaMissing(championMatchesResult.error?.message || championPlayersResult.error?.message || "");
-        const championScoresMissing = isScoreSchemaMissing(championScoresResult.error?.message || "");
-        if (!championTeamsResult.error && !championScheduleMissing && !championMatchesResult.error && !championPlayersResult.error) {
-          const championTeams = mapPublishedTeamsFromRows(championTeamsResult.data || []);
-          const championScores = championScoresMissing || championScoresResult.error ? [] : mapMatchScores(championScoresResult.data || []);
-          const championMatches = mapTeamCourtScheduleMatches(championMatchesResult.data || [], championPlayersResult.data || [], championTeams, championScores);
-          setHomeTournamentChampion(getTournamentChampion(championTeams, championMatches));
-          setHomeTierWinners(getTvTierLeaders(getLivePlayerStandings(championTeams, championMatches)));
-        }
       }
       if (profileData) {
         setDashboardUstaNumber(profileData.usta_number || "");
@@ -2519,6 +2534,7 @@ export function HomeScreen() {
   const homeRegistrationResolved = homeRegistrationResolutionKey === expectedHomeRegistrationResolutionKey;
 
   if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  if (upcomingTournament?.status === "completed") return <GuestHomeScreen allowSignedIn />;
   if (homeRegistrationResolved && upcomingTournament && !homeCanViewSchedule) return <GuestHomeScreen allowSignedIn />;
 
   return (
@@ -2533,15 +2549,9 @@ export function HomeScreen() {
             weather={homeWeather}
           />
 
-          {upcomingTournament && homeTournamentChampion && (
-            <TournamentWinnerBanner source="dashboard" team={homeTournamentChampion} tournament={upcomingTournament} />
-          )}
-
-          {homeTournamentChampion && <TournamentTierWinners standings={homeTierWinners} />}
-
           {upcomingTournament && homeRaffleWinner && <TournamentRaffleWinnerTile winner={homeRaffleWinner} />}
 
-          <TournamentPostEventCards />
+          {upcomingTournament && <TournamentPostEventCards tournament={upcomingTournament} />}
 
           <div className="home-dashboard-focus grid gap-6 lg:gap-7">
             {upcomingTournament && homeCanViewSchedule && homePrimaryMatch && (
@@ -2667,9 +2677,6 @@ export function HomeScreen() {
             </section>
           </div>
         )}
-        {upcomingTournament && homeTournamentChampion && (
-          <TournamentWinnerCelebration autoPlay team={homeTournamentChampion} tournamentId={upcomingTournament.id} />
-        )}
       </div>
     </AppFrame>
   );
@@ -2679,9 +2686,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
   const appSession = useAppSession();
   const router = useRouter();
   const [tournament, setTournament] = useState<Tournament | null>(null);
-  const [teams, setTeams] = useState<PublishedTeam[]>([]);
-  const [matches, setMatches] = useState<TeamCourtScheduleMatch[]>([]);
-  const [raffleWinner, setRaffleWinner] = useState<TournamentRaffleWinner | null>(null);
+  const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -2695,19 +2700,35 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
 
     setLoading(true);
     setMessage("");
-    const { data: tournamentData, error: tournamentError } = await supabase
-      .from("tournaments")
-      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
-      .in("status", ["registration_open", "registration_closed", "live", "completed"])
-      .order("starts_on", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [{ data: tournamentData, error: tournamentError }, { data: playersData }] = await Promise.all([
+      supabase
+        .from("tournaments")
+        .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
+        .in("status", ["registration_open", "registration_closed", "live", "completed"])
+        .order("starts_on", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("players")
+        .select("id, full_name, jamaat_city, profile_photo_url, rating")
+        .order("rating", { ascending: false, nullsFirst: false })
+        .order("full_name")
+        .limit(12)
+    ]);
+
+    setTopPlayers((playersData || [])
+      .filter((row) => !/^test/i.test((row.full_name || "").trim()))
+      .slice(0, 5)
+      .map((row) => ({
+        id: row.id,
+        name: row.full_name || "Player",
+        rating: formatRating(row.rating),
+        city: row.jamaat_city || "City not added",
+        profilePhotoUrl: row.profile_photo_url || ""
+      })));
 
     if (tournamentError) {
       setTournament(null);
-      setTeams([]);
-      setMatches([]);
-      setRaffleWinner(null);
       setMessage(getFriendlyError(tournamentError));
       setLoading(false);
       return;
@@ -2715,65 +2736,11 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
 
     if (!tournamentData) {
       setTournament(null);
-      setTeams([]);
-      setMatches([]);
-      setRaffleWinner(null);
       setLoading(false);
       return;
     }
 
-    const mappedTournament = mapTournament(tournamentData);
-    setTournament(mappedTournament);
-    const [teamsResult, matchesResult, participantsResult, scoresResult, raffleResult] = await Promise.all([
-      supabase
-        .from("tournament_teams")
-        .select("id, name, sort_order, logo_url, jersey_color, sponsor_name, sponsor_logo_url, sponsors, tournament_team_members(id, is_captain, draft_order, tier_at_draft, players(id, full_name, jamaat_city, age, date_of_birth, rating, profile_photo_url))")
-        .eq("tournament_id", mappedTournament.id)
-        .eq("is_published", true)
-        .order("sort_order", { ascending: true })
-        .order("draft_order", { referencedTable: "tournament_team_members", ascending: true })
-        .limit(40),
-      supabase
-        .from("tournament_schedule_matches")
-        .select("id, tournament_id, day_number, day_label, time_label, court_label, pod_label, format, match_type, match_color, tier_rule, team_a_id, team_b_id, team_a_label, team_b_label, external_match_id, sort_order")
-        .eq("tournament_id", mappedTournament.id)
-        .eq("is_published", true)
-        .order("day_number", { ascending: true })
-        .order("sort_order", { ascending: true })
-        .limit(300),
-      supabase
-        .from("tournament_schedule_match_players")
-        .select("id, schedule_match_id, team_id, player_id, side, slot, source_player_name")
-        .eq("tournament_id", mappedTournament.id)
-        .limit(1200),
-      supabase
-        .from("tournament_match_scores")
-        .select("id, schedule_match_id, side_a_set1, side_b_set1, side_a_set2, side_b_set2, side_a_set3, side_b_set3, winner_side, submitted_by, submitted_at")
-        .eq("tournament_id", mappedTournament.id)
-        .limit(400),
-      supabase
-        .from("tournament_schedule_notes")
-        .select("id,tournament_id,body,updated_at")
-        .eq("tournament_id", mappedTournament.id)
-        .eq("title", raffleResultNoteTitle)
-        .maybeSingle()
-    ]);
-
-    const scheduleSchemaMissing = isScheduleSchemaMissing(matchesResult.error?.message || participantsResult.error?.message || "");
-    const scoreSchemaMissing = isScoreSchemaMissing(scoresResult.error?.message || "");
-    if (teamsResult.error || matchesResult.error || participantsResult.error || scheduleSchemaMissing) {
-      setTeams([]);
-      setMatches([]);
-      setMessage(scheduleSchemaMissing ? "The live tournament schedule is not available yet." : getFriendlyError(teamsResult.error || matchesResult.error || participantsResult.error));
-      setLoading(false);
-      return;
-    }
-
-    const mappedTeams = mapPublishedTeamsFromRows(teamsResult.data || []);
-    const mappedScores = scoreSchemaMissing || scoresResult.error ? [] : mapMatchScores(scoresResult.data || []);
-    setTeams(mappedTeams);
-    setMatches(mapTeamCourtScheduleMatches(matchesResult.data || [], participantsResult.data || [], mappedTeams, mappedScores));
-    setRaffleWinner(!raffleResult.error && raffleResult.data ? mapTournamentRaffleWinnerNote(raffleResult.data) : null);
+    setTournament(mapTournament(tournamentData));
     setLoading(false);
   }, []);
 
@@ -2789,11 +2756,7 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
     const channel = supabase
       .channel(allowSignedIn ? "member-spectator-home-live-data" : "guest-home-live-data")
       .on("postgres_changes", { event: "*", schema: "public", table: "tournaments" }, loadGuestHome)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_teams" }, loadGuestHome)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_team_members" }, loadGuestHome)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_matches" }, loadGuestHome)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_match_players" }, loadGuestHome)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tournament_match_scores" }, loadGuestHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "players" }, loadGuestHome)
       .on("postgres_changes", { event: "*", schema: "public", table: "tournament_schedule_notes" }, loadGuestHome)
       .subscribe();
     return () => {
@@ -2803,22 +2766,6 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
 
   if (!appSession.ready || (!allowSignedIn && appSession.userId)) return null;
 
-  const completedMatches = matches.filter((match) => Boolean(match.score?.winnerSide));
-  const teamStandings = getLiveTeamStandings(teams, matches);
-  const playerStandings = getLivePlayerStandings(teams, matches).slice().sort((left, right) => right.matchWins - left.matchWins
-    || right.setWinPercentage - left.setWinPercentage
-    || right.gameWinPercentage - left.gameWinPercentage
-    || right.completedMatches - left.completedMatches
-    || left.player.name.localeCompare(right.player.name));
-  const recentMatches = completedMatches.slice().sort((left, right) => {
-    const submittedDifference = (Date.parse(right.score?.submittedAt || "") || 0) - (Date.parse(left.score?.submittedAt || "") || 0);
-    if (submittedDifference) return submittedDifference;
-    return right.dayNumber - left.dayNumber
-      || getScheduleTimeSortValue(right.timeLabel) - getScheduleTimeSortValue(left.timeLabel)
-      || right.sortOrder - left.sortOrder;
-  }).slice(0, 5);
-  const guestTournamentChampion = getTournamentChampion(teams, matches);
-  const guestTierWinners = getTvTierLeaders(getLivePlayerStandings(teams, matches));
   const showMemberNav = Boolean(appSession.userId);
 
   return (
@@ -2839,130 +2786,116 @@ export function GuestHomeScreen({ allowSignedIn = false }: { allowSignedIn?: boo
 
           {!loading && tournament && (
             <>
-              <div className="grid gap-3">
-                {guestTournamentChampion && <TournamentWinnerBanner source="dashboard" team={guestTournamentChampion} tournament={tournament} />}
-                {guestTournamentChampion && <TournamentTierWinners standings={guestTierWinners} />}
-                {raffleWinner && <TournamentRaffleWinnerTile winner={raffleWinner} />}
-                <TournamentPostEventCards />
-                {!appSession.userId && <GuestPlayerSignInPrompt />}
-              </div>
+              <SaveTheDateInterestCard />
 
-              <section className="grid gap-3" aria-labelledby="guest-leaders-title">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-0.5">
+              <section className="grid gap-3" aria-labelledby="guest-top-players-title">
+                <div className="flex items-end justify-between gap-3 px-0.5">
                   <span className="grid gap-1">
-                    <span className="text-[12px] font-semibold uppercase tracking-[0.1em] text-text-secondary">Live standings</span>
-                    <h2 className="text-[22px] font-extrabold leading-tight tracking-[-0.5px] text-text-primary sm:text-[25px]" id="guest-leaders-title">Tournament leaders</h2>
+                    <em className="text-[10px] font-bold not-italic uppercase tracking-[0.1em] text-text-muted">MRSA rankings</em>
+                    <h2 className="text-[23px] font-extrabold tracking-[-0.5px] text-text-primary sm:text-[26px]" id="guest-top-players-title">Top players</h2>
                   </span>
-                  <Link className="tap-card inline-flex min-h-8 items-center gap-1 justify-self-end whitespace-nowrap text-[12px] font-semibold text-brand" href="/tournaments/leaderboard">
-                    Leaderboard <ArrowRight size={13} />
-                  </Link>
+                  <Link className="tap-card inline-flex min-h-9 items-center gap-1 text-[12px] font-bold text-brand" href="/players">View all <ArrowRight size={13} /></Link>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <GuestTeamLeadersCard standings={teamStandings.slice(0, 3)} />
-                  <GuestPlayerLeadersCard standings={playerStandings.slice(0, 3)} />
-                </div>
-              </section>
-
-              <section className="grid gap-3" aria-labelledby="guest-recent-matches-title">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-0.5">
-                  <h2 className="text-[22px] font-extrabold leading-tight tracking-[-0.5px] text-text-primary sm:text-[25px]" id="guest-recent-matches-title">Recent matches</h2>
-                  <Link className="tap-card inline-flex min-h-8 items-center gap-1 text-[12px] font-semibold text-brand" href="/tournaments/bracket">
-                    View full bracket <ArrowRight size={13} />
-                  </Link>
-                </div>
-                <div className="grid gap-2.5">
-                  {recentMatches.map((match) => <ScheduleBracketMatchLink match={match} key={match.id} />)}
-                  {!recentMatches.length && <StatusMessage tone="info">Completed matches will appear here as scores are submitted.</StatusMessage>}
+                <div className="grid gap-2 md:grid-cols-2">
+                  {topPlayers.map((player, index) => (
+                    <article className="grid min-h-[72px] grid-cols-[25px_42px_minmax(0,1fr)_auto] items-center gap-3 rounded-[18px] border-hairline border-line bg-card p-3.5" key={player.id}>
+                      <strong className={index < 3 ? "text-center text-[14px] font-bold text-[var(--rank-gold)]" : "text-center text-[14px] font-bold text-text-muted"}>{index + 1}</strong>
+                      <Avatar className="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-full bg-accent-tint text-[11px] font-bold text-[var(--accent-ink)]" name={player.name} photoUrl={player.profilePhotoUrl} ariaLabel={`${player.name} profile photo`} sizes="42px" />
+                      <span className="grid min-w-0 gap-0.5">
+                        <strong className="truncate text-[14px] font-semibold text-text-primary">{player.name}</strong>
+                        <em className="truncate text-[11px] not-italic text-text-secondary">{player.city}</em>
+                      </span>
+                      <strong className="rounded-full bg-accent-tint px-2.5 py-1 text-[12px] font-bold text-[var(--accent-ink)]">{player.rating}</strong>
+                    </article>
+                  ))}
+                  {!topPlayers.length && <p className="rounded-[16px] border-hairline border-line bg-card p-4 text-[13px] text-text-secondary">Top players will appear when ranking data is available.</p>}
                 </div>
               </section>
 
               <section className="grid gap-3" aria-labelledby="guest-about-title">
-                <h2 className="text-[22px] font-extrabold leading-tight tracking-[-0.5px] text-text-primary sm:text-[25px]" id="guest-about-title">About MRSA</h2>
-                <Link className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[18px] border-hairline border-line bg-card p-4 transition hover:border-line-strong md:items-center md:p-5" href="/about">
+                <h2 className="text-[23px] font-extrabold tracking-[-0.5px] text-text-primary sm:text-[26px]" id="guest-about-title">About MRSA</h2>
+                <Link className="tap-card grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-[20px] border-hairline border-line bg-card p-5 transition hover:border-brand/25" href="/about">
                   <span className="grid gap-2">
-                    <span className="text-[13px] text-text-secondary">What is MRSA?</span>
-                    <strong className="text-lg font-medium leading-tight text-brand">Mumineen Racquet Sports Association</strong>
-                    <em className="text-[15px] not-italic leading-relaxed text-text-secondary">A North America-wide community bringing together women through a shared passion for racquet sports — tennis, TT, badminton, and pickleball.</em>
+                    <em className="text-[10px] font-bold not-italic uppercase tracking-[0.1em] text-[var(--accent-ink)]">Mumineen Racquet Sports Association</em>
+                    <strong className="text-[20px] font-bold leading-tight text-brand">Community through racquet sports</strong>
+                    <span className="text-[14px] leading-relaxed text-text-secondary">Connecting the North American community through tennis, table tennis, badminton, pickleball, tournaments, and player development.</span>
                   </span>
-                  <span className="inline-flex h-10 w-10 items-center justify-center justify-self-end rounded-full bg-brand-primary text-white" aria-hidden="true">
-                    <ArrowRight size={18} />
-                  </span>
+                  <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-deep text-white" aria-hidden="true"><ArrowRight size={18} /></span>
                 </Link>
               </section>
             </>
           )}
         </main>
-        {tournament && guestTournamentChampion && (
-          <TournamentWinnerCelebration autoPlay team={guestTournamentChampion} tournamentId={tournament.id} />
-        )}
       </div>
     </AppFrame>
   );
 }
 
-function GuestPlayerSignInPrompt() {
-  return (
-    <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 shadow-[0_10px_26px_rgba(var(--brand-deep-rgb),0.05)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" aria-labelledby="guest-player-sign-in-title">
-      <span className="grid gap-1">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-secondary">Tournament players</span>
-        <strong className="text-[17px] font-semibold leading-tight text-text-primary" id="guest-player-sign-in-title">Playing in the tournament?</strong>
-        <em className="text-[13px] not-italic leading-relaxed text-text-secondary">Sign in to see your personal matches, schedule, and team details.</em>
-      </span>
-      <Link className="tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-brand-deep px-5 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(var(--brand-deep-rgb),0.15)] transition hover:bg-brand-mid" href="/?next=%2Fdashboard">
-        <LogIn size={15} />
-        Player sign in
-        <ArrowRight size={14} />
-      </Link>
-    </section>
-  );
-}
+export function TournamentRsvpListScreen() {
+  const appSession = useAppSession();
+  const [interestEvent, setInterestEvent] = useState<TournamentInterestEvent | null>(null);
+  const [attendees, setAttendees] = useState<TournamentInterestAttendee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
 
-function GuestTeamLeadersCard({ standings }: { standings: TeamStanding[] }) {
-  return (
-    <article className="grid gap-3 rounded-[20px] border-hairline border-line bg-card p-4">
-      <div className="flex items-center justify-between gap-3 border-b-hairline border-line pb-3">
-        <strong className="text-[16px] font-semibold text-text-primary">Top teams</strong>
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-muted">W–L</span>
-      </div>
-      <div className="grid gap-2">
-        {standings.map((standing, index) => (
-          <div className="grid min-h-[52px] grid-cols-[24px_40px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[14px] bg-[var(--surface)] px-3 py-2" key={standing.team.id}>
-            <strong className={index < 3 ? "text-center text-[13px] font-semibold text-brand" : "text-center text-[13px] font-semibold text-text-muted"}>{index + 1}</strong>
-            <span className="relative grid h-10 w-10 place-items-center overflow-hidden rounded-[10px] bg-white text-[10px] font-semibold text-brand shadow-[inset_0_0_0_1px_rgba(var(--brand-deep-rgb),0.05)]">
-              {standing.team.logoUrl ? <NextImage src={standing.team.logoUrl} alt="" fill sizes="40px" className="object-contain p-1" /> : getInitials(standing.team.name)}
-            </span>
-            <strong className="truncate text-[14px] font-semibold text-text-primary">{standing.team.name}</strong>
-            <strong className="min-w-10 text-right text-[14px] font-semibold tabular-nums text-brand" aria-label={`${standing.matchWins} wins and ${standing.matchLosses} losses`}>{standing.matchWins}–{standing.matchLosses}</strong>
-          </div>
-        ))}
-        {!standings.length && <p className="rounded-[14px] bg-[var(--surface)] p-3 text-[13px] text-text-secondary">Team standings will appear when rosters are published.</p>}
-      </div>
-    </article>
-  );
-}
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/tournaments/save-the-date?includeAttendees=1", { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json() as { event?: TournamentInterestEvent | null; attendees?: TournamentInterestAttendee[]; error?: string };
+        if (!response.ok) throw new Error(payload.error || "Unable to load the RSVP list.");
+        setInterestEvent(payload.event || null);
+        setAttendees(payload.attendees || []);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : "Unable to load the RSVP list.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
 
-function GuestPlayerLeadersCard({ standings }: { standings: PlayerStanding[] }) {
+  if (!appSession.ready) return null;
+  const showMemberNav = Boolean(appSession.userId);
   return (
-    <article className="grid gap-3 rounded-[20px] border-hairline border-line bg-card p-4">
-      <div className="flex items-center justify-between gap-3 border-b-hairline border-line pb-3">
-        <strong className="text-[16px] font-semibold text-text-primary">Top players</strong>
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-muted">W–L</span>
+    <AppFrame active={showMemberNav ? "home" : undefined} withNav={showMemberNav}>
+      <div className={memberPageClass}>
+        <AppTopBar publicNextPath="/tournaments/rsvps" />
+        <main className="mx-auto grid w-full max-w-[760px] gap-5 px-5 py-6 pb-24 sm:px-8 sm:py-8">
+          <Link className="tap-card inline-flex min-h-9 w-max items-center gap-1 text-[12px] font-bold text-brand" href={showMemberNav ? "/dashboard" : "/"}><ArrowLeft size={13} /> Back home</Link>
+          <header className="grid gap-2">
+            <em className="text-[10px] font-bold not-italic uppercase tracking-[0.12em] text-[var(--accent-ink)]">Save the date</em>
+            <h1 className="text-[30px] font-extrabold leading-tight tracking-[-0.8px] text-text-primary sm:text-[38px]">Who has RSVP’d</h1>
+            {interestEvent && <p className="text-[14px] leading-relaxed text-text-secondary">{formatInterestEventDateRange(interestEvent.startsOn, interestEvent.endsOn)}, {interestEvent.startsOn.slice(0, 4)} · {interestEvent.locationName}</p>}
+          </header>
+
+          {loading && <section className="grid gap-2" aria-label="Loading RSVP list">{Array.from({ length: 4 }).map((_, index) => <SkeletonRow key={index} />)}</section>}
+          {!loading && message && <StatusMessage tone="warning">{message}</StatusMessage>}
+          {!loading && !message && interestEvent && (
+            <section className="grid gap-3 rounded-[22px] border-hairline border-line bg-card p-4 sm:p-5" aria-labelledby="rsvp-attendees-title">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-[18px] font-bold text-text-primary" id="rsvp-attendees-title">Interested players</h2>
+                <span className="rounded-full bg-accent-tint px-3 py-1.5 text-[11px] font-bold text-[var(--accent-ink)]">{attendees.length} RSVP{attendees.length === 1 ? "" : "s"}</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {attendees.map((attendee) => (
+                  <article className="grid min-h-[58px] grid-cols-[38px_minmax(0,1fr)] items-center gap-2.5 rounded-[14px] bg-[var(--surface)] p-2.5" key={attendee.id}>
+                    <span className="grid h-[38px] w-[38px] place-items-center rounded-full bg-brand-deep text-[10px] font-bold text-white">{getInitials(attendee.fullName)}</span>
+                    <span className="grid min-w-0 gap-0.5">
+                      <strong className="truncate text-[13px] font-semibold text-text-primary">{attendee.fullName}</strong>
+                      <em className="truncate text-[10px] not-italic text-text-secondary">{attendee.jamaatCity || "MRSA community"}</em>
+                    </span>
+                  </article>
+                ))}
+                {!attendees.length && <p className="sm:col-span-2 rounded-[14px] bg-[var(--surface)] p-4 text-[13px] text-text-secondary">Be the first to RSVP your interest.</p>}
+              </div>
+            </section>
+          )}
+          {!loading && !message && !interestEvent && <StatusMessage tone="info">The next tournament save-the-date will appear here once published.</StatusMessage>}
+        </main>
       </div>
-      <div className="grid gap-2">
-        {standings.map((standing, index) => (
-          <div className="grid min-h-[52px] grid-cols-[24px_40px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[14px] bg-[var(--surface)] px-3 py-2" key={`${standing.team.id}:${standing.player.playerId || standing.player.id}`}>
-            <strong className={index < 3 ? "text-center text-[13px] font-semibold text-brand" : "text-center text-[13px] font-semibold text-text-muted"}>{index + 1}</strong>
-            <Avatar className="relative grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-[var(--brand-primary-tint)] text-[10px] font-semibold text-[var(--brand-primary-text)]" name={standing.player.name} photoUrl={standing.player.profilePhotoUrl} ariaLabel={`${standing.player.name} profile photo`} sizes="40px" />
-            <span className="grid min-w-0 gap-0.5">
-              <strong className="truncate text-[14px] font-semibold text-text-primary">{standing.player.name}</strong>
-              <em className="truncate text-[11px] not-italic text-text-secondary">{standing.team.name}</em>
-            </span>
-            <strong className="min-w-10 text-right text-[14px] font-semibold tabular-nums text-brand" aria-label={`${standing.matchWins} wins and ${standing.matchLosses} losses`}>{standing.matchWins}–{standing.matchLosses}</strong>
-          </div>
-        ))}
-        {!standings.length && <p className="rounded-[14px] bg-[var(--surface)] p-3 text-[13px] text-text-secondary">Player standings will appear when rosters are published.</p>}
-      </div>
-    </article>
+    </AppFrame>
   );
 }
 
@@ -2972,6 +2905,10 @@ export function DrawScreen() {
   const [registeredPlayers, setRegisteredPlayers] = useState<RegisteredPlayer[]>([]);
   const [publishedTeams, setPublishedTeams] = useState<PublishedTeam[]>([]);
   const [tournamentChampion, setTournamentChampion] = useState<PublishedTeam | null>(null);
+  const [tournamentRunnerUp, setTournamentRunnerUp] = useState<PublishedTeam | null>(null);
+  const [tournamentTierWinners, setTournamentTierWinners] = useState<PlayerStanding[]>([]);
+  const [pastTournaments, setPastTournaments] = useState<TournamentArchiveItem[]>([]);
+  const [matchSummary, setMatchSummary] = useState({ total: 0, completed: 0 });
   const [registeredPlayersOpen, setRegisteredPlayersOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [registered, setRegistered] = useState(false);
@@ -2991,31 +2928,41 @@ export function DrawScreen() {
       return;
     }
 
-    const { data: tournamentData, error } = await supabase
-      .from("tournaments")
-      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
-	      .in("status", ["registration_open", "registration_closed", "live"])
-      .order("starts_on", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [{ data: tournamentData, error }, archiveResponse] = await Promise.all([
+      supabase
+        .from("tournaments")
+	      .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
+	      .in("status", ["registration_open", "registration_closed", "live", "completed"])
+        .order("starts_on", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      fetch("/api/tournaments/archive", { cache: "no-store" })
+    ]);
 
-    if (error) {
-      setMessage(getFriendlyError(error));
+    const archivePayload = await archiveResponse.json().catch(() => ({})) as { tournaments?: TournamentArchiveItem[]; error?: string };
+    if (error || !archiveResponse.ok) {
+      setMessage(error ? getFriendlyError(error) : archivePayload.error || "Could not load the tournament archive.");
       setLoading(false);
       return;
     }
+    const archiveItems = archivePayload.tournaments || [];
+    setPastTournaments(archiveItems.filter((row) => row.id !== tournamentData?.id));
 
     if (!tournamentData) {
       setTournament(null);
       setRegisteredPlayers([]);
       setPublishedTeams([]);
       setTournamentChampion(null);
+      setTournamentRunnerUp(null);
+      setTournamentTierWinners([]);
+      setMatchSummary({ total: 0, completed: 0 });
       setRegistrationShirtName("");
       setLoading(false);
       return;
     }
 
-    const mappedTournament = mapTournament(tournamentData);
+    const currentArchiveItem = archiveItems.find((item) => item.id === tournamentData.id);
+    const mappedTournament = { ...mapTournament(tournamentData), photoAlbumUrl: currentArchiveItem?.photoAlbumUrl || "" };
     setTournament(mappedTournament);
 
     const [registrationsResult, myRegistrationResult, latestPaymentResult, teamsResult, fitnessProgressResult, matchesResult, participantsResult, scoresResult] = await Promise.all([
@@ -3135,9 +3082,15 @@ export function DrawScreen() {
     if (!teamsResult.error && !scheduleSchemaMissing && !matchesResult.error && !participantsResult.error) {
       const mappedScores = scoreSchemaMissing || scoresResult.error ? [] : mapMatchScores(scoresResult.data || []);
       const mappedMatches = mapTeamCourtScheduleMatches(matchesResult.data || [], participantsResult.data || [], nextPublishedTeams, mappedScores);
+      setMatchSummary({ total: mappedMatches.length, completed: mappedMatches.filter((match) => Boolean(match.score?.winnerSide)).length });
       setTournamentChampion(getTournamentChampion(nextPublishedTeams, mappedMatches));
+      setTournamentRunnerUp(getTournamentRunnerUp(nextPublishedTeams, mappedMatches));
+      setTournamentTierWinners(getTvTierLeaders(getLivePlayerStandings(nextPublishedTeams, mappedMatches)));
     } else {
       setTournamentChampion(null);
+      setTournamentRunnerUp(null);
+      setTournamentTierWinners([]);
+      setMatchSummary({ total: 0, completed: 0 });
     }
     setCompletedFitnessDays((fitnessProgressResult.data || []).map((row) => Number(row.day_number)).filter(Boolean));
 
@@ -3247,6 +3200,20 @@ export function DrawScreen() {
   }, [message]);
 
 	  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+    if (tournament?.status === "completed") {
+      return (
+        <CompletedTournamentArchiveScreen
+          champion={tournamentChampion}
+          pastTournaments={pastTournaments}
+          matchSummary={matchSummary}
+          registeredPlayers={registeredPlayers}
+          runnerUp={tournamentRunnerUp}
+          teamCount={publishedTeams.length}
+          tierWinners={tournamentTierWinners}
+          tournament={tournament}
+        />
+      );
+    }
     const tournamentProfileReminder = tournament && registered ? getTournamentProfileReminder(appSession.player, registrationShirtName) : null;
     const previewFitnessDays = tennisFitnessRegimen.slice(0, 7);
     const completedPreviewDays = previewFitnessDays.filter((day) => completedFitnessDays.includes(day.day)).length;
@@ -3532,6 +3499,122 @@ export function DrawScreen() {
   );
 }
 
+function CompletedTournamentArchiveScreen({ tournament, champion, runnerUp, tierWinners, pastTournaments, registeredPlayers, matchSummary, teamCount }: {
+  tournament: Tournament;
+  champion: PublishedTeam | null;
+  runnerUp: PublishedTeam | null;
+  tierWinners: PlayerStanding[];
+  pastTournaments: TournamentArchiveItem[];
+  registeredPlayers: RegisteredPlayer[];
+  matchSummary: { total: number; completed: number };
+  teamCount: number;
+}) {
+  const tournamentHistory: TournamentArchiveItem[] = [{
+    id: tournament.id,
+    name: tournament.name,
+    seasonYear: tournament.seasonYear,
+    status: tournament.status,
+    venueName: tournament.venueName,
+    startsOn: tournament.startsOn,
+    endsOn: tournament.endsOn,
+    photoAlbumUrl: tournament.photoAlbumUrl
+  }, ...pastTournaments].slice(0, 2);
+  return (
+    <AppFrame active="tournament">
+      <div className="min-h-dvh bg-surface pb-28 font-sans text-text-primary">
+        <AppTopBar />
+        <main className="mx-auto grid w-full max-w-shell gap-5 px-4 py-5 pb-32 md:px-6 lg:px-8">
+          <header className="grid gap-2 px-0.5">
+            <span className="inline-flex w-max items-center gap-2 rounded-full bg-accent-tint px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--accent-ink)]"><CheckCircle2 size={13} /> Tournament completed</span>
+            <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.7px] text-text-primary sm:text-[36px]">{tournament.name}</h1>
+            <p className="max-w-[720px] text-[14px] leading-relaxed text-text-secondary">The final results, championship teams, tier leaders and tournament memories are now part of the MRSA archive.</p>
+          </header>
+
+          {champion ? <TournamentWinnerBanner source="dashboard" team={champion} tournament={tournament} /> : <StatusMessage tone="info">Final championship results are still being finalized in the database.</StatusMessage>}
+
+          <section className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Tournament overview">
+            {[
+              { label: "Players", value: registeredPlayers.length },
+              { label: "Teams", value: teamCount },
+              { label: "Results", value: `${matchSummary.completed}/${matchSummary.total}` },
+              { label: "Status", value: "Final" }
+            ].map((metric) => (
+              <article className="grid min-h-[92px] content-between rounded-[16px] border-hairline border-line bg-card p-3" key={metric.label}>
+                <em className="text-[9px] font-bold not-italic uppercase tracking-[0.1em] text-text-muted">{metric.label}</em>
+                <strong className="text-[25px] font-extrabold tracking-[-0.5px] text-brand">{metric.value}</strong>
+              </article>
+            ))}
+          </section>
+
+          {runnerUp && (
+            <section className="grid gap-3 rounded-[20px] border-hairline border-line bg-card p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" aria-labelledby="runner-up-team-title">
+              <span className="grid gap-1">
+                <em className="text-[10px] font-bold not-italic uppercase tracking-[0.1em] text-text-muted">Tournament runner-up</em>
+                <strong className="text-[23px] font-bold tracking-[-0.4px] text-text-primary" id="runner-up-team-title">{runnerUp.name}</strong>
+                <span className="text-[12px] text-text-secondary">{runnerUp.members.length} players · Championship finalists</span>
+              </span>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                {runnerUp.members.map((member) => (
+                  <Link className="inline-flex min-h-9 items-center gap-2 rounded-full bg-[var(--surface)] py-1 pl-1 pr-3 text-[11px] font-semibold text-text-primary" href={`/tournaments/players/${member.playerId}?from=tournament`} key={member.id}>
+                    <Avatar className="relative grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-brand-deep text-[8px] text-white" name={member.name} photoUrl={member.profilePhotoUrl} sizes="28px" />
+                    {member.name}
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <TournamentTierWinners standings={tierWinners} />
+
+          <TournamentPhotoAlbumCard tournament={tournament} />
+
+          <section className="grid gap-3 rounded-[20px] border-hairline border-line bg-card p-4" aria-labelledby="completed-registered-players-title">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <span className="grid gap-1">
+                <em className="text-[10px] font-bold not-italic uppercase tracking-[0.1em] text-text-muted">2026 participant archive</em>
+                <h2 className="text-[23px] font-extrabold tracking-[-0.5px] text-text-primary" id="completed-registered-players-title">Registered players</h2>
+              </span>
+              <span className="rounded-full bg-accent-tint px-3 py-1.5 text-[11px] font-bold text-[var(--accent-ink)]">{registeredPlayers.length} players</span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {registeredPlayers.map((player) => (
+                <Link className="tap-card grid min-h-[58px] grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[14px] bg-[var(--surface)] p-2.5 transition hover:bg-accent-tint" href={`/tournaments/players/${player.id}?from=tournament`} key={player.id}>
+                  <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-deep text-[10px] font-bold text-white">{getInitials(player.name)}</span>
+                  <span className="grid min-w-0 gap-0.5">
+                    <strong className="truncate text-[13px] font-semibold text-text-primary">{player.name}</strong>
+                    <em className="truncate text-[10px] not-italic text-text-secondary">{player.city}{player.age ? ` · ${player.age}` : ""}</em>
+                  </span>
+                  <span className="text-[11px] font-bold text-brand">{player.rating}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <section className="grid gap-3" aria-labelledby="past-tournaments-title">
+            <span className="grid gap-1 px-0.5">
+              <em className="text-[10px] font-bold not-italic uppercase tracking-[0.1em] text-text-muted">MRSA history</em>
+              <h2 className="text-[23px] font-extrabold tracking-[-0.5px] text-text-primary" id="past-tournaments-title">Last 2 tournaments</h2>
+            </span>
+            <div className="grid gap-2 md:grid-cols-2">
+              {tournamentHistory.map((pastTournament) => (
+                <article className="grid min-h-[112px] gap-3 rounded-[17px] border-hairline border-line bg-card p-4" key={pastTournament.id}>
+                  <span className="grid gap-1">
+                    <em className="text-[10px] font-bold not-italic uppercase tracking-[0.09em] text-[var(--accent-ink)]">{pastTournament.seasonYear || "Completed"}{pastTournament.id === tournament.id ? " · Featured above" : ""}</em>
+                    <strong className="text-[17px] font-bold text-text-primary">{pastTournament.name}</strong>
+                    <span className="text-[12px] text-text-secondary">{formatTournamentArchiveDates(pastTournament.startsOn, pastTournament.endsOn)}{pastTournament.venueName ? ` · ${pastTournament.venueName}` : ""}</span>
+                  </span>
+                  {pastTournament.photoAlbumUrl && <a className="inline-flex w-max items-center gap-1 text-[12px] font-bold text-brand" href={pastTournament.photoAlbumUrl} target="_blank" rel="noreferrer">Photo album <ExternalLink size={12} /></a>}
+                </article>
+              ))}
+            </div>
+          </section>
+        </main>
+        {champion && <TournamentWinnerCelebration team={champion} tournamentId={tournament.id} />}
+      </div>
+    </AppFrame>
+  );
+}
+
 type FitnessDay = {
   day: number;
   exercises: string[];
@@ -3667,7 +3750,7 @@ export function FitnessScreen() {
         .from("tournaments")
         .select("id, starts_on")
         .gte("starts_on", today)
-        .in("status", ["registration_open", "registration_closed", "live"])
+        .in("status", ["registration_open", "registration_closed", "live", "completed"])
         .order("starts_on", { ascending: true })
         .limit(1)
         .maybeSingle()
@@ -4126,7 +4209,7 @@ export function TournamentScheduleScreen() {
       const { data: tournament } = await supabase
         .from("tournaments")
         .select("id")
-        .in("status", ["registration_open", "registration_closed", "live"])
+        .in("status", ["registration_open", "registration_closed", "live", "completed"])
         .order("starts_on", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -5575,7 +5658,7 @@ function TournamentScheduleExperience({ view }: { view: "schedule" | "bracket" }
     const { data: tournamentData, error } = await supabase
       .from("tournaments")
       .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
-      .in("status", ["registration_open", "registration_closed", "live"])
+      .in("status", ["registration_open", "registration_closed", "live", "completed"])
       .order("starts_on", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -6017,7 +6100,7 @@ export function TournamentScheduleRulesScreen() {
     const { data: tournamentData, error } = await supabase
       .from("tournaments")
       .select("id")
-      .in("status", ["draft", "registration_open", "registration_closed", "live"])
+      .in("status", ["draft", "registration_open", "registration_closed", "live", "completed"])
       .order("starts_on", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -6627,7 +6710,7 @@ export function TournamentPlayerProfileScreen({ playerId }: { playerId: string }
       supabase
         .from("tournaments")
         .select("id")
-        .in("status", ["registration_open", "registration_closed", "live"])
+        .in("status", ["registration_open", "registration_closed", "live", "completed"])
         .order("starts_on", { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -6795,7 +6878,7 @@ export function TournamentLeaderboardScreen() {
     const { data: tournamentData, error: tournamentError } = await supabase
       .from("tournaments")
       .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
-      .in("status", ["registration_open", "registration_closed", "live"])
+      .in("status", ["registration_open", "registration_closed", "live", "completed"])
       .order("starts_on", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -6960,7 +7043,7 @@ export function TournamentTeamsScreen() {
     const { data: tournamentData, error } = await supabase
       .from("tournaments")
       .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
-      .in("status", ["registration_open", "registration_closed", "live"])
+      .in("status", ["registration_open", "registration_closed", "live", "completed"])
       .order("starts_on", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -7088,7 +7171,7 @@ export function RegisteredPlayersScreen() {
     const { data: tournamentData, error } = await supabase
       .from("tournaments")
       .select("id, name, season_year, status, venue_name, venue_address, venue_maps_url, starts_on, ends_on, registration_closes_at, registration_fee_cents, max_players, notes, faqs")
-	      .in("status", ["registration_open", "registration_closed", "live"])
+	      .in("status", ["registration_open", "registration_closed", "live", "completed"])
       .order("starts_on", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -7235,12 +7318,12 @@ export function RegisteredPlayersScreen() {
 }
 
 export function PlayersScreen() {
-  const appSession = useProtectedRoute("/dashboard", true);
+  const appSession = useAppSession();
   const [players, setPlayers] = useState<TopPlayer[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!appSession.ready || !appSession.userId) return;
+    if (!appSession.ready) return;
 
     const loadPlayers = async () => {
       const supabase = getSupabaseClient();
@@ -7269,16 +7352,17 @@ export function PlayersScreen() {
     };
 
     loadPlayers();
-  }, [appSession.ready, appSession.userId]);
+  }, [appSession.ready]);
 
-  if (!appSession.ready || !appSession.userId || !appSession.profileComplete) return null;
+  if (!appSession.ready) return null;
+  const showMemberNav = Boolean(appSession.userId);
 
   return (
-    <AppFrame active="profile">
+    <AppFrame active={showMemberNav ? "profile" : undefined} withNav={showMemberNav}>
       <div className={memberPageClass}>
-        <AppTopBar />
+        <AppTopBar publicNextPath="/players" />
         <main className={memberMainClass}>
-          <Link className="tap-card grid h-9 w-9 place-items-center rounded-full border-hairline border-line bg-white/80 text-brand shadow-[0_8px_22px_rgba(var(--brand-deep-rgb),0.06)] backdrop-blur" href="/dashboard" aria-label="Back to dashboard">
+          <Link className="tap-card grid h-9 w-9 place-items-center rounded-full border-hairline border-line bg-white/80 text-brand shadow-[0_8px_22px_rgba(var(--brand-deep-rgb),0.06)] backdrop-blur" href={showMemberNav ? "/dashboard" : "/"} aria-label="Back to homepage">
             <ArrowLeft size={16} />
           </Link>
           <PageGreeting subtitle="The MRSA leaderboard" />
@@ -7930,8 +8014,48 @@ function mapTournament(row: DbTournamentRow): Tournament {
     registrationFeeCents: row.registration_fee_cents || 0,
     maxPlayers: row.max_players,
     notes: row.notes ?? null,
+    photoAlbumUrl: row.photo_album_url || "",
     faqs: normalizeTournamentFaqs(row.faqs)
   };
+}
+
+function formatInterestEventDateRange(startsOn: string, endsOn: string) {
+  const start = new Date(`${startsOn}T00:00:00Z`);
+  const end = new Date(`${endsOn}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return `${startsOn} – ${endsOn}`;
+  const startMonth = start.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+  const endMonth = end.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+  const startDay = start.getUTCDate();
+  const endDay = end.getUTCDate();
+  return startMonth === endMonth ? `${startMonth} ${startDay} & ${endDay}` : `${startMonth} ${startDay} – ${endMonth} ${endDay}`;
+}
+
+function formatTournamentArchiveDates(startsOn: string | null, endsOn: string | null) {
+  if (!startsOn) return "Dates not recorded";
+  const start = new Date(`${startsOn}T00:00:00Z`);
+  const end = endsOn ? new Date(`${endsOn}T00:00:00Z`) : start;
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return startsOn;
+  const startText = start.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  const endText = end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  return startsOn === endsOn || !endsOn ? startText : `${startText} – ${endText}`;
+}
+
+function addCalendarDays(dateText: string, days: number) {
+  const date = new Date(`${dateText}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function buildGoogleCalendarUrl(event: TournamentInterestEvent) {
+  const compact = (dateText: string) => dateText.replaceAll("-", "");
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: event.name,
+    dates: `${compact(event.startsOn)}/${compact(addCalendarDays(event.endsOn, 1))}`,
+    details: event.description,
+    location: event.locationName
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 function normalizeTournamentFaqs(value: unknown): TournamentFaq[] {
@@ -10020,14 +10144,28 @@ function standingsRankingIsEqual(left: Pick<TeamStanding, "matchWins" | "setWinP
 }
 
 function getTournamentChampion(teams: PublishedTeam[], matches: TeamCourtScheduleMatch[]) {
+  return getTournamentFinalists(teams, matches).champion;
+}
+
+function getTournamentRunnerUp(teams: PublishedTeam[], matches: TeamCourtScheduleMatch[]) {
+  return getTournamentFinalists(teams, matches).runnerUp;
+}
+
+function getTournamentFinalists(teams: PublishedTeam[], matches: TeamCourtScheduleMatch[]) {
   const dayOneMatches = matches.filter((match) => match.dayNumber === 1);
   const dayTwoMatches = matches.filter((match) => match.dayNumber === 2);
   const standings = getLiveTeamStandings(teams, dayOneMatches);
   const dayOneIsFinal = Boolean(dayOneMatches.length
     && dayOneMatches.every((match) => Boolean(match.score?.winnerSide))
     && !standings.some((standing) => standing.requiresReview));
-  if (!dayOneIsFinal) return null;
-  return getTournamentChampionFromStages(buildLiveTeamBracket(standings, dayTwoMatches, true));
+  if (!dayOneIsFinal) return { champion: null, runnerUp: null };
+  const stages = buildLiveTeamBracket(standings, dayTwoMatches, true);
+  const champion = getTournamentChampionFromStages(stages);
+  const finalNode = stages.find((stage) => stage.key === "final")?.nodes[0];
+  const runnerUp = champion && finalNode
+    ? [finalNode.sideA.team, finalNode.sideB.team].find((team) => team && team.id !== champion.id) || null
+    : null;
+  return { champion, runnerUp };
 }
 
 function getTournamentChampionFromStages(stages: LiveBracketStage[]) {

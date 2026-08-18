@@ -11,6 +11,7 @@ import { MRSA_COLORS } from "../design-tokens";
 const raffleResultNoteTitle = "__MRSA_RAFFLE_RESULT_V1__";
 const celebrationCountNoteTitle = "__MRSA_CHAMPION_CELEBRATION_COUNT_V1__";
 const saveTheDateNoteTitle = "__MRSA_2027_INTEREST_RSVPS_V1__";
+const tournamentArchiveNoteTitle = "__MRSA_TOURNAMENT_ARCHIVE_V1__";
 
 type AdminTab = "overview" | "tournaments" | "players" | "payments" | "claims" | "raffle";
 type AdminTournamentWorkspaceSection = "setup" | "content" | "teams" | "players" | "waitlist";
@@ -151,14 +152,6 @@ type AdminWaitlistedPlayer = {
   selfEvaluation: string;
   waitlistStatus: string;
   joinedAt: string;
-};
-
-type AdminSaveTheDateRsvp = {
-  id: string;
-  fullName: string;
-  email: string;
-  jamaatCity: string;
-  submittedAt: string;
 };
 
 type AdminPayment = {
@@ -434,13 +427,13 @@ function AdminNavItem({
 export function AdminOverviewScreen() {
   const [counts, setCounts] = useState<CountMap>({ players: 0, tournaments: 0, payments: 0, claims: 0 });
   const [currentTournament, setCurrentTournament] = useState<Pick<AdminTournament, "id" | "name"> | null>(null);
-  const [saveTheDateRsvps, setSaveTheDateRsvps] = useState<AdminSaveTheDateRsvp[]>([]);
+  const [saveTheDateSummary, setSaveTheDateSummary] = useState({ count: 0, startsOn: "", endsOn: "" });
 
   const loadCounts = useCallback(async () => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    const [players, tournaments, payments, claims, currentTournamentResult, saveTheDateResult] = await Promise.all([
+    const [players, tournaments, payments, claims, currentTournamentResult, saveTheDateResponse] = await Promise.all([
       supabase.from("players").select("id", { count: "exact", head: true }),
       supabase.from("tournaments").select("id", { count: "exact", head: true }),
       supabase.from("payment_ledger").select("id", { count: "exact", head: true }).eq("status", "pending"),
@@ -452,13 +445,7 @@ export function AdminOverviewScreen() {
         .order("starts_on", { ascending: true, nullsFirst: false })
         .limit(1)
         .maybeSingle(),
-      supabase
-        .from("tournament_schedule_notes")
-        .select("body, updated_at")
-        .eq("title", saveTheDateNoteTitle)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      fetch("/api/tournaments/save-the-date", { cache: "no-store" })
     ]);
 
     setCounts({
@@ -468,7 +455,10 @@ export function AdminOverviewScreen() {
       claims: claims.count || 0
     });
     setCurrentTournament((currentTournamentResult.data as Pick<AdminTournament, "id" | "name"> | null) || null);
-    setSaveTheDateRsvps(parseAdminSaveTheDateRsvps(saveTheDateResult.data?.body));
+    const saveTheDatePayload = await saveTheDateResponse.json().catch(() => ({})) as { event?: { count?: number; startsOn?: string; endsOn?: string } | null };
+    setSaveTheDateSummary(saveTheDateResponse.ok && saveTheDatePayload.event
+      ? { count: Number(saveTheDatePayload.event.count || 0), startsOn: saveTheDatePayload.event.startsOn || "", endsOn: saveTheDatePayload.event.endsOn || "" }
+      : { count: 0, startsOn: "", endsOn: "" });
   }, []);
 
   useEffect(() => {
@@ -521,8 +511,8 @@ export function AdminOverviewScreen() {
         <span className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
           <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-brand-deep text-[var(--accent)]"><Calendar size={19} /></span>
           <span className="grid gap-1">
-            <span className="text-[11px] font-medium uppercase tracking-[0.09em] text-[var(--accent-ink)]">August 7–8, 2027</span>
-            <strong className="text-[20px] font-medium text-text-primary" id="admin-save-date-title">{saveTheDateRsvps.length} save-the-date {saveTheDateRsvps.length === 1 ? "RSVP" : "RSVPs"}</strong>
+            <span className="text-[11px] font-medium uppercase tracking-[0.09em] text-[var(--accent-ink)]">{formatAdminEventDateRange(saveTheDateSummary.startsOn, saveTheDateSummary.endsOn)}</span>
+            <strong className="text-[20px] font-medium text-text-primary" id="admin-save-date-title">{saveTheDateSummary.count} save-the-date {saveTheDateSummary.count === 1 ? "RSVP" : "RSVPs"}</strong>
             <em className="text-[13px] not-italic text-text-secondary">Interest responses collected from the public and member home pages.</em>
           </span>
         </span>
@@ -1103,6 +1093,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [exportingTournamentCsv, setExportingTournamentCsv] = useState(false);
+  const [exportingPaymentsCsv, setExportingPaymentsCsv] = useState(false);
   const [teamActionKey, setTeamActionKey] = useState<string | null>(null);
   const [reviewingVideoPlayerId, setReviewingVideoPlayerId] = useState<string | null>(null);
   const [removingPlayerKey, setRemovingPlayerKey] = useState<string | null>(null);
@@ -1156,6 +1147,7 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
         .neq("title", raffleResultNoteTitle)
         .neq("title", celebrationCountNoteTitle)
         .neq("title", saveTheDateNoteTitle)
+        .neq("title", tournamentArchiveNoteTitle)
         .order("sort_order", { ascending: true })
         .limit(120)
     ]);
@@ -2313,9 +2305,98 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
     });
   };
 
+  const downloadInterestedPlayersCsv = () => {
+    if (!tournament) return;
+    const headers = ["Name", "Profile email", "Checkout email", "Profile phone", "Checkout phone", "Jamaat / city", "Last checkout status", "Checkout attempts", "Amount", "Last checkout", "Failure detail"];
+    const rows = interestedPlayers.map((player) => [
+      player.fullName,
+      player.email,
+      player.checkoutEmail,
+      player.phone,
+      player.checkoutPhone,
+      player.jamaatCity,
+      player.status,
+      player.checkoutCount,
+      formatAdminCurrency(player.amountCents, player.currency),
+      player.occurredAt,
+      player.failureMessage
+    ]);
+    downloadAdminCsv(`${slugifyAdminFileName(tournament.name)}-checkout-interest.csv`, [headers, ...rows]);
+  };
+
+  const downloadUndraftedPaidPlayersCsv = () => {
+    if (!tournament) return;
+    const paidUndrafted = registeredPlayers.filter((player) => player.draftStatus === "not_drafted" && ["paid", "waived"].includes(player.paymentStatus || ""));
+    const headers = ["Name", "Email", "Phone", "Jamaat / city", "Tier", "Rating", "USTA number", "Payment status", "Amount", "Refund status"];
+    const rows = paidUndrafted.map((player) => [
+      player.fullName,
+      player.email,
+      player.phone,
+      player.jamaatCity,
+      player.tier,
+      formatAdminRating(player.rating),
+      player.ustaNumber,
+      player.paymentStatus || "",
+      formatAdminCurrency(player.paymentAmountCents, player.paymentCurrency),
+      player.refundStatus
+    ]);
+    downloadAdminCsv(`${slugifyAdminFileName(tournament.name)}-paid-not-drafted.csv`, [headers, ...rows]);
+  };
+
+  const downloadWaitlistCsv = () => {
+    if (!tournament) return;
+    const headers = ["Name", "Player ID", "Jamaat / city", "Self evaluation", "Waitlist status", "Joined at"];
+    const rows = waitlistedPlayers.map((player) => [player.fullName, player.playerId, player.jamaatCity, player.selfEvaluation, player.waitlistStatus, player.joinedAt]);
+    downloadAdminCsv(`${slugifyAdminFileName(tournament.name)}-waitlist.csv`, [headers, ...rows]);
+  };
+
+  const downloadTournamentPaymentsCsv = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tournament) return;
+    setExportingPaymentsCsv(true);
+    setNotice(null);
+    const { data, error } = await supabase
+      .from("payment_ledger")
+      .select("id,player_id,registration_id,entry_type,status,amount_cents,currency,method,reference,notes,occurred_at,players(full_name,email,phone,jamaat_city)")
+      .eq("tournament_id", tournament.id)
+      .order("occurred_at", { ascending: true })
+      .limit(1000);
+    setExportingPaymentsCsv(false);
+    if (error) {
+      setNotice({ type: "error", text: error.message || "Could not export tournament payments." });
+      return;
+    }
+    const headers = ["Ledger ID", "Player ID", "Player name", "Email", "Phone", "Jamaat / city", "Registration ID", "Entry type", "Status", "Amount cents", "Amount", "Currency", "Method", "Reference", "Notes", "Occurred at"];
+    const rows = (data || []).map((payment) => {
+      const player = Array.isArray(payment.players) ? payment.players[0] : payment.players;
+      return [
+        payment.id,
+        payment.player_id,
+        player?.full_name || "",
+        player?.email || "",
+        player?.phone || "",
+        player?.jamaat_city || "",
+        payment.registration_id || "",
+        payment.entry_type,
+        payment.status,
+        payment.amount_cents,
+        formatAdminCurrency(payment.amount_cents, payment.currency),
+        payment.currency,
+        payment.method || "",
+        payment.reference || "",
+        payment.notes || "",
+        payment.occurred_at
+      ];
+    });
+    downloadAdminCsv(`${slugifyAdminFileName(tournament.name)}-payments.csv`, [headers, ...rows]);
+    setNotice({ type: "success", text: `${rows.length} payment ledger records exported.` });
+  };
+
   const assignedRegistrationIds = new Set(teams.flatMap((team) => team.members.map((member) => member.registrationId)));
   const unassignedPlayers = registeredPlayers.filter((player) => !assignedRegistrationIds.has(player.registrationId));
   const undraftedPlayers = registeredPlayers.filter((player) => player.draftStatus === "not_drafted");
+  const paidUndraftedPlayers = undraftedPlayers.filter((player) => ["paid", "waived"].includes(player.paymentStatus || ""));
+  const isCompletedTournament = tournament?.status === "completed";
   const publishedTeams = teams.filter((team) => team.isPublished).length;
   const workspaceSections: {
     id: AdminTournamentWorkspaceSection;
@@ -2355,16 +2436,16 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
       <div className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:rounded-[22px] md:p-6">
         <div className="grid gap-2">
           <Link className="tap-card w-max text-[14px] font-medium text-brand" href="/admin/tournaments">← Tournaments</Link>
-          <span className="text-[13px] text-text-secondary">Tournament workspace</span>
+          <span className="text-[13px] text-text-secondary">{isCompletedTournament ? "Completed tournament archive" : "Tournament workspace"}</span>
           <h1 className="text-2xl font-medium leading-tight tracking-[-0.4px] text-text-primary md:text-3xl">{tournament?.name || "Tournament"}</h1>
-          <p className="max-w-[720px] text-[14px] leading-relaxed text-text-secondary md:text-[15px]">Manage setup, player-facing content, teams, registrations, and waitlist decisions.</p>
+          <p className="max-w-[720px] text-[14px] leading-relaxed text-text-secondary md:text-[15px]">{isCompletedTournament ? "Review the final participation, draft, payment and results data. Completed tournament records are read-only." : "Manage setup, player-facing content, teams, registrations, and waitlist decisions."}</p>
         </div>
         <div className="grid gap-2 md:justify-items-end">
           <div className="flex flex-wrap gap-2 md:justify-end">
             <span className="rounded-full bg-accent-tint px-3 py-1 text-[13px] font-medium text-[var(--accent-ink)]">{registeredPlayers.length} registered</span>
             {tournament && <span className="rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-text-secondary">{formatAdminTournamentStatus(tournament.status)}</span>}
           </div>
-          {tournament && (
+          {tournament && !isCompletedTournament && (
             <div className="grid grid-cols-2 gap-2">
               <button
                 className="tap-card col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border-hairline border-[var(--accent-line)] bg-accent-tint px-3 text-center text-xs font-medium text-[var(--accent-ink)] disabled:opacity-50 sm:px-4"
@@ -2418,7 +2499,25 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
 
       {notice && <p className={notice.type === "error" ? "rounded-[14px] border-hairline border-[var(--error-line)] bg-[var(--error-surface)] p-4 text-[15px] text-[var(--error)]" : "rounded-[14px] border-hairline border-line bg-accent-tint p-4 text-[15px] text-[var(--accent-ink)]"}>{notice.text}</p>}
 
-      {tournament ? (
+      {tournament ? (isCompletedTournament ? (
+        <AdminCompletedTournamentInsights
+          exportingPayments={exportingPaymentsCsv}
+          exportingTournament={exportingTournamentCsv}
+          interestedPlayers={interestedPlayers}
+          onDownloadFullTournament={() => void downloadFullTournamentCsv()}
+          onDownloadInterested={downloadInterestedPlayersCsv}
+          onDownloadPayments={() => void downloadTournamentPaymentsCsv()}
+          onDownloadRegistered={downloadRegisteredPlayersCsv}
+          onDownloadTeams={downloadTeamsCsv}
+          onDownloadUndrafted={downloadUndraftedPaidPlayersCsv}
+          onDownloadWaitlist={downloadWaitlistCsv}
+          paidUndraftedPlayers={paidUndraftedPlayers}
+          registeredPlayers={registeredPlayers}
+          teams={teams}
+          tournament={tournament}
+          waitlistedPlayers={waitlistedPlayers}
+        />
+      ) : (
         <>
           <section className="grid gap-3 rounded-[18px] border-hairline border-line bg-card p-3 md:p-4">
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
@@ -2631,10 +2730,163 @@ export function AdminTournamentDetailScreen({ tournamentId }: { tournamentId: st
             </div>
           </div>
         </>
-      ) : (
+      )) : (
         <div className="rounded-[14px] border-hairline border-line bg-card p-4 text-[15px] text-text-secondary">Loading tournament workspace...</div>
       )}
     </AdminFrame>
+  );
+}
+
+function AdminCompletedTournamentInsights({
+  tournament,
+  registeredPlayers,
+  teams,
+  interestedPlayers,
+  paidUndraftedPlayers,
+  waitlistedPlayers,
+  exportingTournament,
+  exportingPayments,
+  onDownloadFullTournament,
+  onDownloadRegistered,
+  onDownloadTeams,
+  onDownloadInterested,
+  onDownloadUndrafted,
+  onDownloadWaitlist,
+  onDownloadPayments
+}: {
+  tournament: AdminTournament;
+  registeredPlayers: AdminRegisteredPlayer[];
+  teams: AdminTeam[];
+  interestedPlayers: AdminInterestedPlayer[];
+  paidUndraftedPlayers: AdminRegisteredPlayer[];
+  waitlistedPlayers: AdminWaitlistedPlayer[];
+  exportingTournament: boolean;
+  exportingPayments: boolean;
+  onDownloadFullTournament: () => void;
+  onDownloadRegistered: () => void;
+  onDownloadTeams: () => void;
+  onDownloadInterested: () => void;
+  onDownloadUndrafted: () => void;
+  onDownloadWaitlist: () => void;
+  onDownloadPayments: () => void;
+}) {
+  const draftedPlayers = registeredPlayers.filter((player) => player.draftStatus === "drafted");
+  const paidPlayers = registeredPlayers.filter((player) => ["paid", "waived"].includes(player.paymentStatus || ""));
+  const recordedRevenue = registeredPlayers
+    .filter((player) => player.paymentStatus === "paid")
+    .reduce((total, player) => total + player.paymentAmountCents, 0);
+  const exportActions = [
+    { label: exportingTournament ? "Preparing full results..." : "Full tournament results", onClick: onDownloadFullTournament, disabled: exportingTournament },
+    { label: "Booked players", onClick: onDownloadRegistered, disabled: !registeredPlayers.length },
+    { label: "Teams and rosters", onClick: onDownloadTeams, disabled: !teams.length },
+    { label: "Checkout interest", onClick: onDownloadInterested, disabled: !interestedPlayers.length },
+    { label: "Paid, not drafted", onClick: onDownloadUndrafted, disabled: !paidUndraftedPlayers.length },
+    { label: "Waitlist", onClick: onDownloadWaitlist, disabled: !waitlistedPlayers.length },
+    { label: exportingPayments ? "Preparing payments..." : "Payment ledger", onClick: onDownloadPayments, disabled: exportingPayments }
+  ];
+
+  return (
+    <div className="grid gap-4">
+      <section className="relative overflow-hidden rounded-[22px] border border-white/15 bg-brand-deep p-5 text-white md:p-6">
+        <span className="pointer-events-none absolute inset-0 opacity-25 court-lines" aria-hidden="true" />
+        <div className="relative grid gap-4">
+          <span className="inline-flex w-max items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-white/80"><CheckCircle2 size={13} /> Final archive · read-only</span>
+          <span className="grid gap-1">
+            <strong className="text-[27px] font-semibold tracking-[-0.5px]">Tournament insights</strong>
+            <em className="max-w-[720px] text-[13px] not-italic leading-relaxed text-white/72">All registrations, draft outcomes, checkout attempts, payment records and match results remain available as reporting data. Editing controls are closed because the tournament is completed.</em>
+          </span>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
+            <AdminCompletedMetric label="Booked" value={registeredPlayers.length} />
+            <AdminCompletedMetric label="Paid / waived" value={paidPlayers.length} />
+            <AdminCompletedMetric label="Drafted" value={draftedPlayers.length} />
+            <AdminCompletedMetric label="Paid, not drafted" value={paidUndraftedPlayers.length} />
+            <AdminCompletedMetric label="Checkout interest" value={interestedPlayers.length} />
+            <AdminCompletedMetric label="Recorded paid" value={formatAdminCurrency(recordedRevenue)} />
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3 rounded-[20px] border-hairline border-line bg-card p-4 md:p-5" aria-labelledby="completed-tournament-exports-title">
+        <span className="grid gap-1">
+          <strong className="text-[20px] font-medium text-text-primary" id="completed-tournament-exports-title">CSV data center</strong>
+          <em className="text-[13px] not-italic text-text-secondary">Download each finalized data set independently for reporting, finance and USTA follow-up.</em>
+        </span>
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {exportActions.map((action, index) => (
+            <button className={index === 0 ? "tap-card col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-[13px] bg-brand-deep px-3 text-[12px] font-medium text-white disabled:opacity-40 lg:col-span-1" : "tap-card inline-flex min-h-11 items-center justify-center gap-2 rounded-[13px] border-hairline border-line bg-white px-3 text-[12px] font-medium text-brand disabled:opacity-40"} type="button" onClick={action.onClick} disabled={action.disabled} key={action.label}>
+              <Download size={14} /> {action.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid gap-3 rounded-[20px] border-hairline border-line bg-card p-4 md:p-5" aria-labelledby="completed-booked-title">
+        <span className="flex items-center justify-between gap-3">
+          <strong className="text-[18px] font-medium text-text-primary" id="completed-booked-title">Who booked</strong>
+          <span className="rounded-full bg-accent-tint px-3 py-1 text-[12px] font-medium text-[var(--accent-ink)]">{registeredPlayers.length}</span>
+        </span>
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {registeredPlayers.map((player) => (
+            <article className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-[14px] bg-surface p-3" key={player.registrationId}>
+              <span className="grid min-w-0 gap-0.5">
+                <strong className="truncate text-[14px] font-medium text-text-primary">{player.fullName}</strong>
+                <em className="truncate text-[11px] not-italic text-text-secondary">{player.jamaatCity} · Tier {player.tier}</em>
+                <span className="truncate text-[11px] text-text-secondary">{player.draftedTeamName || "Not drafted"}</span>
+              </span>
+              <span className="grid justify-items-end gap-1">
+                <b className="rounded-full bg-white px-2 py-1 text-[10px] font-medium text-brand">{player.paymentStatus || "unknown"}</b>
+                <em className="text-[10px] not-italic text-text-muted">{player.paymentAmountCents ? formatAdminCurrency(player.paymentAmountCents, player.paymentCurrency) : "—"}</em>
+              </span>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <AdminCompletedPeoplePanel
+          empty="Every paid player was drafted."
+          items={paidUndraftedPlayers.map((player) => ({ id: player.registrationId, title: player.fullName, meta: `${player.jamaatCity} · Tier ${player.tier}`, detail: `${player.paymentStatus || "Paid"} · ${formatAdminCurrency(player.paymentAmountCents, player.paymentCurrency)}` }))}
+          title="Paid but not drafted"
+        />
+        <AdminCompletedPeoplePanel
+          empty="No incomplete checkout interest was recorded."
+          items={interestedPlayers.map((player) => ({ id: player.id, title: player.fullName, meta: `${player.jamaatCity} · ${player.checkoutCount} checkout ${player.checkoutCount === 1 ? "attempt" : "attempts"}`, detail: player.checkoutEmail || player.email }))}
+          title="Who showed interest"
+        />
+      </div>
+
+      <p className="rounded-[14px] border-hairline border-line bg-surface p-3 text-[12px] text-text-secondary">Archive dates: {formatAdminDate(tournament.starts_on)} – {formatAdminDate(tournament.ends_on)} · {teams.length} teams · {waitlistedPlayers.length} waitlist records</p>
+    </div>
+  );
+}
+
+function AdminCompletedMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <span className="grid gap-1 rounded-[13px] border border-white/10 bg-white/[0.08] p-3">
+      <em className="text-[10px] not-italic uppercase tracking-[0.08em] text-white/60">{label}</em>
+      <strong className="text-[20px] font-semibold text-white">{value}</strong>
+    </span>
+  );
+}
+
+function AdminCompletedPeoplePanel({ title, items, empty }: { title: string; items: Array<{ id: string; title: string; meta: string; detail: string }>; empty: string }) {
+  return (
+    <section className="grid content-start gap-3 rounded-[20px] border-hairline border-line bg-card p-4 md:p-5">
+      <span className="flex items-center justify-between gap-3">
+        <strong className="text-[17px] font-medium text-text-primary">{title}</strong>
+        <span className="rounded-full bg-surface px-2.5 py-1 text-[11px] font-medium text-text-secondary">{items.length}</span>
+      </span>
+      <div className="grid gap-2">
+        {items.map((item) => (
+          <article className="grid gap-0.5 rounded-[13px] bg-surface p-3" key={item.id}>
+            <strong className="truncate text-[14px] font-medium text-text-primary">{item.title}</strong>
+            <em className="truncate text-[11px] not-italic text-text-secondary">{item.meta}</em>
+            <span className="truncate text-[11px] text-text-muted">{item.detail}</span>
+          </article>
+        ))}
+        {!items.length && <p className="rounded-[13px] bg-surface p-3 text-[12px] text-text-secondary">{empty}</p>}
+      </div>
+    </section>
   );
 }
 
@@ -4107,22 +4359,6 @@ function downloadAdminCsv(fileName: string, rows: Array<Array<string | number | 
   URL.revokeObjectURL(url);
 }
 
-function parseAdminSaveTheDateRsvps(value: unknown): AdminSaveTheDateRsvp[] {
-  if (typeof value !== "string" || !value) return [];
-  try {
-    const parsed = JSON.parse(value) as { responses?: unknown };
-    if (!Array.isArray(parsed.responses)) return [];
-    return parsed.responses.flatMap((response) => {
-      if (!response || typeof response !== "object") return [];
-      const item = response as Partial<AdminSaveTheDateRsvp>;
-      if (!item.id || !item.fullName || !item.email || !item.submittedAt) return [];
-      return [{ id: item.id, fullName: item.fullName, email: item.email, jamaatCity: item.jamaatCity || "", submittedAt: item.submittedAt }];
-    }).sort((left, right) => (Date.parse(right.submittedAt) || 0) - (Date.parse(left.submittedAt) || 0));
-  } catch {
-    return [];
-  }
-}
-
 function slugifyAdminFileName(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "tournament";
 }
@@ -4259,6 +4495,18 @@ function formatAdminCurrency(cents: number | null, currency = "USD") {
 function formatAdminDate(value: string | null) {
   if (!value) return "TBD";
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatAdminEventDateRange(startsOn: string, endsOn: string) {
+  if (!startsOn) return "Next tournament save the date";
+  const start = new Date(`${startsOn}T00:00:00Z`);
+  const end = new Date(`${endsOn || startsOn}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return startsOn;
+  const month = start.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+  const year = start.getUTCFullYear();
+  return start.getUTCMonth() === end.getUTCMonth()
+    ? `${month} ${start.getUTCDate()}–${end.getUTCDate()}, ${year}`
+    : `${formatAdminDate(startsOn)} – ${formatAdminDate(endsOn)}`;
 }
 
 function formatAdminDateTime(value: string | null) {
